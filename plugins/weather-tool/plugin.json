@@ -1,0 +1,38 @@
+{
+  "id": "weather-tool",
+  "name": "天氣查詢工具",
+  "version": "1.0.0",
+  "description": "查詢全球城市天氣的工具",
+  "author": "OpenCode Team",
+  "type": "tool",
+  "entry_point": "main",
+  "class_name": "WeatherToolPlugin",
+  
+  "config_schema": {
+    "api_key": {
+      "type": "string",
+      "label": "OpenWeatherMap API Key",
+      "required": true,
+      "secret": true,
+      "description": "從 https://openweathermap.org/api 獲取"
+    },
+    "default_units": {
+      "type": "select",
+      "label": "溫度單位",
+      "options": ["metric", "imperial"],
+      "default": "metric"
+    },
+    "language": {
+      "type": "select",
+      "label": "語言",
+      "options": ["zh_tw", "zh_cn", "en", "ja"],
+      "default": "zh_tw"
+    }
+  },
+  
+  "permissions": ["network"],
+  
+  "dependencies": ["httpx"],
+  
+  "tags": ["weather", "utility", "api"]
+}

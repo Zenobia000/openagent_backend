@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # OpenCode API
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_HOST=redis
+      - QDRANT_HOST=qdrant
+      - OPENCODE_DEBUG=false
+      - OPENCODE_LOG_LEVEL=INFO
+    depends_on:
+      - redis
+      - qdrant
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - opencode-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - opencode-network
+
+  # Qdrant Vector DB
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+    networks:
+      - opencode-network
+
+  # PostgreSQL (for skill memory and audit)
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=opencode
+      - POSTGRES_PASSWORD=opencode
+      - POSTGRES_DB=opencode
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - opencode-network
+
+volumes:
+  redis-data:
+  qdrant-data:
+  postgres-data:
+
+networks:
+  opencode-network:
+    driver: bridge

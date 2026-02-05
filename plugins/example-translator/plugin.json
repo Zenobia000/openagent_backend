@@ -1,0 +1,17 @@
+{
+  "id": "example-translator",
+  "name": "翻譯工具",
+  "version": "1.0.0",
+  "description": "提供文字翻譯功能的示例插件",
+  "author": "OpenCode Team",
+  "type": "tool",
+  "dependencies": [],
+  "entry_point": "main",
+  "config_schema": {
+    "default_target_lang": {
+      "type": "string",
+      "default": "zh-TW",
+      "description": "預設目標語言"
+    }
+  }
+}

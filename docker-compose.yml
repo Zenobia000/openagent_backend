@@ -1,0 +1,116 @@
+# OpenCode Platform - Docker Compose
+# 
+# 使用方式:
+#   docker-compose up -d              # 啟動所有服務
+#   docker-compose up -d backend      # 只啟動後端
+#   docker-compose logs -f backend    # 查看後端日誌
+#   docker-compose down               # 停止所有服務
+#
+# 配置:
+#   - 創建 .env 文件設定環境變數
+#   - 或使用 docker-compose --env-file .env up
+#
+
+version: '3.8'
+
+services:
+  # ============== 向量資料庫 ==============
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: opencode-qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============== 後端 API ==============
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: opencode-backend
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - PYTHONPATH=/app/src
+      # 從 .env 傳遞 API 密鑰
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - COHERE_API_KEY=${COHERE_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-opencode-docker-secret}
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============== 前端 ==============
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        - VITE_API_URL=/api
+    container_name: opencode-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ============== Sandbox（程式碼執行）==============
+  sandbox:
+    build:
+      context: ./docker/sandbox
+      dockerfile: Dockerfile
+    container_name: opencode-sandbox
+    # 不暴露端口，由後端內部調用
+    volumes:
+      - sandbox_tmp:/tmp/sandbox
+    environment:
+      - SANDBOX_TIMEOUT=${SANDBOX_TIMEOUT:-30}
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    restart: unless-stopped
+
+  # ============== Redis（可選，用於快取）==============
+  # 取消註解以啟用 Redis
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: opencode-redis
+  #   ports:
+  #     - "${REDIS_PORT:-6379}:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  sandbox_tmp:
+  # redis_data:
+
+networks:
+  default:
+    name: opencode-network

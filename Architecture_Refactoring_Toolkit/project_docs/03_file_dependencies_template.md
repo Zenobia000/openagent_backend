@@ -67,6 +67,7 @@
 ### 3.1 架構分層依賴圖 (Layered Architecture Dependency Diagram)
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#ffffff', 'primaryTextColor':'#000000', 'primaryBorderColor':'#333333', 'lineColor':'#333333', 'secondaryColor':'#f5f5f5', 'tertiaryColor':'#ffffff', 'background':'#ffffff', 'mainBkg':'#ffffff', 'secondBkg':'#f9f9f9', 'tertiaryBkg':'#ffffff', 'fontFamily':'Arial, sans-serif', 'fontSize':'14px'}}}%%
 graph TD
     subgraph "外部系統 (External Systems)"
         direction LR
@@ -166,13 +167,13 @@ graph TD
     Executor --> MCP
     Executor --> DataSvc
 
-    classDef api fill:#e3f2fd,stroke:#1976d2
-    classDef core fill:#fff3e0,stroke:#f57c00
-    classDef orchestration fill:#f3e5f5,stroke:#7b1fa2
-    classDef service fill:#e8f5e9,stroke:#388e3c
-    classDef control fill:#fce4ec,stroke:#c2185b
-    classDef plugin fill:#e0f2f1,stroke:#00796b
-    classDef external fill:#f5f5f5,stroke:#616161
+    classDef api fill:#E8F4FD,stroke:#1565C0,stroke-width:2px,color:#000000
+    classDef core fill:#FFF8E1,stroke:#F57C00,stroke-width:2px,color:#000000
+    classDef orchestration fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px,color:#000000
+    classDef service fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000000
+    classDef control fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000000
+    classDef plugin fill:#E0F2F1,stroke:#00695C,stroke-width:2px,color:#000000
+    classDef external fill:#FAFAFA,stroke:#424242,stroke-width:2px,color:#000000
 
     class FastAPI,Middleware,Routes api
     class Engine,Protocols,Events,Context core

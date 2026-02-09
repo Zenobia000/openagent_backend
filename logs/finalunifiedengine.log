@@ -1,0 +1,151 @@
+2026-02-09 19:33:30 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 464  | [32m==================================================[0m
+2026-02-09 19:33:30 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 465  | [32m🚀 Initializing Final Unified Engine[0m
+2026-02-09 19:33:30 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 466  | [32m==================================================[0m
+2026-02-09 19:33:30 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 287  | [32m🔧 Initializing Service Manager...[0m
+2026-02-09 19:33:30 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _init_knowledge_service | 298  | [36mAttempting to initialize knowledge service...[0m
+2026-02-09 19:33:30 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_knowledge_service | 303  | [33m⚠️ Knowledge service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:33:30 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_sandbox_service | 312  | [33mSandbox service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:33:30 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_search_service | 321  | [33mSearch service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:33:30 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 476  | [32m✅ Final Unified Engine initialized successfully[0m
+2026-02-09 19:33:30 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 477  | [36mServices loaded: [][0m
+2026-02-09 19:33:30 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 478  | [36mLLM providers: ['default'][0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 488  | [32m📥 Received request: mode=ProcessingMode.AUTO, query='北極熊吃甚麼? 深度分析...'[0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 386  | [36m🤔 Selecting processing mode for query: '北極熊吃甚麼? 深度分析...'[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 420  | [32m🤖 Auto-selected mode: quick (complexity score: 0.00)[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 498  | [32m🌐 Processing with mode: quick[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Thinking Mode Processing[0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 523  | [36mUsing thinking depth: 1[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Thinking Mode Processing in 0.00s[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 117  | [32m🧠 Starting deep thinking: query='北極熊吃甚麼? 深度分析...', depth=1, reflection=True[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Problem Understanding[0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 125  | [36mUnderstanding result: General query about: 北極熊吃甚麼? 深度分析[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Problem Understanding in 0.00s[0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 130  | [36mThinking step 1/1[0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 135  | [36mGenerated thought at step 1: Step 1: Analyzing '北極熊吃甚麼? 深度分析' - Breaking down the question into components[0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 139  | [36mApplying self-reflection at step 1[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Conclusion Synthesis[0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 200  | [36mTrace content: ['📋 分析問題: 北極熊吃甚麼? 深度分析', 'General query about: 北極熊吃甚麼? 深度分析', '🔍 思考步驟 1/1', '💭 自我反思...', '📝 綜合結論...'][0m
+2026-02-09 19:33:38 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 208  | [36mSynthesis - greeting:False, status:False, feature:False, question:False[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 149  | [32m✅ Thinking completed: confidence=0.87, trace_length=5[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Conclusion Synthesis in 0.00s[0m
+2026-02-09 19:33:38 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 540  | [32m✅ Thinking mode completed: confidence=0.87[0m
+2026-02-09 19:44:02 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 636  | [32m==================================================[0m
+2026-02-09 19:44:02 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 637  | [32m🚀 Initializing Final Unified Engine[0m
+2026-02-09 19:44:02 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 638  | [32m==================================================[0m
+2026-02-09 19:44:02 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 454  | [32m🔧 Initializing Service Manager...[0m
+2026-02-09 19:44:02 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _init_knowledge_service | 465  | [36mAttempting to initialize knowledge service...[0m
+2026-02-09 19:44:02 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_knowledge_service | 470  | [33m⚠️ Knowledge service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:44:02 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_sandbox_service | 479  | [33mSandbox service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:44:02 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_search_service | 488  | [33mSearch service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:44:02 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 648  | [32m✅ Final Unified Engine initialized successfully[0m
+2026-02-09 19:44:02 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 649  | [36mServices loaded: [][0m
+2026-02-09 19:44:02 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 650  | [36mLLM providers: ['default'][0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 636  | [32m==================================================[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 637  | [32m🚀 Initializing Final Unified Engine[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 638  | [32m==================================================[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 454  | [32m🔧 Initializing Service Manager...[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _init_knowledge_service | 465  | [36mAttempting to initialize knowledge service...[0m
+2026-02-09 19:44:20 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_knowledge_service | 470  | [33m⚠️ Knowledge service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:44:20 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_sandbox_service | 479  | [33mSandbox service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:44:20 | [33mWARNING[0m | FinalUnifiedEngine | unified_final_engine | _init_search_service | 488  | [33mSearch service not available: unexpected character after line continuation character (__init__.py, line 1)[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 648  | [32m✅ Final Unified Engine initialized successfully[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 649  | [36mServices loaded: [][0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | initialize           | 650  | [36mLLM providers: ['default'][0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 660  | [32m📥 Received request: mode=ProcessingMode.AUTO, query='你好...'[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 558  | [36m🤔 Selecting processing mode for query: '你好...'[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 592  | [32m🤖 Auto-selected mode: quick (complexity score: 0.00)[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 670  | [32m🌐 Processing with mode: quick[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Thinking Mode Processing[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 695  | [36mUsing thinking depth: 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Thinking Mode Processing in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 124  | [32m🧠 Starting deep thinking: query='你好...', depth=1, reflection=True[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Problem Understanding[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 132  | [36mUnderstanding result: Greeting: User is saying hello[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Problem Understanding in 0.00s[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 137  | [36mThinking step 1/1[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 142  | [36mGenerated thought at step 1: User is greeting me, I should respond politely[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 146  | [36mApplying self-reflection at step 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Conclusion Synthesis[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 217  | [36mTrace content: ['📋 分析問題: 你好', 'Greeting: User is saying hello', '🔍 思考步驟 1/1', '💭 自我反思...', '📝 綜合結論...'][0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 218  | [36mOriginal query extracted: 你好[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 226  | [36mSynthesis - greeting:True, status:False, feature:False, question:False[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 156  | [32m✅ Thinking completed: confidence=0.87, trace_length=5[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Conclusion Synthesis in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 712  | [32m✅ Thinking mode completed: confidence=0.87[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 660  | [32m📥 Received request: mode=ProcessingMode.AUTO, query='北極熊吃甚麼? 深度分析...'[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 558  | [36m🤔 Selecting processing mode for query: '北極熊吃甚麼? 深度分析...'[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 592  | [32m🤖 Auto-selected mode: chat (complexity score: 0.36)[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 670  | [32m🌐 Processing with mode: chat[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Service Mode Processing[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Service Mode Processing in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | _process_service_mode | 750  | [32m✅ Service mode completed: service=chat[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 660  | [32m📥 Received request: mode=ProcessingMode.AUTO, query='系統狀態...'[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 558  | [36m🤔 Selecting processing mode for query: '系統狀態...'[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 592  | [32m🤖 Auto-selected mode: quick (complexity score: 0.00)[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 670  | [32m🌐 Processing with mode: quick[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Thinking Mode Processing[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 695  | [36mUsing thinking depth: 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Thinking Mode Processing in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 124  | [32m🧠 Starting deep thinking: query='系統狀態...', depth=1, reflection=True[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Problem Understanding[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 132  | [36mUnderstanding result: General query about: 系統狀態[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Problem Understanding in 0.00s[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 137  | [36mThinking step 1/1[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 142  | [36mGenerated thought at step 1: Step 1: Analyzing '系統狀態' - Breaking down the question into components[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 146  | [36mApplying self-reflection at step 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Conclusion Synthesis[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 217  | [36mTrace content: ['📋 分析問題: 系統狀態', 'General query about: 系統狀態', '🔍 思考步驟 1/1', '💭 自我反思...', '📝 綜合結論...'][0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 218  | [36mOriginal query extracted: 系統狀態[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 226  | [36mSynthesis - greeting:False, status:True, feature:False, question:False[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 156  | [32m✅ Thinking completed: confidence=0.87, trace_length=5[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Conclusion Synthesis in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 712  | [32m✅ Thinking mode completed: confidence=0.87[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 660  | [32m📥 Received request: mode=ProcessingMode.AUTO, query='功能...'[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 558  | [36m🤔 Selecting processing mode for query: '功能...'[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 592  | [32m🤖 Auto-selected mode: quick (complexity score: 0.00)[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 670  | [32m🌐 Processing with mode: quick[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Thinking Mode Processing[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 695  | [36mUsing thinking depth: 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Thinking Mode Processing in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 124  | [32m🧠 Starting deep thinking: query='功能...', depth=1, reflection=True[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Problem Understanding[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 132  | [36mUnderstanding result: General query about: 功能[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Problem Understanding in 0.00s[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 137  | [36mThinking step 1/1[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 142  | [36mGenerated thought at step 1: Step 1: Analyzing '功能' - Breaking down the question into components[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 146  | [36mApplying self-reflection at step 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Conclusion Synthesis[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 217  | [36mTrace content: ['📋 分析問題: 功能', 'General query about: 功能', '🔍 思考步驟 1/1', '💭 自我反思...', '📝 綜合結論...'][0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 218  | [36mOriginal query extracted: 功能[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 226  | [36mSynthesis - greeting:False, status:False, feature:True, question:False[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 156  | [32m✅ Thinking completed: confidence=0.87, trace_length=5[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Conclusion Synthesis in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 712  | [32m✅ Thinking mode completed: confidence=0.87[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 660  | [32m📥 Received request: mode=ProcessingMode.AUTO, query='什麼是 AI?...'[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 558  | [36m🤔 Selecting processing mode for query: '什麼是 AI?...'[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 592  | [32m🤖 Auto-selected mode: quick (complexity score: 0.00)[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 670  | [32m🌐 Processing with mode: quick[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Thinking Mode Processing[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 695  | [36mUsing thinking depth: 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Thinking Mode Processing in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 124  | [32m🧠 Starting deep thinking: query='什麼是 AI?...', depth=1, reflection=True[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Problem Understanding[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 132  | [36mUnderstanding result: Question: User asking for definition or explanation[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Problem Understanding in 0.00s[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 137  | [36mThinking step 1/1[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 142  | [36mGenerated thought at step 1: Step 1: Analyzing '什麼是 AI?' - Breaking down the question into components[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 146  | [36mApplying self-reflection at step 1[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Conclusion Synthesis[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 217  | [36mTrace content: ['📋 分析問題: 什麼是 AI?', 'Question: User asking for definition or explanation', '🔍 思考步驟 1/1', '💭 自我反思...', '📝 綜合結論...'][0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 218  | [36mOriginal query extracted: 什麼是 AI?[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | _synthesize_conclusion | 226  | [36mSynthesis - greeting:False, status:False, feature:False, question:True[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | think_deeply         | 156  | [32m✅ Thinking completed: confidence=0.87, trace_length=5[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Conclusion Synthesis in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | _process_thinking_mode | 712  | [32m✅ Thinking mode completed: confidence=0.87[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 660  | [32m📥 Received request: mode=ProcessingMode.AUTO, query='深度分析: 氣候變化的影響...'[0m
+2026-02-09 19:44:20 | [36mDEBUG[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 558  | [36m🤔 Selecting processing mode for query: '深度分析: 氣候變化的影響...'[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | select_mode          | 592  | [32m🤖 Auto-selected mode: chat (complexity score: 0.36)[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | process              | 670  | [32m🌐 Processing with mode: chat[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __enter__            | 186  | [32m🚀 Starting Service Mode Processing[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | logging_config       | __exit__             | 196  | [32m✅ Completed Service Mode Processing in 0.00s[0m
+2026-02-09 19:44:20 | [32mINFO[0m | FinalUnifiedEngine | unified_final_engine | _process_service_mode | 750  | [32m✅ Service mode completed: service=chat[0m

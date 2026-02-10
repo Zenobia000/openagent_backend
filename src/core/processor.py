@@ -27,10 +27,19 @@ class BaseProcessor(ABC):
         """處理請求 - 子類必須實現"""
         pass
 
-    async def _call_llm(self, prompt: str, streaming: bool = False) -> str:
+    async def _call_llm(self, prompt: str, context: ProcessingContext = None) -> str:
         """調用 LLM - 公共方法"""
         if not self.llm_client:
             return f"[Mock Response] {prompt[:50]}..."
+
+        # # 記錄 prompt (截取前500字符用於日誌)
+        # self.logger.info(
+        #     f"📝 LLM Prompt: {prompt[:500]}...",
+        #     "llm",
+        #     "prompt",
+        #     prompt_length=len(prompt),
+        #     prompt_preview=prompt[:200]
+        # )
 
         start_time = time.time()
         with self.logger.measure("llm_call"):
@@ -52,7 +61,7 @@ class BaseProcessor(ABC):
 
             duration_ms = (time.time() - start_time) * 1000
 
-            # 記錄 LLM 調用
+            # 記錄 LLM 調用和回應
             self.logger.log_llm_call(
                 model="gpt-4o",
                 tokens_in=tokens_in,
@@ -60,9 +69,19 @@ class BaseProcessor(ABC):
                 duration_ms=duration_ms
             )
 
+            # 記錄 response (截取前500字符用於日誌)
+            self.logger.info(
+                f"🤖 LLM Response: {response[:500]}...",
+                "llm",
+                "response",
+                response_length=len(response),
+                response_preview=response[:200],
+                tokens_used=total_tokens
+            )
+
             # 更新上下文的 token 統計
-            if hasattr(self, 'context') and self.context:
-                self.context.total_tokens += total_tokens
+            if context:
+                context.total_tokens += total_tokens
 
             return response
 
@@ -92,7 +111,7 @@ class ChatProcessor(BaseProcessor):
 
         # 組合完整提示
         full_prompt = f"{system_prompt}\n\n{output_guidelines}\n\nUser: {context.request.query}"
-        response = await self._call_llm(full_prompt)
+        response = await self._call_llm(full_prompt, context)
 
         # 發送消息
         self.logger.message(response)
@@ -119,6 +138,11 @@ class KnowledgeProcessor(BaseProcessor):
 
         # Step 1: 檢索相關知識
         self.logger.progress("embedding", "start")
+        self.logger.info(
+            f"🔢 Generating embeddings for query: {context.request.query[:100]}",
+            "knowledge",
+            "embedding"
+        )
         await asyncio.sleep(0.1)  # 模擬 embedding
         self.logger.progress("embedding", "end")
 
@@ -138,7 +162,7 @@ class KnowledgeProcessor(BaseProcessor):
         # 這裡應該調用實際的 RAG 系統
         relevant_docs = ["Doc1: 相關內容...", "Doc2: 更多內容..."]
 
-        # 記錄檢索結果
+        # 記錄檢索結果到日誌
         self.logger.info(
             f"📖 RAG Results: Found {len(relevant_docs)} relevant documents",
             "rag",
@@ -147,9 +171,22 @@ class KnowledgeProcessor(BaseProcessor):
             top_score=0.92
         )
 
+        self.logger.info(
+            f"📄 Retrieved documents: {relevant_docs}",
+            "knowledge",
+            "docs_retrieved",
+            docs=relevant_docs[:3]  # 只記錄前3個
+        )
+
         self.logger.progress("search", "end", {"docs_found": len(relevant_docs)})
 
         # Step 3: 生成答案
+        self.logger.info(
+            f"🔄 Synthesizing answer from retrieved knowledge...",
+            "knowledge",
+            "synthesis"
+        )
+
         # 使用知識檢索提示詞模板
         prompt = PromptTemplates.get_search_knowledge_result_prompt(
             query=context.request.query,
@@ -161,8 +198,9 @@ class KnowledgeProcessor(BaseProcessor):
         citation_rules = PromptTemplates.get_citation_rules()
         full_prompt = f"{prompt}\n\n{citation_rules}"
 
-        response = await self._call_llm(full_prompt)
+        response = await self._call_llm(full_prompt, context)
 
+        # 只輸出最終答案
         self.logger.message(response)
         context.mark_step_complete("knowledge-retrieval")
         self.logger.progress("knowledge-retrieval", "end")
@@ -186,26 +224,53 @@ class SearchProcessor(BaseProcessor):
 
         # Step 1: 生成 SERP 查詢
         self.logger.progress("query-generation", "start")
+        self.logger.info(
+            f"🔍 Generating search queries for: {context.request.query[:100]}",
+            "search",
+            "query_generation"
+        )
         search_queries = await self._generate_serp_queries(context.request.query)
+        self.logger.info(
+            f"📝 Generated {len(search_queries)} search queries",
+            "search",
+            "queries_generated",
+            queries=search_queries
+        )
         self.logger.progress("query-generation", "end", {"queries": len(search_queries)})
 
         # Step 2: 執行多個搜索
         self.logger.progress("searching", "start")
         all_results = []
-        for query_obj in search_queries:
+        for i, query_obj in enumerate(search_queries, 1):
+            self.logger.info(
+                f"🌐 Searching {i}/{len(search_queries)}: {query_obj.get('query', '')[:100]}",
+                "search",
+                "performing_search"
+            )
             results = await self._perform_search(query_obj.get('query', ''))
             all_results.append({
                 'query': query_obj.get('query'),
                 'goal': query_obj.get('researchGoal'),
                 'results': results
             })
+            self.logger.info(
+                f"✅ Search {i} complete: {len(results)} chars of results",
+                "search",
+                "search_complete"
+            )
         self.logger.progress("searching", "end", {"total_results": len(all_results)})
 
-        # Step 3: 使用專業 prompt 處理結果
+        # Step 3: 使用專業 prompt 處理結果 - 只輸出最終結果
         combined_context = "\n\n".join([
             f"Query: {r['query']}\nGoal: {r['goal']}\nResults: {r['results']}"
             for r in all_results
         ])
+
+        self.logger.info(
+            f"🔄 Synthesizing search results...",
+            "search",
+            "synthesis"
+        )
 
         prompt = PromptTemplates.get_search_result_prompt(
             query=context.request.query,
@@ -217,8 +282,9 @@ class SearchProcessor(BaseProcessor):
         citation_rules = PromptTemplates.get_citation_rules()
         full_prompt = f"{prompt}\n\n{citation_rules}"
 
-        response = await self._call_llm(full_prompt)
+        response = await self._call_llm(full_prompt, context)
 
+        # 只輸出最終答案
         self.logger.message(response)
         context.mark_step_complete("web-search")
         self.logger.progress("web-search", "end")
@@ -247,7 +313,7 @@ class SearchProcessor(BaseProcessor):
         # 使用專業的 SERP 查詢提示詞
         prompt = PromptTemplates.get_serp_queries_prompt(plan, output_schema)
 
-        response = await self._call_llm(prompt)
+        response = await self._call_llm(prompt, None)
 
         # 解析 JSON 回應
         try:
@@ -288,7 +354,7 @@ class SearchProcessor(BaseProcessor):
                 research_goal="提供準確、最新的資訊"
             )
             full_prompt = f"{result_prompt}\n\n搜索結果：{raw_results}"
-            processed_results = await self._call_llm(full_prompt)
+            processed_results = await self._call_llm(full_prompt, None)
             return processed_results
 
         return raw_results
@@ -321,11 +387,35 @@ class ThinkingProcessor(BaseProcessor):
         self.logger.progress("problem-analysis", "start")
         self.logger.reasoning("Decomposing and understanding core elements...", streaming=True)
 
+        # 記錄階段開始 (只在日誌中顯示)
+        self.logger.info(
+            f"🔍 Stage 1: Problem Understanding & Decomposition",
+            "thinking",
+            "stage1",
+            query=context.request.query[:100]
+        )
+
         # 使用思考模式的專業提示詞
         thinking_prompt = PromptTemplates.get_thinking_mode_prompt(context.request.query)
 
         # 執行深度思考
-        thinking_response = await self._call_llm(thinking_prompt)
+        thinking_response = await self._call_llm(thinking_prompt, context)
+
+        # 將結果輸出到日誌 (不是 message)
+        self.logger.info(
+            f"💭 Stage 1 Result: {thinking_response[:500]}...",
+            "thinking",
+            "stage1_result",
+            full_length=len(thinking_response)
+        )
+
+        # 記錄階段完成
+        self.logger.info(
+            f"✅ Stage 1: Problem Analysis Complete",
+            "thinking",
+            "stage1_complete",
+            response_length=len(thinking_response)
+        )
 
         self.logger.progress("problem-analysis", "end", {"analyzed": True})
 
@@ -333,13 +423,28 @@ class ThinkingProcessor(BaseProcessor):
         self.logger.progress("multi-perspective", "start")
         self.logger.reasoning("Analyzing from multiple perspectives...", streaming=True)
 
+        # 記錄第二階段開始 (只在日誌中顯示)
+        self.logger.info(
+            f"🔍 Stage 2: Critical Multi-Perspective Analysis",
+            "thinking",
+            "stage2"
+        )
+
         # 使用批判性思維提示詞
         critical_prompt = PromptTemplates.get_critical_thinking_prompt(
             question=context.request.query,
             context=thinking_response
         )
 
-        critical_analysis = await self._call_llm(critical_prompt)
+        critical_analysis = await self._call_llm(critical_prompt, context)
+
+        # 將結果輸出到日誌 (不是 message)
+        self.logger.info(
+            f"💭 Stage 2 Result: {critical_analysis[:500]}...",
+            "thinking",
+            "stage2_result",
+            full_length=len(critical_analysis)
+        )
 
         self.logger.progress("multi-perspective", "end", {"perspectives": 5})
 
@@ -347,10 +452,25 @@ class ThinkingProcessor(BaseProcessor):
         self.logger.progress("deep-reasoning", "start")
         self.logger.reasoning("Conducting deep reasoning and logical analysis...", streaming=True)
 
+        # 記錄第三階段開始 (只在日誌中顯示)
+        self.logger.info(
+            f"🔍 Stage 3: Chain of Deep Reasoning",
+            "thinking",
+            "stage3"
+        )
+
         # 使用推理鏈提示詞
         reasoning_prompt = PromptTemplates.get_chain_of_thought_prompt(context.request.query)
 
-        chain_reasoning = await self._call_llm(reasoning_prompt)
+        chain_reasoning = await self._call_llm(reasoning_prompt, context)
+
+        # 將結果輸出到日誌 (不是 message)
+        self.logger.info(
+            f"💭 Stage 3 Result: {chain_reasoning[:500]}...",
+            "thinking",
+            "stage3_result",
+            full_length=len(chain_reasoning)
+        )
 
         self.logger.progress("deep-reasoning", "end")
 
@@ -358,55 +478,70 @@ class ThinkingProcessor(BaseProcessor):
         self.logger.progress("synthesis-reflection", "start")
         self.logger.reasoning("Synthesizing all analysis and reflecting...", streaming=True)
 
+        # 記錄第四階段開始 (只在日誌中顯示)
+        self.logger.info(
+            f"🔍 Stage 4: Synthesis & Reflection",
+            "thinking",
+            "stage4"
+        )
+
         # 使用反思提示詞
         reflection_prompt = PromptTemplates.get_reflection_prompt(
             original_response=f"{thinking_response}\n\n{critical_analysis}\n\n{chain_reasoning}",
             question=context.request.query
         )
 
-        reflection = await self._call_llm(reflection_prompt)
+        reflection = await self._call_llm(reflection_prompt, context)
+
+        # 將結果輸出到日誌 (不是 message)
+        self.logger.info(
+            f"💭 Stage 4 Result: {reflection[:500]}...",
+            "thinking",
+            "stage4_result",
+            full_length=len(reflection)
+        )
 
         self.logger.progress("synthesis-reflection", "end")
 
         # Step 5: Final answer generation
         self.logger.progress("final-synthesis", "start")
 
-        # Combine all thinking processes
-        complete_thinking = f"""
-Deep Thinking Process:
+        # 記錄最終階段開始 (只在日誌中顯示)
+        self.logger.info(
+            f"🎯 Stage 5: Final Comprehensive Answer",
+            "thinking",
+            "stage5"
+        )
 
-【Problem Understanding & Decomposition】
-{thinking_response}
+        # 準備最終答案提示詞
+        final_synthesis_prompt = f"""
+Based on the following deep thinking process, provide a comprehensive final answer to the question: "{context.request.query}"
 
-【Critical Analysis】
-{critical_analysis}
+Thinking Process Summary:
+1. Problem Understanding: {thinking_response[:200]}...
+2. Critical Analysis: {critical_analysis[:200]}...
+3. Chain of Reasoning: {chain_reasoning[:200]}...
+4. Reflection: {reflection[:200]}...
 
-【Chain of Reasoning】
-{chain_reasoning}
-
-【Reflection & Improvement】
-{reflection}
-
-【Final Comprehensive Answer】
-Based on the above deep thinking process, here is the complete answer to "{context.request.query}":
+Please provide a complete, well-structured answer that synthesizes all insights from the above analysis.
 """
 
         # 使用輸出指南確保答案品質
         output_guidelines = PromptTemplates.get_output_guidelines()
-        final_prompt = f"{complete_thinking}\n\n{output_guidelines}"
+        final_prompt = f"{final_synthesis_prompt}\n\n{output_guidelines}"
 
-        final_response = await self._call_llm(final_prompt)
+        final_response = await self._call_llm(final_prompt, context)
+
+        # 只輸出最終答案作為回應
+        self.logger.message(final_response)
 
         self.logger.progress("final-synthesis", "end")
-
-        # Send complete thinking process and final answer
-        full_response = f"{complete_thinking}\n{final_response}"
-        self.logger.message(full_response)
 
         context.mark_step_complete("deep-thinking")
         self.logger.progress("deep-thinking", "end")
 
-        return full_response
+        # 只返回最終答案
+        return final_response
 
 
 class KnowledgeGraphProcessor(BaseProcessor):
@@ -424,7 +559,7 @@ class KnowledgeGraphProcessor(BaseProcessor):
             # 先生成詳細內容
             system_prompt = PromptTemplates.get_system_instruction()
             content_prompt = f"{system_prompt}\n\n請針對以下主題生成詳細的說明文章：{context.request.query}"
-            article = await self._call_llm(content_prompt)
+            article = await self._call_llm(content_prompt, context)
         else:
             # 直接使用提供的內容
             article = context.request.query
@@ -438,7 +573,7 @@ class KnowledgeGraphProcessor(BaseProcessor):
         graph_prompt = PromptTemplates.get_knowledge_graph_prompt()
         full_prompt = f"{graph_prompt}\n\n文章內容：\n{article}"
 
-        mermaid_graph = await self._call_llm(full_prompt)
+        mermaid_graph = await self._call_llm(full_prompt, context)
 
         self.logger.progress("graph-generation", "end")
 
@@ -477,7 +612,7 @@ class CodeProcessor(BaseProcessor):
         # Step 2: 生成代碼
         self.logger.progress("code-generation", "start")
         prompt = f"生成代碼來完成：{code_request}"
-        generated_code = await self._call_llm(prompt)
+        generated_code = await self._call_llm(prompt, context)
         self.logger.message(f"```python\n{generated_code}\n```")
         self.logger.progress("code-generation", "end")
 
@@ -520,7 +655,7 @@ class RewritingProcessor(BaseProcessor):
 
         # 執行重寫
         self.logger.progress("markdown-conversion", "start")
-        rewritten_content = await self._call_llm(full_prompt)
+        rewritten_content = await self._call_llm(full_prompt, context)
         self.logger.progress("markdown-conversion", "end")
 
         # 輸出結果
@@ -574,13 +709,17 @@ class DeepResearchProcessor(BaseProcessor):
         # 使用報告計劃 prompt
         plan_prompt = PromptTemplates.get_report_plan_prompt(context.request.query)
 
-        # 串流推理過程
+        # 推理過程
         self.logger.reasoning("開始分析研究需求...", streaming=True)
-        plan = await self._call_llm(plan_prompt, streaming=True)
-        self.logger.reasoning(f"研究計劃制定完成：{plan[:100]}...", streaming=False)
+        plan = await self._call_llm(plan_prompt, context)
 
-        # 發送計劃消息
-        self.logger.message(f"研究計劃：\n{plan}", streaming=False)
+        # 記錄計劃到日誌
+        self.logger.info(
+            f"📋 Research plan created: {plan[:300]}...",
+            "deep_research",
+            "plan_result",
+            plan_length=len(plan)
+        )
 
         self.logger.progress("report-plan", "end", {"plan": plan[:200]})
 
@@ -613,7 +752,7 @@ class DeepResearchProcessor(BaseProcessor):
 
         # 使用 SERP 查詢 prompt
         serp_prompt = PromptTemplates.get_serp_queries_prompt(plan, output_schema)
-        response = await self._call_llm(serp_prompt)
+        response = await self._call_llm(serp_prompt, context)
 
         # 解析查詢
         try:
@@ -754,7 +893,7 @@ class DeepResearchProcessor(BaseProcessor):
                 research_goal=goal,
                 context=json.dumps(search_result, ensure_ascii=False)
             )
-            processed = await self._call_llm(result_prompt)
+            processed = await self._call_llm(result_prompt, None)
             search_result['processed'] = processed
 
         return search_result
@@ -810,7 +949,7 @@ class DeepResearchProcessor(BaseProcessor):
         self.logger.reasoning("綜合所有研究結果，生成最終報告...", streaming=True)
 
         # 生成報告
-        final_report = await self._call_llm(full_prompt, streaming=True)
+        final_report = await self._call_llm(full_prompt, context, streaming=True)
 
         # 記錄記憶體回收
         self.logger.info(

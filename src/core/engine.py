@@ -46,7 +46,7 @@ class RefactoredEngine:
         # 這裡可以加載服務、連接數據庫等
 
         self.initialized = True
-        self.logger.info("RefactoredEngine initialized successfully")
+        self.logger.info("AI Engine initialized successfully")
 
     async def process(self, request: Request) -> Response:
         """

@@ -44,7 +44,7 @@ async def chat_mode():
 
     engine = RefactoredEngine(llm_client=llm_client)
     await engine.initialize()
-    logger.info("✅ RefactoredEngine initialized successfully", "main", "initialize")
+    logger.info("✅ AI Engine initialized successfully", "main", "initialize")
 
     # 模式映射
     modes = {
@@ -168,7 +168,7 @@ async def chat_mode():
                 # 顯示處理資訊
                 print(f"\n📈 處理資訊:")
                 print(f"  ⏱️  處理時間: {elapsed_time:.0f}ms")
-                print(f"  📊 Token 使用: {response.tokens_used if response.tokens_used else 'N/A'}")
+                print(f"  📊 Token 使用: {response.tokens_used if response.tokens_used > 0 else 'N/A (Mock Mode)'}")
                 print(f"  🔍 追蹤 ID: {request.trace_id[:8]}...")
                 print(f"  📁 日誌檔案: logs/opencode_{datetime.now().strftime('%Y%m%d')}.log")
                 print()

@@ -939,7 +939,7 @@ class DeepResearchProcessor(BaseProcessor):
         self.logger.reasoning("綜合所有研究結果，生成最終報告...", streaming=True)
 
         # 生成報告
-        final_report = await self._call_llm(full_prompt, context, streaming=True)
+        final_report = await self._call_llm(full_prompt, context)
 
         # 記錄記憶體回收
         self.logger.info(

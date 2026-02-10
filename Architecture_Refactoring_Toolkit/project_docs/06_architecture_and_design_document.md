@@ -66,27 +66,29 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph "客戶端 (Clients)"
-        CLI[CLI<br/><b>(主要交互方式)</b><br>main]
-        WebUI[Web UI (未來)<br/>Vue.js SPA]
+    subgraph "Clients"
+        CLI["CLI<br/>主要交互方式<br/>main"]
+        WebUI["Web UI 未來<br/>Vue.js SPA"]
     end
 
-    subgraph "應用服務 (Application Services)"
-        APIGateway[API Gateway<br/>(FastAPI - 基礎存根)<br>src/api]
-        CoreEngine[Core Engine<br/><b>(核心業務邏輯)</b><br>src/core]
+    subgraph "Application Services"
+        APIGateway["API Gateway<br/>FastAPI - 基礎存根<br/>src/api"]
+        CoreEngine["Core Engine<br/>核心業務邏輯<br/>src/core"]
     end
 
-    subgraph "後端服務 (Backend Services)"
-        direction LR
-        KnowledgeSvc[Knowledge Service<br>src/services/knowledge]
-        SandboxSvc[Sandbox Service<br>src/services/sandbox]
-        SearchSvc[Search Service<br>src/services/search]
-        OtherSvcs[...]
+    subgraph "Backend Services"
+        KnowledgeSvc["Knowledge Service<br/>src/services/knowledge"]
+        SandboxSvc["Sandbox Service<br/>src/services/sandbox"]
+        SearchSvc["Search Service<br/>src/services/search"]
+        LLMSvc["LLM Service<br/>src/services/llm_service"]
+        BrowserSvc["Browser Service<br/>src/services/browser"]
+        ResearchSvc["Research Service<br/>src/services/research"]
+        RepoSvc["Repo Service<br/>src/services/repo"]
     end
 
-    subgraph "數據存儲 (Data Stores)"
-        QdrantDB[(Qdrant DB)]
-        LocalFS[(Local Filesystem<br>logs/, data/)]
+    subgraph "Data Stores"
+        QdrantDB[("Qdrant DB")]
+        LocalFS[("Local Filesystem<br/>logs/, data/")]
     end
 
     CLI --> CoreEngine
@@ -97,9 +99,17 @@ graph TB
     CoreEngine --> KnowledgeSvc
     CoreEngine --> SandboxSvc
     CoreEngine --> SearchSvc
-    CoreEngine --> OtherSvcs
-    
+    CoreEngine --> LLMSvc
+    CoreEngine --> BrowserSvc
+    CoreEngine --> ResearchSvc
+    CoreEngine --> RepoSvc
+
     KnowledgeSvc --> QdrantDB
+    KnowledgeSvc --> LLMSvc
+    ResearchSvc --> SearchSvc
+    ResearchSvc --> LLMSvc
+    SandboxSvc --> LocalFS
+    RepoSvc --> LocalFS
     
     style CoreEngine fill:#FFF8E1,stroke:#F57C00
     style CLI fill:#E8F4FD,stroke:#1565C0
@@ -110,9 +120,9 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph "Core Engine System (`src/core`)"
-        Engine[RefactoredEngine<br>engine.py]
-        Factory[ProcessorFactory<br>processor.py]
+    subgraph "Core Engine System (src/core)"
+        Engine[RefactoredEngine<br/>engine.py]
+        Factory[ProcessorFactory<br/>processor.py]
 
         subgraph "Processors (策略模式)"
             Chat[ChatProcessor]
@@ -124,13 +134,13 @@ graph LR
         end
 
         subgraph "Core Data & Interfaces"
-            Models[Data Models<br>models.py]
-            Protocols[Service Protocols<br>protocols.py]
-            Prompts[Prompt Templates<br>prompts.py]
+            Models[Data Models<br/>models.py]
+            Protocols[Service Protocols<br/>protocols.py]
+            Prompts[Prompt Templates<br/>prompts.py]
         end
     end
     
-    subgraph "Service Layer (`src/services`)"
+    subgraph "Service Layer (src/services)"
         KnowledgeSvc[Knowledge Service]
         SandboxSvc[Sandbox Service]
         LLMSvc[LLM Service]
@@ -179,23 +189,20 @@ graph LR
 ```mermaid
 graph TB
     subgraph "核心域 (Core Domain)"
-        direction LR
-        EngineCtx[Engine Context<br>核心引擎與路由<br><b>core.engine</b>]
-        ProcessingCtx[Processing Context<br>多模式處理策略<br><b>core.processor</b>]
+        EngineCtx[Engine Context<br/>核心引擎與路由<br/>core.engine]
+        ProcessingCtx[Processing Context<br/>多模式處理策略<br/>core.processor]
     end
 
     subgraph "支撐域 (Supporting Domain)"
-        direction LR
-        LLMCtx[LLM Service Context<br>模型服務]
-        KnowledgeCtx[Knowledge Service Context<br>知識庫服務]
-        SandboxCtx[Sandbox Service Context<br>沙箱服務]
-        SearchCtx[Search Service Context<br>網路搜索服務]
+        LLMCtx[LLM Service Context<br/>模型服務]
+        KnowledgeCtx[Knowledge Service Context<br/>知識庫服務]
+        SandboxCtx[Sandbox Service Context<br/>沙箱服務]
+        SearchCtx[Search Service Context<br/>網路搜索服務]
     end
 
     subgraph "通用域 (Generic Domain)"
-        direction LR
-        LoggingCtx[Logging Context<br>日誌系統]
-        ModelCtx[Data Model Context<br>統一數據模型]
+        LoggingCtx[Logging Context<br/>日誌系統]
+        ModelCtx[Data Model Context<br/>統一數據模型]
     end
 
     EngineCtx --> ProcessingCtx

@@ -1,30 +1,20 @@
 """
-OpenCode Platform Core Module
-核心模組 - 最終統一架構
+OpenCode Platform - 重構版核心模組
+簡化架構，統一處理流程，整合日誌系統
 """
 
-from .unified_final_engine import (
-    FinalUnifiedEngine,
-    Engine,
-    UnifiedRequest,
-    UnifiedResponse,
-    ProcessingMode,
-    ThinkingDepth,
-    IntelligentRouter,
-    ThinkingEngine,
-    ServiceManager
-)
-from ..services.llm.openai_client import OpenAILLMClient # Add this import
+from .engine import RefactoredEngine
+from .processor import ProcessorFactory
+from .models import Request, Response, ProcessingContext, ProcessingMode, EventType
+from .logger import structured_logger
 
 __all__ = [
-    'Engine',
-    'FinalUnifiedEngine',
-    'UnifiedRequest',
-    'UnifiedResponse',
+    'RefactoredEngine',
+    'ProcessorFactory',
+    'Request',
+    'Response',
+    'ProcessingContext',
     'ProcessingMode',
-    'ThinkingDepth',
-    'IntelligentRouter',
-    'ThinkingEngine',
-    'ServiceManager',
-    'OpenAILLMClient' # Add OpenAILLMClient to __all__
+    'EventType',
+    'structured_logger'
 ]

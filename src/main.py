@@ -43,7 +43,7 @@ def run_cli():
     console = Console()
 
     async def cli_loop():
-        print(sys.path) # Debugging print statement
+        # print(sys.path) # Debugging print statement
         engine = Engine()
         await engine.initialize()
 

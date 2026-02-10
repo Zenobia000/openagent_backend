@@ -15,7 +15,7 @@ from datetime import datetime
 from urllib.parse import quote_plus, urlparse
 from bs4 import BeautifulSoup
 
-from opencode.core.utils import load_env
+from core.utils import load_env
 load_env()
 
 logger = logging.getLogger(__name__)

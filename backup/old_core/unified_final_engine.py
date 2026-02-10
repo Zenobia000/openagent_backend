@@ -8,11 +8,9 @@ import asyncio
 import os
 import sys
 import json  # Added for parsing LLM responses
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
-from datetime import datetime
-from abc import ABC, abstractmethod
 
 # 添加 utils 到路徑
 
@@ -21,15 +19,11 @@ from abc import ABC, abstractmethod
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.logging_config import get_logger, LogContext, LogLevel
 
-# 導入提示詞模板
-try:
-    from .prompts import PromptTemplates
-except ImportError:
-    # 如果相對導入失敗，嘗試絕對導入
-    from prompts import PromptTemplates
+# 導入 OpenAI LLM Client
+from services.llm.openai_client import OpenAILLMClient
 
 # 獲取專用 logger
-logger = get_logger("FinalUnifiedEngine", LogLevel.DEBUG)
+logger = get_logger("FinalUnifiedEngine", LogLevel.INFO)
 
 
 # ========================================
@@ -118,11 +112,12 @@ class UnifiedResponse:
 class ThinkingEngine:
     """深度思考引擎 - 基於 unified_python_architecture.md"""
 
-    def __init__(self, llm_client: Optional[OpenAILLMClient] = None):
+    def __init__(self, llm_client = None):
         self.thinking_chain = None
         self.reflection_module = None
         self.critique_module = None
-        self.llm_client = llm_client if llm_client else OpenAILLMClient()
+        # Use provided llm_client, even if it's None (for mock mode)
+        self.llm_client = llm_client
 
     async def think_deeply(
         self, query: str, depth: int = ThinkingDepth.MEDIUM, enable_reflection: bool = True
@@ -174,16 +169,40 @@ class ThinkingEngine:
 
     async def _understand_problem(self, query: str) -> str:
         """理解問題 - 透過 LLM 進行"""
+        if self.llm_client is None:
+            # Mock implementation
+            if "你好" in query or "hello" in query.lower():
+                return "Greeting: User is saying hello"
+            elif "?" in query or "什麼" in query or "what" in query.lower():
+                return "Question: User asking a question"
+            else:
+                return "Query: User making a request"
+
         prompt = f"Analyze the following user query to understand its intent and categorize it:\n'{query}'\n\nProvide a concise understanding (e.g., 'Greeting: User is saying hello', 'Question: User asking for definition')."
         return await self.llm_client.generate(prompt)
 
     async def _generate_thought(self, query: str, step: int) -> str:
         """生成思考步驟 - 透過 LLM 進行"""
+        if self.llm_client is None:
+            # Mock implementation with varied thoughts
+            thoughts = [
+                f"步驟 {step + 1}: 分析查詢內容",
+                f"步驟 {step + 1}: 理解用戶意圖",
+                f"步驟 {step + 1}: 搜集相關資訊",
+                f"步驟 {step + 1}: 整理思路",
+                f"步驟 {step + 1}: 準備回應"
+            ]
+            return thoughts[min(step, len(thoughts) - 1)]
+
         prompt = f"Given the query: '{query}', and that this is thinking step {step + 1}, generate a concise thought or next step in the analysis process."
         return await self.llm_client.generate(prompt)
 
     async def _reflect_on_thought(self, thought: str) -> str:
         """反思思考 - 透過 LLM 進行"""
+        if self.llm_client is None:
+            # Mock implementation
+            return f"反思: {thought} - 確認邏輯正確"
+
         prompt = f"Critically reflect on the following thought to improve its quality or identify potential flaws:\n'{thought}'"
         return await self.llm_client.generate(prompt)
 
@@ -199,6 +218,20 @@ class ThinkingEngine:
                     break
 
         prompt = f"Given the thinking trace:\n{chr(10).join(thinking_trace)}\n\nAnd the original query: '{original_query}'\n\nSynthesize a comprehensive and accurate conclusion or final answer. If the original query was a greeting, respond with a friendly greeting. If it was a status inquiry, provide a status report. If it was about features, describe them. Otherwise, provide a detailed expert response or deep analysis if relevant."
+
+        if self.llm_client is None:
+            # Mock implementation based on query type
+            if "你好" in original_query or "hello" in original_query.lower():
+                return "你好! 歡迎使用 OpenCode Platform。系統正在模擬模式下運行。"
+            elif "狀態" in original_query or "status" in original_query.lower():
+                return "系統狀態: 運行中 (模擬模式)。所有核心組件已載入。"
+            elif "功能" in original_query or "feature" in original_query.lower():
+                return "系統功能: 思考引擎、服務管理器、智能路由器 (模擬模式)。"
+            elif "深度分析" in original_query:
+                return f"深度分析結果 (模擬): 關於 '{original_query}' 的分析已完成。這是一個複雜的主題需要多層次的理解。"
+            else:
+                return f"處理查詢 '{original_query}' (模擬模式): 系統已分析您的請求並準備了回應。"
+
         return await self.llm_client.generate(prompt)
 
 
@@ -290,11 +323,33 @@ class ServiceManager:
 class IntelligentRouter:
     """智能路由器 - 分析複雜度並選擇處理模式"""
 
-    def __init__(self, llm_client: Optional[OpenAILLMClient] = None):
-        self.llm_client = llm_client if llm_client else OpenAILLMClient()
+    def __init__(self, llm_client = None):
+        # Use provided llm_client, even if it's None (for mock mode)
+        self.llm_client = llm_client
 
     async def analyze_complexity(self, query: str) -> Dict[str, float]:
         """分析查詢複雜度 - 透過 LLM 進行"""
+        # If no LLM client, use heuristic-based complexity analysis
+        if self.llm_client is None:
+            query_lower = query.lower()
+            # Simple heuristic complexity analysis
+            complexity = {
+                "reasoning_required": 0.3,
+                "multi_step": 0.2,
+                "domain_knowledge": 0.2,
+                "creativity": 0.1,
+                "research_needed": 0.1,
+            }
+
+            # Increase complexity for certain keywords
+            if any(word in query_lower for word in ['深度分析', 'deep', '詳細', 'detailed']):
+                complexity["reasoning_required"] = 0.8
+                complexity["multi_step"] = 0.7
+            if any(word in query_lower for word in ['研究', 'research', '調查']):
+                complexity["research_needed"] = 0.8
+
+            return complexity
+
         prompt = f"""Analyze the complexity of the following query across several dimensions:
 Query: '{query}'
 
@@ -346,6 +401,20 @@ Example: {{"reasoning_required": 0.8, "multi_step": 0.7, "domain_knowledge": 0.5
 
         # Use LLM to select the mode
         mode_options = ", ".join([f"'{mode.value}'" for mode in ProcessingMode])
+        # If no LLM client available, use simple heuristics
+        if self.llm_client is None:
+            logger.debug("🎭 Using mock mode selection (no LLM client)")
+            # Simple heuristic-based mode selection
+            query_lower = query.lower()
+            if any(word in query_lower for word in ['深度分析', 'deep analysis', '詳細', 'detailed']):
+                return ProcessingMode.THINKING
+            elif any(word in query_lower for word in ['研究', 'research', '調查']):
+                return ProcessingMode.RESEARCH
+            elif any(word in query_lower for word in ['知識', 'knowledge', '查詢', 'search']):
+                return ProcessingMode.KNOWLEDGE
+            else:
+                return ProcessingMode.QUICK
+
         prompt = f"""Given the user query: '{query}', recommend the most appropriate ProcessingMode from the following options: {mode_options}.
 Consider the inherent complexity of the query.
 
@@ -397,8 +466,14 @@ class FinalUnifiedEngine:
     def __init__(self):
         self.initialized = False
 
-        # 核心組件
-        self.llm_client = OpenAILLMClient()  # Create a single instance of the real LLM client
+        # 核心組件 - Try to create LLM client, use mock if no API key
+        try:
+            self.llm_client = OpenAILLMClient()
+            logger.info("✅ OpenAI LLM Client initialized successfully")
+        except ValueError as e:
+            logger.warning(f"⚠️ 無法初始化 OpenAI client: {e}. 使用 Mock LLM Client")
+            self.llm_client = None  # Will use mock responses
+
         self.router = IntelligentRouter(llm_client=self.llm_client)
         self.thinking_engine = ThinkingEngine(
             llm_client=self.llm_client
@@ -443,7 +518,7 @@ class FinalUnifiedEngine:
 
         # 智能選擇處理模式
         if request.mode is None or request.mode == ProcessingMode.AUTO:
-            request.mode = self.router.select_mode(request.query)
+            request.mode = await self.router.select_mode(request.query)
 
         logger.info(f"🌐 Processing with mode: {request.mode.value}")
 
@@ -517,8 +592,24 @@ class FinalUnifiedEngine:
         if service_name in self.service_manager.services:
             result = await self.service_manager.execute_service(service_name, params)
         else:
-            # 回退到簡單處理
-            result = f"Service response for: {request.query}"
+            # 當服務不可用時，使用 LLM client 處理所有模式
+            if self.llm_client is not None:
+                logger.info(f"📡 Service '{service_name}' not available, using LLM fallback")
+
+                # 根據不同模式構建適當的提示詞
+                if service_name == "knowledge":
+                    prompt = f"請詳細解釋這個問題，提供準確和有用的知識：{request.query}"
+                elif service_name == "sandbox":
+                    prompt = f"請分析並回答這個技術問題：{request.query}"
+                elif service_name == "plugin":
+                    prompt = f"請處理這個請求：{request.query}"
+                else:  # chat 或其他
+                    prompt = request.query
+
+                result = await self.llm_client.generate(prompt)
+            else:
+                # 完全沒有 LLM 時的回退
+                result = f"Service '{service_name}' is not available and no LLM configured."
 
         response = UnifiedResponse(
             result=result,

@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 
 # 使用統一的路徑工具載入環境變數
-from opencode.core.utils import load_env
+from core.utils import load_env
 load_env()
 
 logger = logging.getLogger(__name__)

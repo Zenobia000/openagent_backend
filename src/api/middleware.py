@@ -8,8 +8,8 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from opencode.control_plane.audit import get_audit_service, AuditAction, AuditLevel
-from opencode.auth.jwt import decode_token
+from control_plane.audit import get_audit_service, AuditAction, AuditLevel
+from auth.jwt import decode_token
 
 logger = logging.getLogger(__name__)
 

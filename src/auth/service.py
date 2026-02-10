@@ -9,7 +9,7 @@ from typing import Optional, List
 from datetime import datetime, date
 from pathlib import Path
 
-from opencode.core.utils import get_project_root
+from core.utils import get_project_root
 from .models import User, UserCreate, UserUpdate, UserRole, UserStatus, UserResponse
 from .jwt import hash_password, verify_password
 

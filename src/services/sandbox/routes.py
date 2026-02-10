@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from opencode.auth import get_current_user, TokenData
+from auth import get_current_user, TokenData
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ async def execute_code(
     - bash: Bash shell
     """
     try:
-        from opencode.services.sandbox.service import SandboxService
+        from services.sandbox.service import SandboxService
         
         sandbox = SandboxService()
         
@@ -92,7 +92,7 @@ async def get_sandbox_status(
 ):
     """獲取沙箱狀態"""
     try:
-        from opencode.services.sandbox.service import SandboxService
+        from services.sandbox.service import SandboxService
         
         sandbox = SandboxService()
         
@@ -122,7 +122,7 @@ async def validate_code(
     驗證代碼安全性（不執行）
     """
     try:
-        from opencode.services.sandbox.service import CodeSecurityFilter
+        from services.sandbox.service import CodeSecurityFilter
         
         filter = CodeSecurityFilter()
         is_safe, violations = filter.check_code(request.code)

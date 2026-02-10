@@ -20,7 +20,7 @@ import time
 import uuid
 import re
 
-from opencode.core.protocols import MCPServiceProtocol
+from core.protocols import MCPServiceProtocol
 
 logger = logging.getLogger(__name__)
 

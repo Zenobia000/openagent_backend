@@ -7,7 +7,7 @@ import asyncio
 import os
 import logging
 
-from opencode.core.protocols import MCPServiceProtocol
+from core.protocols import MCPServiceProtocol
 
 logger = logging.getLogger(__name__)
 

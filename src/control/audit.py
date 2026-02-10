@@ -12,7 +12,7 @@ from enum import Enum
 from dataclasses import dataclass, asdict, field
 import uuid
 
-from opencode.core.utils import get_project_root
+from core.utils import get_project_root
 
 logger = logging.getLogger(__name__)
 

@@ -5,9 +5,19 @@ Unified Configuration
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+# === 載入 .env 文件 ===
+PROJECT_ROOT = Path(__file__).parent.parent
+env_path = PROJECT_ROOT / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    # Only print if DEBUG mode
+    if os.getenv("DEBUG", "False").lower() == "true":
+        print(f"✅ Loaded environment from {env_path}")
 
 # === 基本配置 ===
-PROJECT_ROOT = Path(__file__).parent.parent
 ENV = os.getenv("ENV", "development")
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 

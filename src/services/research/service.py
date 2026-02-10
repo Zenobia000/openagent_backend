@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 
 # 使用統一的路徑工具載入環境變數
-from opencode.core.utils import load_env, get_project_root
+from core.utils import load_env, get_project_root
 load_env()
 
 logger = logging.getLogger(__name__)

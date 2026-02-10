@@ -10,10 +10,10 @@ import uuid
 from pathlib import Path
 
 # 使用統一的路徑工具載入環境變數
-from opencode.core.utils import load_env, get_project_root
+from core.utils import load_env, get_project_root
 load_env()
 
-from opencode.core.protocols import MCPServiceProtocol, LongTermMemoryProtocol
+from core.protocols import MCPServiceProtocol, LongTermMemoryProtocol
 
 # 新的模組
 from .multimodal_parser import MultimodalParser, get_multimodal_parser, SUPPORTED_FORMATS

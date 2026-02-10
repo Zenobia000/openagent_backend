@@ -1,5 +1,5 @@
 """
-Deep Research Service - Manus 風格深度研究
+Deep Research Service
 
 實現功能：
 1. Playwright 自動化瀏覽器（支援 JavaScript 渲染）
@@ -22,7 +22,7 @@ from urllib.parse import urlparse, quote_plus
 import aiohttp
 from bs4 import BeautifulSoup
 
-from opencode.core.utils import load_env
+from core.utils import load_env
 load_env()
 
 logger = logging.getLogger(__name__)
@@ -982,7 +982,7 @@ class DeepResearchAgent:
             from qdrant_client.models import Filter, FieldCondition, MatchAny
             
             # 確保環境變數
-            from opencode.core.utils import load_env
+            from core.utils import load_env
             load_env()
             
             cohere_key = os.getenv("COHERE_API_KEY")

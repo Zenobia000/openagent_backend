@@ -11,7 +11,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 from enum import Enum
 
-from opencode.core.utils import get_project_root
+from core.utils import get_project_root
 
 logger = logging.getLogger(__name__)
 

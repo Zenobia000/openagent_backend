@@ -69,6 +69,15 @@ class BaseProcessor(ABC):
                 duration_ms=duration_ms
             )
 
+            # 記錄 LLM Response (用於 debugging，顯示實際輸出)
+            self.logger.info(
+                f"💬 LLM Response: {response[:500]}...",
+                "llm",
+                "response",
+                response_length=len(response),
+                response_preview=response[:200]
+            )
+
             # 更新上下文的 token 統計
             if context:
                 context.total_tokens += total_tokens

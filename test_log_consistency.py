@@ -22,8 +22,9 @@ async def simulate_log_output():
         ("🚀 Processing request: query...", "system", "process"),
         ("✅ Processing completed", "system", "complete"),
 
-        # LLM 日誌 - 只有一個 icon
-        ("🤖 LLM Call: gpt-4o", "llm", "call"),
+        # LLM 日誌 - 兩個不同功能的 icons
+        ("🤖 LLM Call: gpt-4o", "llm", "call"),  # 性能指標
+        ("💬 LLM Response: [actual output]", "llm", "response"),  # 實際輸出
 
         # 思考階段日誌
         ("🔍 Stage 1: Problem Understanding", "thinking", "stage1"),
@@ -91,19 +92,22 @@ async def simulate_log_output():
 async def show_before_after():
     """展示修改前後的對比"""
 
-    print("\n\n📊 修改前後對比")
+    print("\n\n📊 LLM 日誌的兩種類型")
     print("=" * 80)
 
-    print("❌ 修改前（有重複）：")
+    print("✅ 正確使用（兩個不同功能）：")
     print("-" * 40)
     print("[INFO] 🤖 LLM Call: gpt-4o [tokens=1425, time=15929ms]")
-    print("[INFO] 🤖 LLM Response: ## 1. Problem Understanding...")
-    print("       ^^^ 兩個 🤖 重複了！")
+    print("       ^^^ 性能指標：顯示 tokens 和執行時間")
+    print("")
+    print("[INFO] 💬 LLM Response: ## 1. Problem Understanding...")
+    print("       ^^^ 實際輸出：顯示 LLM 生成的內容（用於 debugging）")
 
-    print("\n✅ 修改後（統一）：")
+    print("\n說明：")
     print("-" * 40)
-    print("[INFO] 🤖 LLM Call: gpt-4o [tokens=1425, time=15929ms]")
-    print("       ^^^ 只有一個 🤖 icon")
+    print("• 🤖 LLM Call    - 追蹤性能：token 使用量、執行時間")
+    print("• 💬 LLM Response - 調試內容：實際生成的文本輸出")
+    print("• 兩者服務不同目的，都是必要的")
 
     print("\n" + "=" * 80)
 

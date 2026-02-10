@@ -67,7 +67,7 @@ graph TB
 ```mermaid
 graph TB
     subgraph "客戶端 (Clients)"
-        CLI[CLI<br/><b>(主要交互方式)</b><br>main.py]
+        CLI[CLI<br/><b>(主要交互方式)</b><br>main]
         WebUI[Web UI (未來)<br/>Vue.js SPA]
     end
 

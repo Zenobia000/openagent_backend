@@ -23,6 +23,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from core.utils import load_env
+from core.prompts import PromptTemplates
 load_env()
 
 logger = logging.getLogger(__name__)
@@ -819,7 +820,7 @@ class DeepResearchAgent:
             return [query]
     
     async def _generate_report(self, query: str, contents: List[Dict]) -> str:
-        """使用 LLM 生成報告"""
+        """使用 LLM 生成報告 - 使用專業 prompts"""
         if not self._llm_client:
             report = f"# {query} 研究報告\n\n"
             for i, c in enumerate(contents, 1):
@@ -827,28 +828,59 @@ class DeepResearchAgent:
                 report += f"## [{i}] {source_type}: {c['title']}\n\n"
                 report += c['content'][:800] + "\n\n"
             return report
-        
+
         try:
-            # 準備內容 - 區分來源類型
-            context_parts = []
+            # 先生成研究計劃
+            plan_prompt = PromptTemplates.get_report_plan_prompt(query)
+            plan_response = await self._llm_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": plan_prompt}],
+                temperature=0.3,
+                max_tokens=500
+            )
+            report_plan = plan_response.choices[0].message.content
+
+            # 整理研究發現 (learnings)
+            learnings = []
             for i, c in enumerate(contents, 1):
-                text = c['content'][:2500]
                 source_type = "用戶文件" if c.get('type') == 'document' else "網路來源"
-                context_parts.append(f"[來源 {i} - {source_type}] {c['title']}\nURL: {c['url']}\n\n{text}")
-            
-            context = "\n\n---\n\n".join(context_parts)
-            
+                learnings.append(f"- [{i}] ({source_type}) {c['title']}: {c['content'][:400]}...")
+            learnings_text = "\n".join(learnings)
+
+            # 整理來源 (sources)
+            sources_list = []
+            for i, c in enumerate(contents, 1):
+                source_type = "用戶文件" if c.get('type') == 'document' else "網路來源"
+                sources_list.append(f"- [{i}] [{source_type}] {c['title']} - {c['url']}")
+            sources_text = "\n".join(sources_list)
+
             # 統計來源類型
             doc_count = sum(1 for c in contents if c.get('type') == 'document')
             web_count = len(contents) - doc_count
-            source_info = f"（網路來源 {web_count} 個" + (f"，用戶文件 {doc_count} 個）" if doc_count > 0 else "）")
-            
+
+            # 使用專業的最終報告 prompt
+            requirement = f"""生成詳細、專業的繁體中文研究報告。
+資料來源包含：{web_count} 個網路來源" + (f"和 {doc_count} 個用戶文件" if doc_count > 0 else "") + "。
+請綜合分析所有資料，提供全面的見解。"""
+
+            final_prompt = PromptTemplates.get_final_report_prompt(
+                plan=report_plan,
+                learnings=learnings_text,
+                sources=sources_text,
+                images="",  # 暫時不包含截圖
+                requirement=requirement
+            )
+
+            # 加上引用規則、圖片規則和輸出指南
+            references_prompt = PromptTemplates.get_final_report_references_prompt()
+            image_prompt = PromptTemplates.get_final_report_citation_image_prompt()
+            output_guidelines = PromptTemplates.get_output_guidelines()
+            full_prompt = f"{final_prompt}\n\n{references_prompt}\n\n{image_prompt}\n\n{output_guidelines}"
+
             response = await self._llm_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": """你是專業的研究報告撰寫者。請根據收集到的資料，撰寫結構化的研究報告。
+                    {"role": "user", "content": full_prompt}
 
 ## 格式要求
 1. 使用繁體中文

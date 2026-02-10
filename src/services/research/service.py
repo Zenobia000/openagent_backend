@@ -15,6 +15,7 @@ from pathlib import Path
 
 # 使用統一的路徑工具載入環境變數
 from core.utils import load_env, get_project_root
+from core.prompts import PromptTemplates
 load_env()
 
 logger = logging.getLogger(__name__)
@@ -222,6 +223,57 @@ class ResearchService:
                 # 小延遲避免過度請求
                 await asyncio.sleep(0.5)
             
+            # Step 2.5: 審查研究進度，決定是否需要更多研究
+            if task.findings and self._openai_client:
+                task.steps.append(ResearchStep(
+                    step="🔍 審查研究進度",
+                    status="running",
+                    started_at=time.time()
+                ))
+                task.progress = 75
+
+                need_more_research = await self._review_research_progress(
+                    topic=task.topic,
+                    findings=task.findings,
+                    documents=task.documents
+                )
+
+                if need_more_research:
+                    task.steps[-1].result = "需要補充研究"
+                    task.steps[-1].status = "done"
+                    task.steps[-1].completed_at = time.time()
+
+                    # 執行補充研究
+                    for additional_query in need_more_research[:2]:  # 限制補充查詢數量
+                        task.steps.append(ResearchStep(
+                            step=f"🔄 補充研究: {additional_query['query'][:30]}...",
+                            status="running",
+                            started_at=time.time()
+                        ))
+
+                        search_results = await self._search_for_research(
+                            additional_query['query'],
+                            task.documents
+                        )
+
+                        if search_results:
+                            answer = await self._generate_section_answer(
+                                additional_query['query'],
+                                search_results
+                            )
+                            task.findings.append({
+                                "question": additional_query['query'],
+                                "answer": answer,
+                                "sources_count": len(search_results)
+                            })
+
+                        task.steps[-1].status = "done"
+                        task.steps[-1].completed_at = time.time()
+                else:
+                    task.steps[-1].result = "研究資料充足"
+                    task.steps[-1].status = "done"
+                    task.steps[-1].completed_at = time.time()
+
             # Step 3: 生成最終報告
             task.steps.append(ResearchStep(
                 step="📝 撰寫研究報告",
@@ -255,22 +307,18 @@ class ResearchService:
                 task.steps[-1].error = str(e)
     
     async def _generate_sub_questions(self, topic: str) -> List[str]:
-        """生成子問題"""
+        """生成子問題 - 使用專業的系統問題 prompt"""
         if not self._openai_client:
             return [topic]  # 無 OpenAI 時直接用原主題
-        
+
         try:
+            # 使用專業的系統問題提示詞
+            prompt = PromptTemplates.get_system_question_prompt(topic)
+
             response = self._openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": """你是一個研究助手。針對給定的研究主題，生成 3-5 個具體的子問題，
-這些問題應該能幫助全面了解這個主題。
-
-每行一個問題，不要加序號或符號。"""
-                    },
-                    {"role": "user", "content": f"研究主題：{topic}"}
+                    {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
                 max_tokens=500
@@ -361,24 +409,31 @@ class ResearchService:
         question: str,
         sources: List[Dict[str, Any]]
     ) -> str:
-        """生成單個問題的答案"""
+        """生成單個問題的答案 - 使用專業的搜索結果 prompt"""
         if not self._openai_client:
             return "無法生成答案（OpenAI 未配置）"
-        
+
         try:
             context = "\n\n".join([
                 f"[來源: {s['source']}, 頁碼: {s['page']}]\n{s['content']}"
                 for s in sources
             ])
-            
+
+            # 使用專業的搜索結果提示詞
+            prompt = PromptTemplates.get_search_result_prompt(
+                query=question,
+                research_goal="提供詳細、準確的研究發現",
+                context=context
+            )
+
+            # 加上引用規則
+            citation_rules = PromptTemplates.get_citation_rules()
+            full_prompt = f"{prompt}\n\n{citation_rules}"
+
             response = self._openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": "根據提供的資料來源，回答問題。保持客觀、準確，並標註關鍵資訊的來源。使用繁體中文回答。"
-                    },
-                    {"role": "user", "content": f"問題：{question}\n\n參考資料：\n{context}"}
+                    {"role": "user", "content": full_prompt}
                 ],
                 temperature=0.3,
                 max_tokens=1000
@@ -395,45 +450,58 @@ class ResearchService:
         topic: str,
         findings: List[Dict[str, Any]]
     ) -> str:
-        """生成最終報告"""
+        """生成最終報告 - 使用專業的最終報告 prompt"""
         if not self._openai_client:
             # 無 OpenAI 時生成簡單報告
             report = f"# {topic}\n\n## 研究發現\n\n"
             for f in findings:
                 report += f"### {f['question']}\n\n{f['answer']}\n\n"
             return report
-        
+
         try:
-            findings_text = "\n\n---\n\n".join([
-                f"### {f['question']}\n\n{f['answer']}"
+            # 準備研究計劃
+            plan_prompt = PromptTemplates.get_report_plan_prompt(topic)
+            plan_response = self._openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": plan_prompt}],
+                temperature=0.3,
+                max_tokens=1000
+            )
+            report_plan = plan_response.choices[0].message.content
+
+            # 整理研究發現
+            learnings = "\n\n".join([
+                f"- {f['question']}：{f['answer'][:200]}..."
                 for f in findings
             ])
-            
+
+            # 整理來源
+            sources_text = "\n".join([
+                f"- [{i+1}] {f.get('source', 'Unknown source')}"
+                for i, f in enumerate(findings)
+            ])
+
+            # 使用專業的最終報告提示詞
+            final_prompt = PromptTemplates.get_final_report_prompt(
+                plan=report_plan,
+                learnings=learnings,
+                sources=sources_text,
+                images="",  # 暫時沒有圖片
+                requirement="生成詳細、專業的繁體中文研究報告，包含執行摘要、主要發現、詳細分析和建議。"
+            )
+
+            # 加上引用、圖片和輸出規則
+            references_prompt = PromptTemplates.get_final_report_references_prompt()
+            image_prompt = PromptTemplates.get_final_report_citation_image_prompt()
+            output_guidelines = PromptTemplates.get_output_guidelines()
+
+            # 組合所有規則
+            full_prompt = f"{final_prompt}\n\n{references_prompt}\n\n{image_prompt}\n\n{output_guidelines}"
+
             response = self._openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": """你是一個專業的研究報告撰寫者。根據提供的研究發現，生成一份結構完整的研究報告。
-
-報告格式（使用 Markdown）：
-# 標題
-
-## 📋 執行摘要
-簡潔總結主要發現（3-5 句）
-
-## 🔍 主要發現
-列出 3-5 個關鍵發現
-
-## 📖 詳細分析
-整合所有研究發現，形成連貫的分析
-
-## 💡 結論與建議
-總結並提出建議
-
-使用繁體中文撰寫。"""
-                    },
-                    {"role": "user", "content": f"研究主題：{topic}\n\n研究發現：\n{findings_text}"}
+                    {"role": "user", "content": full_prompt}
                 ],
                 temperature=0.4,
                 max_tokens=3000
@@ -448,6 +516,72 @@ class ResearchService:
             for f in findings:
                 report += f"### {f['question']}\n\n{f['answer']}\n\n"
             return report
+
+    async def _review_research_progress(
+        self,
+        topic: str,
+        findings: List[Dict[str, Any]],
+        documents: Optional[List[str]] = None
+    ) -> Optional[List[Dict[str, str]]]:
+        """審查研究進度 - 使用專業的審查 prompt"""
+        if not self._openai_client:
+            return None
+
+        try:
+            # 準備計劃
+            plan = f"研究主題: {topic}"
+            if documents:
+                plan += f"\n限定文件: {', '.join(documents)}"
+
+            # 整理已有研究發現
+            learnings = "\n\n".join([
+                f"Q: {f['question']}\nA: {f['answer'][:200]}..."
+                for f in findings
+            ])
+
+            # 用戶建議（這裡可以加入用戶輸入）
+            suggestion = "請確保涵蓋主題的所有重要方面"
+
+            # 定義 schema
+            output_schema = {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "researchGoal": {"type": "string"}
+                    }
+                }
+            }
+
+            # 使用專業的審查 prompt
+            review_prompt = PromptTemplates.get_review_prompt(
+                plan=plan,
+                learnings=learnings,
+                suggestion=suggestion,
+                output_schema=output_schema
+            )
+
+            response = self._openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": review_prompt}],
+                temperature=0.3,
+                max_tokens=500
+            )
+
+            # 解析 JSON 回應
+            import json
+            import re
+            content = response.choices[0].message.content
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', content)
+            if json_match:
+                queries = json.loads(json_match.group(1))
+                return queries if queries else None
+            return None
+
+        except Exception as e:
+            logger.error(f"Review research progress failed: {e}")
+            return None
 
 
 # 全域服務實例

@@ -320,6 +320,193 @@ Make it as detailed as possible, aim for 5 pages or more, the more the better, i
 6. All text content **MUST** be wrapped in `"` syntax. (e.g., "Any Text Content")
 7. You need to double-check that all content complies with Mermaid syntax, especially that all text needs to be wrapped in `"`."""
 
+    @staticmethod
+    def get_thinking_mode_prompt(query: str) -> str:
+        """Deep thinking mode prompt"""
+        return f"""You are a professional analytical thinker tasked with conducting deep analysis on the following question.
+
+Question: {query}
+
+Please follow these steps for deep thinking:
+
+## 1. Problem Understanding & Decomposition
+- Carefully analyze the core elements of the question
+- Identify implicit meanings and underlying assumptions
+- Break down complex problems into smaller sub-problems
+
+## 2. Context & Background Analysis
+- Consider historical background and evolutionary context
+- Analyze relevant environmental factors and influences
+- Identify key stakeholders and their positions
+
+## 3. Key Concepts & Variables Identification
+- Clearly define technical terms and concepts in the question
+- Identify key variables affecting the problem
+- Analyze relationships and dependencies between variables
+
+## 4. Multi-dimensional Analysis Framework
+- Analyze from technical, economic, social, and political perspectives
+- Consider short-term and long-term impacts
+- Evaluate direct and indirect consequences
+
+## 5. Preliminary Analysis Conclusions
+- Synthesize the above analysis to provide initial insights
+- Point out areas requiring further exploration
+- Provide structured thinking directions
+
+Please provide detailed, comprehensive, and structured analysis results."""
+
+    @staticmethod
+    def get_critical_thinking_prompt(question: str, context: str) -> str:
+        """Critical thinking prompt"""
+        return f"""Based on the preliminary analysis, please apply critical thinking methods for deeper analysis.
+
+Original Question: {question}
+
+Preliminary Analysis:
+{context}
+
+Please conduct in-depth analysis from the following critical thinking perspectives:
+
+## 1. Argument Evaluation
+- Identify main claims and supporting arguments
+- Assess the strength and relevance of arguments
+- Examine the validity of logical reasoning
+
+## 2. Evidence Review
+- Evaluate the reliability and authority of supporting evidence
+- Identify missing or insufficient evidence
+- Consider contrary evidence and counterexamples
+
+## 3. Logical Fallacy Detection
+- Check for common logical fallacies (e.g., straw man, slippery slope, ad hominem)
+- Identify circular reasoning or unproven assumptions
+- Assess the validity of causal relationships
+
+## 4. Alternative Perspectives Exploration
+- Present at least three different viewpoints or interpretations
+- Analyze the strengths and limitations of each perspective
+- Consider the possibility of synthesizing multiple viewpoints
+
+## 5. Bias & Assumption Check
+- Identify potential cognitive biases (confirmation bias, anchoring effect, etc.)
+- Reveal implicit assumptions and premises
+- Evaluate the influence of cultural, social, or personal biases
+
+## 6. Critical Synthesis
+- Based on the above analysis, provide a balanced assessment
+- Point out strengths and weaknesses in the argumentation
+- Suggest improvements or further research directions
+
+Provide comprehensive, objective, and insightful critical analysis results."""
+
+    @staticmethod
+    def get_chain_of_thought_prompt(query: str) -> str:
+        """Chain of thought reasoning prompt"""
+        return f"""Please use Chain of Thought reasoning to systematically solve the following problem.
+
+Question: {query}
+
+## Reasoning Steps Guide
+
+### Step 1: Problem Identification & Classification
+Let's first clarify what type of problem this is:
+- What is the core objective of the problem?
+- Which knowledge domain does this belong to?
+- What type of reasoning is needed (deductive, inductive, analogical, etc.)?
+
+### Step 2: Key Information Extraction
+Extract all relevant information from the problem:
+- Known conditions and given information
+- Implicit premises and constraints
+- Specific content that needs to be solved or answered
+
+### Step 3: Solution Strategy Development
+Develop clear solution steps:
+- List the key steps needed to solve the problem
+- Determine the order and dependencies of each step
+- Identify potentially needed tools or methods
+
+### Step 4: Step-by-Step Reasoning Execution
+Execute each step sequentially, showing the complete reasoning process:
+
+Step 4.1: [Specific action]
+- Reasoning basis: [Explain why this approach]
+- Calculation/Analysis process: [Show in detail]
+- Intermediate result: [What was derived]
+
+Step 4.2: [Next action]
+- Reasoning basis: [Based on previous step's result]
+- Calculation/Analysis process: [Show in detail]
+- Intermediate result: [What was derived]
+
+(Continue with more steps as needed)
+
+### Step 5: Result Validation
+Verify the reasonableness of the answer:
+- Check if results align with common sense and logic
+- Verify all constraints are satisfied
+- Consider if there are other possible solutions
+
+### Step 6: Conclusion Summary
+- Clearly state the final answer
+- Explain the significance and implications of the answer
+- Point out any limitations or assumptions
+
+Please demonstrate a complete, clear, and logically rigorous reasoning process. Each step should have sufficient explanation and justification."""
+
+    @staticmethod
+    def get_reflection_prompt(original_response: str, question: str = None) -> str:
+        """Reflection and improvement prompt"""
+        question_context = f"\nOriginal Question: {question}" if question else ""
+        return f"""Please conduct deep reflection and improvement on the following analysis results.{question_context}
+
+Analysis Results:
+{original_response}
+
+## Reflection Framework
+
+### 1. Completeness Assessment
+- Does it fully address all aspects of the original question?
+- Are there important perspectives or angles that were missed?
+- Is the depth of analysis sufficient?
+
+### 2. Accuracy Check
+- Are all factual statements accurate?
+- Is the reasoning process logically rigorous?
+- Are conclusions adequately supported?
+
+### 3. Clarity Improvement
+- Is the expression clear and easy to understand?
+- Is the structure reasonable and orderly?
+- Is more explanation or illustration needed?
+
+### 4. Practicality Consideration
+- What is the practical value of the analysis results?
+- Are actionable suggestions or solutions provided?
+- Has implementation feasibility been considered?
+
+### 5. Innovation Thinking
+- Are there innovative insights or unique perspectives?
+- Does it challenge conventional views?
+- Are new possibilities proposed?
+
+### 6. Improvement Suggestions
+Based on the above reflection, propose specific improvement plans:
+- What content needs to be supplemented?
+- What errors or inaccuracies need correction?
+- How can the analysis be made more comprehensive and thorough?
+
+## Improved Analysis
+
+Based on the reflection results, provide the improved and optimized complete analysis. Ensure:
+- Coverage of all important aspects
+- Clear and rigorous logic
+- Strong and well-supported conclusions
+- Practical value provided
+
+Please provide in-depth reflective analysis and an improved high-quality answer."""
+
 
 # 導出
 __all__ = ['PromptTemplates']

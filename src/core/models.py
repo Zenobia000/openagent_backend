@@ -17,6 +17,7 @@ class ProcessingMode(Enum):
     SEARCH = "search"       # 網路搜索
     CODE = "code"           # 代碼執行
     THINKING = "thinking"   # 深度思考
+    DEEP_RESEARCH = "deep_research"  # 深度研究
 
 
 class EventType(Enum):
@@ -88,6 +89,9 @@ class ProcessingContext:
 
     # 工具決策
     selected_tool: Optional[str] = None
+
+    # Token 統計
+    total_tokens: int = 0
     tool_confidence: float = 0.0
 
     # 性能指標
@@ -98,8 +102,8 @@ class ProcessingContext:
 
     def mark_step_complete(self, step: str):
         """標記步驟完成"""
-        self.steps_completed.append(step)
-        self.current_step = ""
+        if step not in self.steps_completed:
+            self.steps_completed.append(step)
 
     def set_current_step(self, step: str):
         """設置當前步驟"""

@@ -110,6 +110,7 @@ class RefactoredEngine:
             # 更新響應
             response.result = result
             response.time_ms = context.get_elapsed_time()
+            response.tokens_used = context.total_tokens  # 從上下文獲取 token 統計
 
             # 記錄完成
             self.logger.info(

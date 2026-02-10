@@ -1,0 +1,172 @@
+# SRE Logging Configuration
+# 專業的日誌配置 - 符合 SRE 最佳實踐
+
+logging:
+  # 服務名稱
+  service_name: "opencode"
+
+  # 日誌基礎路徑
+  base_path: "./logs"
+
+  # 日誌級別配置
+  levels:
+    default: INFO
+    development: DEBUG
+    production: WARNING
+
+  # 日誌分類配置
+  categories:
+    transaction:
+      enabled: true
+      retention_days: 90
+      compress_after_days: 7
+      max_size_mb: 1000
+
+    audit:
+      enabled: true
+      retention_days: 365  # 審計日誌保留一年
+      compress_after_days: 30
+      max_size_mb: 5000
+
+    performance:
+      enabled: true
+      retention_days: 30
+      compress_after_days: 3
+      max_size_mb: 500
+      sampling_rate: 0.1  # 10% 採樣率
+
+    security:
+      enabled: true
+      retention_days: 180
+      compress_after_days: 7
+      max_size_mb: 2000
+      alert_on_critical: true
+
+    error:
+      enabled: true
+      retention_days: 60
+      compress_after_days: 7
+      max_size_mb: 1000
+
+    application:
+      enabled: true
+      retention_days: 30
+      compress_after_days: 7
+      max_size_mb: 2000
+
+    analytics:
+      enabled: true
+      retention_days: 90
+      compress_after_days: 14
+      max_size_mb: 3000
+
+    debug:
+      enabled: false  # 生產環境關閉
+      retention_days: 7
+      compress_after_days: 1
+      max_size_mb: 100
+
+  # 性能配置
+  performance:
+    buffer_size: 10000
+    batch_size: 100
+    flush_interval_ms: 1000
+    async_enabled: true
+
+  # 輸出配置
+  outputs:
+    file:
+      enabled: true
+      format: json
+      rotation: daily
+
+    console:
+      enabled: true
+      format: colored  # 開發環境用彩色
+      level: INFO
+
+    elasticsearch:
+      enabled: false  # 可選：發送到 ELK Stack
+      hosts: ["localhost:9200"]
+      index_prefix: "opencode-"
+
+    prometheus:
+      enabled: false  # 可選：暴露 Prometheus 指標
+      port: 9090
+      path: "/metrics"
+
+    syslog:
+      enabled: false  # 可選：發送到 syslog
+      host: "localhost"
+      port: 514
+      protocol: "udp"
+
+  # 採樣配置
+  sampling:
+    enabled: true
+    rules:
+      - category: performance
+        rate: 0.1  # 10% 採樣
+      - category: debug
+        rate: 0.01  # 1% 採樣
+      - level: DEBUG
+        rate: 0.05  # 5% 採樣
+
+  # 過濾配置
+  filters:
+    # 排除敏感資訊
+    exclude_fields:
+      - password
+      - token
+      - api_key
+      - credit_card
+      - ssn
+
+    # 遮罩規則
+    masking:
+      - field: email
+        pattern: "^(.{2}).*@(.*)$"
+        replacement: "$1***@$2"
+      - field: phone
+        pattern: "^(.{3}).*(.{2})$"
+        replacement: "$1*****$2"
+
+  # 警報配置
+  alerting:
+    enabled: true
+    rules:
+      - name: "High Error Rate"
+        condition: "error_rate > 0.05"
+        channels: ["email", "slack"]
+
+      - name: "Security Breach"
+        condition: "security.severity == 'critical'"
+        channels: ["pagerduty", "email"]
+
+      - name: "Performance Degradation"
+        condition: "avg_duration > 5000"
+        channels: ["slack"]
+
+  # 日誌聚合
+  aggregation:
+    enabled: true
+    interval_seconds: 60
+    metrics:
+      - name: "request_count"
+        category: "transaction"
+        aggregation: "count"
+
+      - name: "error_rate"
+        category: "error"
+        aggregation: "rate"
+
+      - name: "avg_response_time"
+        category: "performance"
+        field: "duration_ms"
+        aggregation: "avg"
+
+      - name: "p95_response_time"
+        category: "performance"
+        field: "duration_ms"
+        aggregation: "percentile"
+        percentile: 95

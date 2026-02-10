@@ -356,7 +356,7 @@ class StructuredLogger:
     def log_llm_call(self, model: str, tokens_in: int, tokens_out: int, duration_ms: float):
         """記錄 LLM 調用"""
         self.info(
-            f"LLM Call: {model}",
+            f"🤖 LLM Call: {model}",
             category=LogCategory.LLM,
             llm={
                 "model": model,

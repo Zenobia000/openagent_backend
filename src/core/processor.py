@@ -61,22 +61,12 @@ class BaseProcessor(ABC):
 
             duration_ms = (time.time() - start_time) * 1000
 
-            # 記錄 LLM 調用和回應
+            # 記錄 LLM 調用 (包含 token 和時間資訊)
             self.logger.log_llm_call(
                 model="gpt-4o",
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 duration_ms=duration_ms
-            )
-
-            # 記錄 response (截取前500字符用於日誌)
-            self.logger.info(
-                f"🤖 LLM Response: {response[:500]}...",
-                "llm",
-                "response",
-                response_length=len(response),
-                response_preview=response[:200],
-                tokens_used=total_tokens
             )
 
             # 更新上下文的 token 統計

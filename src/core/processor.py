@@ -18,8 +18,9 @@ import time
 class BaseProcessor(ABC):
     """處理器基類"""
 
-    def __init__(self, llm_client=None):
+    def __init__(self, llm_client=None, services: Optional[Dict[str, Any]] = None):
         self.llm_client = llm_client
+        self.services = services or {}
         self.logger = structured_logger
         self._cognitive_level: Optional[str] = None
 
@@ -31,7 +32,7 @@ class BaseProcessor(ABC):
     async def _call_llm(self, prompt: str, context: ProcessingContext = None) -> str:
         """調用 LLM - 公共方法"""
         if not self.llm_client:
-            return f"[Mock Response] {prompt[:50]}..."
+            raise RuntimeError("LLM client not configured — cannot process request")
 
         # # 記錄 prompt (截取前500字符用於日誌)
         # self.logger.info(
@@ -64,7 +65,7 @@ class BaseProcessor(ABC):
 
             # 記錄 LLM 調用 (包含 token 和時間資訊)
             self.logger.log_llm_call(
-                model="gpt-4o",
+                model=getattr(self.llm_client, 'model_name', getattr(self.llm_client, 'provider_name', 'unknown')),
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 duration_ms=duration_ms
@@ -143,46 +144,63 @@ class KnowledgeProcessor(BaseProcessor):
             "knowledge",
             "embedding"
         )
-        await asyncio.sleep(0.1)  # 模擬 embedding
         self.logger.progress("embedding", "end")
 
         # Step 2: 搜索
         self.logger.progress("search", "start")
 
-        # 記錄 RAG 操作
-        self.logger.info(
-            f"📚 RAG Search: {context.request.query[:50]}...",
-            "rag",
-            "search",
-            query=context.request.query,
-            vector_db="chromadb",
-            embedding_model="text-embedding-ada-002"
-        )
+        knowledge_service = self.services.get("knowledge")
+        relevant_docs = []
 
-        # 這裡應該調用實際的 RAG 系統
-        relevant_docs = ["Doc1: 相關內容...", "Doc2: 更多內容..."]
+        if knowledge_service:
+            try:
+                self.logger.info(
+                    f"📚 RAG Search: {context.request.query[:50]}...",
+                    "rag", "search",
+                    query=context.request.query,
+                    vector_db="qdrant"
+                )
+                docs = await knowledge_service.retrieve(context.request.query, top_k=5)
+                if docs:
+                    relevant_docs = [
+                        doc.get("content", str(doc)) for doc in docs
+                    ]
+            except Exception as e:
+                self.logger.warning(f"Knowledge service error, using fallback: {e}", "knowledge", "fallback")
+
+        # Fallback: no knowledge base → LLM direct answer
+        if not relevant_docs:
+            self.logger.warning(
+                "Knowledge base unavailable — falling back to LLM direct answer",
+                "knowledge", "no_rag"
+            )
+            system_prompt = PromptTemplates.get_system_instruction()
+            fallback_prompt = (
+                f"{system_prompt}\n\n"
+                f"[NOTE: Knowledge base is currently unavailable. "
+                f"Answer based on your training data and clearly state that "
+                f"this answer is NOT grounded in the local knowledge base.]\n\n"
+                f"User: {context.request.query}"
+            )
+            response = await self._call_llm(fallback_prompt, context)
+            self.logger.message(response)
+            context.mark_step_complete("knowledge-retrieval")
+            self.logger.progress("knowledge-retrieval", "end")
+            return response
 
         # 記錄檢索結果到日誌
         self.logger.info(
             f"📖 RAG Results: Found {len(relevant_docs)} relevant documents",
             "rag",
             "results",
-            docs_count=len(relevant_docs),
-            top_score=0.92
-        )
-
-        self.logger.info(
-            f"📄 Retrieved documents: {relevant_docs}",
-            "knowledge",
-            "docs_retrieved",
-            docs=relevant_docs[:3]  # 只記錄前3個
+            docs_count=len(relevant_docs)
         )
 
         self.logger.progress("search", "end", {"docs_found": len(relevant_docs)})
 
         # Step 3: 生成答案
         self.logger.info(
-            f"🔄 Synthesizing answer from retrieved knowledge...",
+            f"🔄 Synthesizing answer from {len(relevant_docs)} retrieved documents...",
             "knowledge",
             "synthesis"
         )
@@ -331,24 +349,44 @@ class SearchProcessor(BaseProcessor):
             return [{"query": user_query, "researchGoal": "獲取相關資訊"}]
 
     async def _perform_search(self, query: str) -> str:
-        """執行網路搜索 - 使用 get_query_result_prompt 處理結果"""
+        """執行網路搜索 - 使用真實搜索服務或 LLM fallback"""
         # 記錄搜索查詢
+        search_service = self.services.get("search")
+        provider = getattr(search_service, 'primary_provider', 'none') if search_service else 'none'
         self.logger.info(
             f"🔍 Web Query: {query}",
             "search",
             "query",
             query=query,
-            provider="tavily"  # 或其他搜索提供者
+            provider=provider
         )
 
-        # 這裡應該調用實際的搜索 API
-        await asyncio.sleep(0.2)  # 模擬搜索延遲
+        # Use real search service if available
+        raw_results = ""
+        if search_service:
+            try:
+                results = await search_service.search(query, max_results=5)
+                if results:
+                    raw_results = "\n\n".join(
+                        f"[{r.title}]\n{r.snippet}\nURL: {r.url}"
+                        for r in results
+                    )
+                    self.logger.info(
+                        f"🔍 Search returned {len(results)} results",
+                        "search", "results"
+                    )
+            except Exception as e:
+                self.logger.warning(f"Search service error, falling back to LLM: {e}", "search", "fallback")
 
-        # 如果有 LLM，使用 get_query_result_prompt 來優化搜索結果
-        raw_results = f"搜索結果：關於 {query} 的相關資訊..."
+        # Fallback: no search results → LLM answers with disclaimer
+        if not raw_results:
+            self.logger.warning("No search results available — LLM will answer from training data", "search", "no_results")
+            raw_results = (
+                f"[Web search unavailable — no real-time results for '{query}'. "
+                f"The following answer is based on the AI model's training data only.]"
+            )
 
         if self.llm_client:
-            # 使用專業的查詢結果 prompt
             result_prompt = PromptTemplates.get_query_result_prompt(
                 query=query,
                 research_goal="提供準確、最新的資訊"
@@ -630,12 +668,28 @@ class CodeProcessor(BaseProcessor):
         return response
 
     async def _execute_code(self, code: str) -> Dict[str, Any]:
-        """在沙箱中執行代碼"""
-        # 這裡應該調用實際的沙箱服務
-        await asyncio.sleep(0.1)
+        """在沙箱中執行代碼 — 使用真實沙箱服務，無則告知使用者"""
+        sandbox_service = self.services.get("sandbox")
+
+        if sandbox_service:
+            try:
+                result = await sandbox_service.execute("execute_python", {
+                    "code": code,
+                    "timeout": 30
+                })
+                return {
+                    "success": result.get("success", False),
+                    "output": result.get("stdout", "") or result.get("error", "No output")
+                }
+            except Exception as e:
+                self.logger.warning(f"Sandbox service error, using fallback: {e}", "code", "fallback")
+
+        # Sandbox unavailable — return code only, do not fake execution
+        self.logger.warning("Sandbox unavailable — code generated but not executed", "code", "no_sandbox")
         return {
-            "success": True,
-            "output": "Hello World!"
+            "success": False,
+            "output": "[Sandbox unavailable] Code was generated but could not be executed. "
+                      "Please set up the Docker sandbox to enable code execution."
         }
 
 
@@ -850,7 +904,9 @@ class DeepResearchProcessor(BaseProcessor):
         return results
 
     async def _perform_deep_search(self, query: str, goal: str) -> Dict:
-        """執行深度搜索"""
+        """執行深度搜索 — 使用真實搜索服務，無則返回空結果"""
+
+        search_service = self.services.get("search")
 
         # 記錄 Web Query
         self.logger.info(
@@ -859,31 +915,53 @@ class DeepResearchProcessor(BaseProcessor):
             "query",
             query=query,
             goal=goal,
-            search_engine="google",
+            search_engine="web" if search_service else "none",
             max_results=10
         )
 
-        # 模擬搜索延遲
-        await asyncio.sleep(0.3)
+        # Use real search service if available
+        search_result = None
+        if search_service:
+            try:
+                results = await search_service.search(query, max_results=10)
+                if results:
+                    sources = [
+                        {'url': r.url, 'title': r.title, 'relevance': 0.9}
+                        for r in results
+                    ]
+                    summary = "\n".join(
+                        f"- {r.title}: {r.snippet}" for r in results[:5]
+                    )
+                    search_result = {
+                        'summary': summary,
+                        'sources': sources,
+                        'relevance': 0.92,
+                        'timestamp': datetime.now().isoformat()
+                    }
+            except Exception as e:
+                self.logger.warning(f"Search service error in deep research: {e}", "web", "fallback")
 
-        # 模擬搜索結果
-        search_result = {
-            'summary': f"關於 '{query}' 的綜合研究結果...",
-            'sources': [
-                {'url': 'https://example.com/1', 'title': 'Source 1', 'relevance': 0.95},
-                {'url': 'https://example.com/2', 'title': 'Source 2', 'relevance': 0.88}
-            ],
-            'relevance': 0.92,
-            'timestamp': datetime.now().isoformat()
-        }
+        # Fallback: search unavailable — return empty result with disclaimer
+        if not search_result:
+            self.logger.warning(
+                f"Web search unavailable for deep research query: {query}",
+                "web", "no_results"
+            )
+            search_result = {
+                'summary': f"[Web search unavailable] Unable to retrieve real-time results for '{query}'. "
+                           f"The final report will be based on the AI model's training data only.",
+                'sources': [],
+                'relevance': 0.0,
+                'timestamp': datetime.now().isoformat()
+            }
 
         # 記錄搜索結果詳情
         self.logger.info(
             f"🔗 Web Results: Retrieved {len(search_result['sources'])} sources",
             "web",
             "results",
-            sources=search_result['sources'],
-            avg_relevance=0.915
+            sources=search_result['sources'][:5],
+            avg_relevance=search_result['relevance']
         )
 
         # 如果有 LLM，處理搜索結果
@@ -1028,15 +1106,16 @@ class ProcessorFactory:
         "deep_research": "agent",
     }
 
-    def __init__(self, llm_client=None):
+    def __init__(self, llm_client=None, services: Optional[Dict[str, Any]] = None):
         self.llm_client = llm_client
+        self.services = services or {}
         self._instances: Dict[ProcessingMode, BaseProcessor] = {}
 
     def get_processor(self, mode: ProcessingMode) -> BaseProcessor:
         """獲取處理器實例"""
         if mode not in self._instances:
             processor_class = self._processors.get(mode, ChatProcessor)
-            instance = processor_class(self.llm_client)
+            instance = processor_class(self.llm_client, services=self.services)
             instance._cognitive_level = self.COGNITIVE_MAPPING.get(mode.value)
             self._instances[mode] = instance
 

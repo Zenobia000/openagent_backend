@@ -99,13 +99,11 @@ class TestChatProcessor:
 
     @pytest.mark.asyncio
     async def test_chat_without_llm(self, processing_context, mock_logger):
-        """測試沒有 LLM 時的 fallback"""
+        """測試沒有 LLM 時應拋出錯誤"""
         processor = ChatProcessor(None)
 
-        result = await processor.process(processing_context)
-
-        # 應該返回 Mock Response
-        assert "Mock Response" in result
+        with pytest.raises(RuntimeError, match="LLM client not configured"):
+            await processor.process(processing_context)
 
     @pytest.mark.asyncio
     async def test_chat_context_tracking(self, mock_llm_client, processing_context, mock_logger):
@@ -130,7 +128,7 @@ class TestKnowledgeProcessor:
 
     @pytest.mark.asyncio
     async def test_knowledge_rag_flow(self, mock_llm_client, processing_context, mock_logger):
-        """測試 RAG 檢索流程"""
+        """測試 RAG 檢索流程 — 無知識服務時走 LLM 直答 fallback"""
         processor = KnowledgeProcessor(mock_llm_client)
         processing_context.request.mode = ProcessingMode.KNOWLEDGE
 
@@ -140,13 +138,10 @@ class TestKnowledgeProcessor:
         mock_logger['progress'].assert_any_call("knowledge-retrieval", "start")
         mock_logger['progress'].assert_any_call("embedding", "start")
         mock_logger['progress'].assert_any_call("embedding", "end")
-        mock_logger['progress'].assert_any_call("search", "start")
 
-        # 驗證找到文檔
-        search_end_calls = [call for call in mock_logger['progress'].call_args_list
-                           if call[0][0] == "search" and call[0][1] == "end"]
-        assert len(search_end_calls) > 0
-        assert search_end_calls[0][0][2]["docs_found"] == 2
+        # 無知識服務時，LLM 直接回答
+        assert result == "Test LLM Response"
+        mock_llm_client.generate.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_knowledge_tool_decision(self, mock_llm_client, processing_context, mock_logger):
@@ -163,13 +158,24 @@ class TestKnowledgeProcessor:
         assert call_args[1] == 0.9  # confidence
 
     @pytest.mark.asyncio
-    async def test_knowledge_with_citations(self, mock_llm_client, processing_context, mock_logger):
-        """測試包含引用的知識檢索"""
-        processor = KnowledgeProcessor(mock_llm_client)
+    async def test_knowledge_with_real_service(self, mock_llm_client, processing_context, mock_logger):
+        """測試有知識服務時走完整 RAG 流程（含引用）"""
+        # Create mock knowledge service
+        mock_kb = AsyncMock()
+        mock_kb.retrieve = AsyncMock(return_value=[
+            {"content": "Machine learning is a subset of AI that learns from data."},
+            {"content": "Supervised learning uses labeled training data."}
+        ])
+        services = {"knowledge": mock_kb}
+
+        processor = KnowledgeProcessor(mock_llm_client, services=services)
         processing_context.request.mode = ProcessingMode.KNOWLEDGE
         processing_context.request.query = "What is machine learning?"
 
         result = await processor.process(processing_context)
+
+        # 驗證知識服務被呼叫
+        mock_kb.retrieve.assert_called_once_with("What is machine learning?", top_k=5)
 
         # 驗證 LLM 調用包含引用規則
         llm_call = mock_llm_client.generate.call_args[0][0]
@@ -246,8 +252,8 @@ class TestCodeProcessor:
     """測試代碼執行處理器"""
 
     @pytest.mark.asyncio
-    async def test_code_generation_and_execution(self, mock_llm_client, processing_context, mock_logger):
-        """測試代碼生成和執行"""
+    async def test_code_generation_without_sandbox(self, mock_llm_client, processing_context, mock_logger):
+        """測試無沙箱時 — 代碼生成但不執行"""
         processor = CodeProcessor(mock_llm_client)
         processing_context.request.mode = ProcessingMode.CODE
         processing_context.request.query = "Write hello world"
@@ -261,26 +267,49 @@ class TestCodeProcessor:
         mock_logger['progress'].assert_any_call("code-analysis", "start")
         mock_logger['progress'].assert_any_call("code-generation", "start")
 
-        # 驗證結果包含執行輸出
+        # 無沙箱時應提示無法執行
+        assert "Sandbox unavailable" in result
+
+    @pytest.mark.asyncio
+    async def test_code_generation_with_sandbox(self, mock_llm_client, processing_context, mock_logger):
+        """測試有沙箱時 — 真實執行代碼"""
+        mock_sandbox = AsyncMock()
+        mock_sandbox.execute = AsyncMock(return_value={
+            "success": True,
+            "stdout": "Hello World\n",
+            "stderr": ""
+        })
+        services = {"sandbox": mock_sandbox}
+
+        processor = CodeProcessor(mock_llm_client, services=services)
+        processing_context.request.mode = ProcessingMode.CODE
+        processing_context.request.query = "Write hello world"
+
+        mock_llm_client.generate.return_value = "print('Hello World')"
+
+        result = await processor.process(processing_context)
+
+        # 驗證沙箱被呼叫
+        mock_sandbox.execute.assert_called_once()
         assert "Hello World" in result
 
     @pytest.mark.asyncio
-    async def test_code_sandbox_execution(self, mock_llm_client, processing_context, mock_logger):
-        """測試沙箱執行環境"""
+    async def test_code_sandbox_execution_status(self, mock_llm_client, processing_context, mock_logger):
+        """測試沙箱執行狀態記錄"""
         processor = CodeProcessor(mock_llm_client)
         processing_context.request.mode = ProcessingMode.CODE
 
         result = await processor.process(processing_context)
 
-        # 驗證執行結果
+        # 驗證執行結果包含狀態
         assert "代碼執行結果" in result
 
-        # 驗證執行狀態記錄
+        # 無沙箱時 success 為 False
         execution_end_calls = [call for call in mock_logger['progress'].call_args_list
                                if len(call[0]) > 2 and call[0][0] == "code-execution"
                                and call[0][1] == "end"]
         if execution_end_calls:
-            assert execution_end_calls[0][0][2]["success"] == True
+            assert execution_end_calls[0][0][2]["success"] == False
 
 
 # ========== DeepResearchProcessor Tests ==========

@@ -45,17 +45,47 @@ class RefactoredEngine:
         self.initialized = False
 
     async def initialize(self):
-        """初始化引擎"""
+        """初始化引擎 — 建立外部服務（graceful degradation）"""
         if self.initialized:
             return
 
         self.logger.info("Initializing RefactoredEngine")
 
-        # 初始化各個組件
-        # 這裡可以加載服務、連接數據庫等
+        # Initialize external services (each in own try/except for graceful degradation)
+        services = {}
+
+        try:
+            from services.search.service import get_web_search_service
+            services["search"] = get_web_search_service()
+            self.logger.info("Search service initialized")
+        except Exception as e:
+            self.logger.warning(f"Search service unavailable: {e}")
+
+        try:
+            from services.knowledge.service import KnowledgeBaseService
+            kb = KnowledgeBaseService()
+            await kb.initialize()
+            services["knowledge"] = kb
+            self.logger.info("Knowledge service initialized")
+        except Exception as e:
+            self.logger.warning(f"Knowledge service unavailable: {e}")
+
+        try:
+            from services.sandbox.service import SandboxService
+            sandbox = SandboxService()
+            await sandbox.initialize()
+            services["sandbox"] = sandbox
+            self.logger.info("Sandbox service initialized")
+        except Exception as e:
+            self.logger.warning(f"Sandbox service unavailable: {e}")
+
+        # Rebuild processor factory and runtimes with services
+        self.processor_factory = ProcessorFactory(self.llm_client, services=services)
+        self._model_runtime = ModelRuntime(self.llm_client, self.processor_factory)
+        self._agent_runtime = AgentRuntime(self.llm_client, self.processor_factory)
 
         self.initialized = True
-        self.logger.info("AI Engine initialized successfully")
+        self.logger.info(f"AI Engine initialized (services: {list(services.keys()) or 'none'})")
 
     async def process(self, request: Request) -> Response:
         """

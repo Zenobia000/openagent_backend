@@ -1,0 +1,30 @@
+# OpenCode Platform - Cognitive Features Configuration
+# All flags default to false for backward compatibility.
+# Enable features gradually via this config file.
+
+cognitive_features:
+  # Master switch - must be true for any sub-feature to take effect
+  enabled: false
+
+  # System 1: Fast response path (CHAT, KNOWLEDGE)
+  system1:
+    enable_cache: false
+    cache_ttl: 300          # seconds
+    cache_max_size: 1000    # max cached entries
+
+  # System 2: Deep thinking path (THINKING, CODE, SEARCH)
+  system2:
+    enable_thinking_chain: false
+    max_thinking_time: 30   # seconds
+    reflection_depth: 3
+
+  # Routing enhancements
+  routing:
+    smart_routing: false
+    complexity_analysis: false
+    auto_mode_switch: false
+
+  # Monitoring
+  metrics:
+    cognitive_metrics: false
+    detailed_tracking: false

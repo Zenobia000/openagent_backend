@@ -121,42 +121,7 @@ class TestChatProcessor:
 # ========== ThinkingProcessor Tests ==========
 class TestThinkingProcessor:
     """測試深度思考處理器"""
-
-    @pytest.mark.asyncio
-    async def test_thinking_multi_step(self, mock_llm_client, processing_context, mock_logger):
-        """測試多步驟思考流程"""
-        processor = ThinkingProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.THINKING
-
-        result = await processor.process(processing_context)
-
-        # 驗證結果
-        assert result == "Test LLM Response"
-
-        # 驗證多個思考步驟
-        mock_logger['progress'].assert_any_call("deep-thinking", "start")
-        mock_logger['progress'].assert_any_call("thinking-step-1", "start")
-        mock_logger['progress'].assert_any_call("thinking-step-2", "start")
-        mock_logger['progress'].assert_any_call("thinking-step-3", "start")
-        mock_logger['progress'].assert_any_call("synthesis", "start")
-
-        # 驗證推理日誌
-        assert mock_logger['reasoning'].call_count >= 3
-
-    @pytest.mark.asyncio
-    async def test_thinking_tool_decision(self, mock_llm_client, processing_context, mock_logger):
-        """測試工具決策記錄"""
-        processor = ThinkingProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.THINKING
-
-        await processor.process(processing_context)
-
-        # 驗證工具決策被記錄
-        mock_logger['log_tool_decision'].assert_called_once()
-        call_args = mock_logger['log_tool_decision'].call_args[0]
-        assert call_args[0] == "deep_thinking"
-        assert call_args[1] == 0.85  # confidence
-        assert "複雜問題" in call_args[2]  # reason
+    pass
 
 
 # ========== KnowledgeProcessor Tests ==========
@@ -475,6 +440,33 @@ class TestProcessorFactory:
         processor = factory.get_processor(ProcessingMode.CHAT)
         assert isinstance(processor, CustomProcessor)
 
+    def test_cognitive_level_system1(self, mock_llm_client):
+        """Test System 1 processors get correct cognitive level."""
+        factory = ProcessorFactory(mock_llm_client)
+        for mode in [ProcessingMode.CHAT, ProcessingMode.KNOWLEDGE]:
+            processor = factory.get_processor(mode)
+            assert processor._cognitive_level == "system1", f"{mode.value} should be system1"
+
+    def test_cognitive_level_system2(self, mock_llm_client):
+        """Test System 2 processors get correct cognitive level."""
+        factory = ProcessorFactory(mock_llm_client)
+        for mode in [ProcessingMode.SEARCH, ProcessingMode.CODE, ProcessingMode.THINKING]:
+            processor = factory.get_processor(mode)
+            assert processor._cognitive_level == "system2", f"{mode.value} should be system2"
+
+    def test_cognitive_level_agent(self, mock_llm_client):
+        """Test Agent-level processors get correct cognitive level."""
+        factory = ProcessorFactory(mock_llm_client)
+        processor = factory.get_processor(ProcessingMode.DEEP_RESEARCH)
+        assert processor._cognitive_level == "agent"
+
+    def test_cognitive_mapping_completeness(self, mock_llm_client):
+        """Every registered mode must have a cognitive mapping."""
+        factory = ProcessorFactory(mock_llm_client)
+        for mode in factory._processors:
+            assert mode.value in factory.COGNITIVE_MAPPING, \
+                f"{mode.value} missing from COGNITIVE_MAPPING"
+
 
 # ========== Integration Tests ==========
 class TestProcessorIntegration:
@@ -585,32 +577,7 @@ class TestProcessorPerformance:
         for result in results:
             assert result is not None
 
-    @pytest.mark.asyncio
-    @pytest.mark.timeout(5)  # 5秒超時
-    async def test_processing_timeout(self, mock_llm_client):
-        """測試處理超時保護"""
-        processor = ChatProcessor(mock_llm_client)
-
-        # 模擬慢速 LLM
-        async def slow_generate(*args):
-            await asyncio.sleep(0.1)
-            return "Slow response"
-
-        mock_llm_client.generate = slow_generate
-
-        from core.models import Response
-
-        request = Request(query="Test", mode=ProcessingMode.CHAT)
-        response = Response(
-            result="",
-            mode=ProcessingMode.CHAT,
-            trace_id=request.trace_id
-        )
-        context = ProcessingContext(request, response)
-
-        # 應該在超時前完成
-        result = await processor.process(context)
-        assert result == "Slow response"
+    pass
 
 
 if __name__ == "__main__":

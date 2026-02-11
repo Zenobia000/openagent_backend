@@ -5,469 +5,351 @@
 <h1 align="center">OpenCode Platform</h1>
 
 <p align="center">
-  <strong>🚀 企業級 AI 智能平台 | Multi-Agent 協作 | RAG 知識庫 | 可擴展插件系統</strong>
+  <strong>Cognitive AI Engine | Dual Runtime Architecture | RAG Knowledge Base | Code Sandbox</strong>
 </p>
 
 <p align="center">
-  <a href="#功能特色">功能特色</a> •
-  <a href="#快速開始">快速開始</a> •
-  <a href="#系統架構">系統架構</a> •
-  <a href="#api-文檔">API 文檔</a> •
-  <a href="#插件開發">插件開發</a> •
-  <a href="#部署指南">部署指南</a>
+  <a href="#architecture">Architecture</a> &bull;
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="#api-reference">API Reference</a> &bull;
+  <a href="#processing-modes">Processing Modes</a> &bull;
+  <a href="#feature-flags">Feature Flags</a> &bull;
+  <a href="#testing">Testing</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.6.1-blue.svg" alt="Version" />
-  <img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python" />
-  <img src="https://img.shields.io/badge/react-18-61dafb.svg" alt="React" />
+  <img src="https://img.shields.io/badge/python-3.10+-green.svg" alt="Python" />
+  <img src="https://img.shields.io/badge/fastapi-0.128+-009688.svg" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/tests-165%2B_passing-brightgreen.svg" alt="Tests" />
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License" />
 </p>
 
 ---
 
-## 📖 簡介
+## Overview
 
-**OpenCode Platform** 是一個功能完整的企業級 AI 智能平台，整合了：
+**OpenCode Platform** is a cognitive AI processing engine built on a 3-tier architecture inspired by dual-process theory:
 
-- 🤖 **Multi-Agent 系統** - 5 個專業 Agent 協作處理複雜任務
-- 📚 **RAG 知識庫** - 上傳 PDF 文件，進行語意搜尋和智能問答
-- 🔍 **深度研究** - 多引擎網路搜尋，自動生成研究報告
-- 🖼️ **多模態對話** - 支援圖片上傳、文件分析
-- 💻 **代碼沙箱** - 安全執行 Python/Bash 代碼，支援數據分析和圖表
-- 🧩 **插件系統** - 熱插拔架構，支援自定義 Agent 和工具
-- 🔄 **工作流編排** - 視覺化設計 Agent 工作流程
+- **System 1** (Fast) -- Cached, low-latency responses for chat and knowledge retrieval
+- **System 2** (Analytical) -- Deep reasoning for search, code generation, and thinking tasks
+- **Agent** (Autonomous) -- Stateful, multi-step workflows with retry and error recovery
+
+The engine uses a Router to classify request complexity, then dispatches to the appropriate runtime (ModelRuntime or AgentRuntime) for execution.
 
 ---
 
-## ✨ 功能特色
+## Architecture
 
-### 🤖 Multi-Agent 協作系統
+```
+                         Request
+                           |
+                           v
+                   +---------------+
+                   |   API Layer   |   FastAPI + JWT Auth + SSE Streaming
+                   |   (routes)    |   11 versioned endpoints
+                   +-------+-------+
+                           |
+                           v
+                +----------+----------+
+                |  RefactoredEngine   |   Router + Dual Runtime dispatch
+                |  (Metrics, Flags)   |   Feature-flagged cognitive features
+                +----------+----------+
+                           |
+                    +------+------+
+                    |   Router    |   ComplexityAnalyzer (smart routing)
+                    +------+------+
+                           |
+              +------------+------------+
+              |                         |
+     +--------v--------+      +--------v--------+
+     |  ModelRuntime    |      |  AgentRuntime   |
+     |  (System 1 + 2) |      |  (Agent level)  |
+     |  Stateless       |      |  Stateful       |
+     |  Cached          |      |  Retry + Recovery|
+     +--------+---------+      +--------+---------+
+              |                         |
+     +--------v--------+      +--------v--------+
+     | ProcessorFactory |      | WorkflowOrch.  |
+     | 6 Processors     |      | Multi-step     |
+     +---------+--------+      +--------+--------+
+               |                        |
+               v                        v
+     +---------+---------+    +---------+---------+
+     |   Services Layer  |    |   Services Layer  |
+     | LLM | RAG | Search|    | LLM | Research    |
+     | Sandbox | Browser |    | Browser | Repo    |
+     +-------------------+    +-------------------+
+```
 
-| Agent | 職責 | 能力 |
-|-------|------|------|
-| **Dispatcher** | 總機 | 意圖識別、任務分派 |
-| **Researcher** | 研究員 | RAG 搜尋、網路研究 |
-| **Writer** | 寫手 | 文案撰寫、報告生成 |
-| **Coder** | 程式師 | 代碼生成、執行分析 |
-| **Analyst** | 分析師 | 數據分析、圖表製作 |
-| **Reviewer** | 審稿員 | 品質檢查、內容審核 |
+### Three Cognitive Levels
 
-### 📚 RAG 知識庫
-
-- 支援 PDF 文件上傳和解析
-- Cohere 多語言嵌入模型 (embed-multilingual-v3.0)
-- Qdrant 向量資料庫
-- 智能分塊和語意搜尋
-- 支援文件過濾和相關性評分
-
-### 🔍 深度研究
-
-- 多引擎搜尋 (DuckDuckGo、Wikipedia、arXiv)
-- LLM 相關性檢查
-- 自動生成結構化研究報告
-- 來源引用和追蹤
-
-### 🧩 插件系統
-
-- 熱插拔，無需重啟
-- 支援 Agent 插件和 Tool 插件
-- ZIP 上傳 / Git 安裝
-- 沙箱執行保障安全
+| Level | Modes | Runtime | Characteristics |
+|-------|-------|---------|-----------------|
+| **System 1** | `chat`, `knowledge` | ModelRuntime | Fast, cacheable, low-latency |
+| **System 2** | `search`, `code`, `thinking` | ModelRuntime | Analytical, multi-step reasoning |
+| **Agent** | `deep_research` | AgentRuntime | Stateful workflows, retry, error recovery |
 
 ---
 
-## 🚀 快速開始
+## Project Structure
 
-### 系統需求
-
-- **Python**: 3.11+
-- **Node.js**: 18+
-- **Docker**: 20+ (用於 Qdrant 和沙箱)
-- **記憶體**: 8GB+ 建議
-
-### 1️⃣ 克隆專案
-
-```bash
-git clone https://github.com/bai0821/opencode_platform.git
-cd opencode_platform
+```
+openagent_backend/
+├── main.py                        # CLI entry point
+├── config/
+│   └── cognitive_features.yaml    # Feature flag configuration
+├── src/
+│   ├── core/                      # Core engine layer
+│   │   ├── engine.py              # RefactoredEngine (router + runtime dispatch)
+│   │   ├── router.py              # DefaultRouter + ComplexityAnalyzer
+│   │   ├── processor.py           # ProcessorFactory + 6 processors
+│   │   ├── models.py              # Request, Response, ProcessingContext, EventType
+│   │   ├── feature_flags.py       # FeatureFlags (YAML-driven)
+│   │   ├── cache.py               # ResponseCache (TTL, eviction, stats)
+│   │   ├── metrics.py             # CognitiveMetrics (per-level tracking)
+│   │   ├── errors.py              # ErrorClassifier, retry, fallback
+│   │   ├── protocols.py           # Service/Router/Runtime protocols
+│   │   ├── runtime/
+│   │   │   ├── model_runtime.py   # System 1+2 (stateless, cached)
+│   │   │   ├── agent_runtime.py   # Agent workflows (stateful, retry)
+│   │   │   └── workflow.py        # WorkflowOrchestrator
+│   │   ├── prompts.py             # 17 prompt templates
+│   │   └── logger.py              # Structured logging
+│   ├── api/                       # API layer
+│   │   ├── routes.py              # FastAPI app + all endpoints
+│   │   ├── schemas.py             # Pydantic request/response models
+│   │   ├── streaming.py           # SSE async generator bridge
+│   │   ├── errors.py              # APIError + error handlers
+│   │   └── middleware.py          # Request logging middleware
+│   ├── auth/                      # Authentication
+│   │   ├── jwt.py                 # JWT encode/decode (python-jose)
+│   │   └── dependencies.py        # get_current_user FastAPI Depends
+│   └── services/                  # Service layer
+│       ├── llm/openai_client.py   # OpenAI LLM client
+│       ├── knowledge/             # RAG knowledge base
+│       ├── search/                # Web search (multi-engine)
+│       ├── sandbox/               # Docker code execution
+│       ├── research/              # Deep research service
+│       ├── browser/               # Web browsing service
+│       └── repo/                  # Git operations
+├── tests/
+│   ├── unit/                      # Unit tests
+│   ├── integration/               # Integration tests
+│   └── e2e/                       # End-to-end tests
+├── plugins/                       # Plugin directory
+├── docs/                          # Documentation
+└── .env                           # Environment variables
 ```
 
-### 2️⃣ 設置環境變數
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Python** 3.10+
+- **Docker** (optional, for sandbox and Qdrant)
+
+### 1. Environment Setup
 
 ```bash
-# 複製範例文件
-cp .env.example .env
+cd openagent_backend
 
-# 編輯 .env，填入你的 API Keys
-```
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
 
-**.env 必填項目：**
-
-```env
-# LLM API (至少填一個)
-OPENAI_API_KEY=sk-proj-xxx
-GEMINI_API_KEY=xxx              # 可選
-
-# Embedding
-COHERE_API_KEY=xxx
-
-# 安全設定
-JWT_SECRET=your-secret-key-change-in-production
-ADMIN_PASSWORD=your-admin-password
-```
-
-### 3️⃣ 啟動 Qdrant
-
-```bash
-docker run -d \
-  --name qdrant \
-  -p 6333:6333 \
-  -v $(pwd)/qdrant_storage:/qdrant/storage \
-  qdrant/qdrant
-```
-
-### 4️⃣ 安裝後端依賴
-
-```bash
-# 建立虛擬環境（建議）
-python -m venv venv
-
-# 啟用虛擬環境
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# 安裝依賴
 pip install -r requirements.txt
+
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY
 ```
 
-### 5️⃣ 安裝前端依賴
+### 2. CLI Mode
 
 ```bash
-cd frontend
-npm install
-cd ..
+python main.py          # Interactive chat
+python main.py test     # Run tests
+python main.py help     # Help
 ```
 
-### 6️⃣ 啟動服務
-
-**方式 A：使用啟動腳本（推薦）**
+### 3. API Server
 
 ```bash
-# Windows
-powershell -ExecutionPolicy Bypass -File start.ps1
+cd src && python -c "
+import uvicorn
+from api.routes import create_app
+from core.engine import RefactoredEngine
+from services.llm.openai_client import OpenAILLMClient
+import os
 
-# Linux/Mac
-bash deploy.sh
+llm = OpenAILLMClient(api_key=os.getenv('OPENAI_API_KEY'))
+engine = RefactoredEngine(llm_client=llm)
+app = create_app(engine=engine)
+uvicorn.run(app, host='0.0.0.0', port=8000)
+"
 ```
 
-**方式 B：手動啟動**
+- API docs: http://localhost:8000/docs
+- Health check: http://localhost:8000/health
+
+### 4. API Usage
 
 ```bash
-# 終端 1：後端
-python run.py api
+# Get a JWT token
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "user", "password": "pass"}'
 
-# 終端 2：前端
-cd frontend
-npm run dev
-```
+# Chat
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Hello", "mode": "chat"}'
 
-### 7️⃣ 訪問服務
-
-- **前端介面**: http://localhost:5173
-- **API 文檔**: http://localhost:8000/docs
-- **Qdrant Dashboard**: http://localhost:6333/dashboard
-
-### 8️⃣ 預設帳號
-
-| 帳號 | 密碼 | 角色 |
-|------|------|------|
-| admin | admin123 (或 .env 中設定的) | 管理員 |
-
----
-
-## 🏗️ 系統架構
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Frontend                                 │
-│                    React + Tailwind CSS                         │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        API Gateway                               │
-│                    FastAPI + JWT Auth                           │
-├─────────────────────────────────────────────────────────────────┤
-│   /chat   │  /research  │  /sandbox  │  /plugins  │  /workflow │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Agent Coordinator                             │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
-│  │Dispatcher│ │Researcher│ │  Coder   │ │ Analyst  │           │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │                    Plugin Agents                            │ │
-│  │    (Stock Analyst, Weather Tool, Custom Agents...)         │ │
-│  └────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Services Layer                             │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
-│  │   RAG    │ │ Sandbox  │ │  Search  │ │ Workflow │           │
-│  │ Service  │ │ Service  │ │ Service  │ │  Engine  │           │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Infrastructure                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
-│  │  Qdrant  │ │  OpenAI  │ │  Cohere  │ │  Docker  │           │
-│  │ (Vector) │ │  (LLM)   │ │(Embedding)│ │(Sandbox) │           │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
-└─────────────────────────────────────────────────────────────────┘
+# Stream (SSE)
+curl -X POST http://localhost:8000/api/v1/chat/stream \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Explain quantum computing", "mode": "thinking"}'
 ```
 
 ---
 
-## 📁 專案結構
+## API Reference
 
-```
-opencode_platform/
-├── src/opencode/              # 後端源碼
-│   ├── api/                   # FastAPI 路由
-│   ├── agents/                # Multi-Agent 系統
-│   │   ├── base.py           # Agent 基類
-│   │   ├── coordinator.py    # 協調器
-│   │   ├── dispatcher.py     # 總機 Agent
-│   │   └── specialists.py    # 專業 Agents
-│   ├── services/             # 服務層
-│   │   └── knowledge_base/   # RAG 服務
-│   ├── plugins/              # 插件系統
-│   ├── workflow/             # 工作流引擎
-│   ├── sandbox/              # 代碼沙箱
-│   ├── auth/                 # 認證授權
-│   └── control_plane/        # 審計、成本追蹤
-│
-├── frontend/                  # 前端源碼
-│   ├── src/
-│   │   ├── components/       # React 組件
-│   │   └── App.jsx          # 主應用
-│   ├── package.json
-│   └── vite.config.js
-│
-├── plugins/                   # 插件目錄
-│   ├── stock-analyst/        # 範例：股票分析 Agent
-│   ├── weather-tool/         # 範例：天氣工具
-│   └── PLUGIN_DEV_GUIDE.md   # 插件開發指南
-│
-├── docker/                    # Docker 配置
-├── nginx/                     # Nginx 配置
-├── tests/                     # 測試文件
-├── docs/                      # 文檔
-│
-├── .env.example              # 環境變數範例
-├── requirements.txt          # Python 依賴
-├── docker-compose.yml        # Docker Compose
-├── run.py                    # 啟動腳本
-└── README.md                 # 本文件
-```
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/` | GET | No | Platform info |
+| `/health` | GET | No | Health check |
+| `/api/status` | GET | No | Engine status |
+| `/api/v1/auth/token` | POST | No | Get JWT token |
+| `/api/v1/chat` | POST | Yes | Sync chat |
+| `/api/v1/chat/stream` | POST | Yes | SSE streaming chat |
+| `/api/v1/documents/upload` | POST | Yes | Upload document |
+| `/api/v1/documents/status/{id}` | GET | Yes | Check upload status |
+| `/api/v1/search` | POST | Yes | Semantic search |
+| `/api/v1/sandbox/execute` | POST | Yes | Execute code |
+| `/api/v1/metrics` | GET | Yes | Cognitive metrics |
+
+Full interactive docs available at `/docs` when the server is running.
 
 ---
 
-## 📡 API 文檔
+## Processing Modes
 
-### 主要端點
-
-| 端點 | 方法 | 說明 |
-|------|------|------|
-| `/api/chat/stream` | POST | 串流對話 (SSE) |
-| `/api/research/deep` | POST | 深度研究 |
-| `/api/upload` | POST | 上傳文件 |
-| `/api/documents` | GET | 文件列表 |
-| `/api/sandbox/execute` | POST | 執行代碼 |
-| `/api/plugins` | GET | 插件列表 |
-| `/api/workflows` | GET/POST | 工作流管理 |
-| `/api/agents` | GET | Agent 列表 |
-
-### 完整 API 文檔
-
-啟動服務後訪問：http://localhost:8000/docs
+| Mode | Cognitive Level | Runtime | Description |
+|------|----------------|---------|-------------|
+| `chat` | System 1 | ModelRuntime | General conversation (cacheable) |
+| `knowledge` | System 1 | ModelRuntime | RAG knowledge retrieval (cacheable) |
+| `search` | System 2 | ModelRuntime | Web search with analysis |
+| `code` | System 2 | ModelRuntime | Code generation and execution |
+| `thinking` | System 2 | ModelRuntime | Deep reasoning and analysis |
+| `deep_research` | Agent | AgentRuntime | Multi-step research workflows |
+| `auto` | -- | Router decides | Automatic mode selection |
 
 ---
 
-## 🧩 插件開發
+## Feature Flags
 
-### 快速開始
+All cognitive features are controlled via `config/cognitive_features.yaml` and default to **OFF** for backward compatibility:
 
-1. 在 `plugins/` 目錄創建插件文件夾
-2. 添加 `plugin.json` 和 `main.py`
-3. 在管理介面啟用插件
-
-### Agent 插件範例
-
-```python
-# plugins/my-agent/main.py
-from opencode.plugins.manager import AgentPlugin
-
-class PluginImpl(AgentPlugin):
-    @property
-    def agent_name(self) -> str:
-        return "my_agent"
-    
-    @property
-    def agent_description(self) -> str:
-        return "我的自定義 Agent"
-    
-    async def process_task(self, task_description, parameters, context):
-        # 你的邏輯
-        return {"success": True, "output": "Hello from plugin!"}
+```yaml
+cognitive_features:
+  enabled: false          # Master switch
+  system1:
+    enable_cache: false   # Response cache for CHAT/KNOWLEDGE
+  routing:
+    smart_routing: false  # Dual runtime dispatch via ComplexityAnalyzer
+  metrics:
+    cognitive_metrics: false  # Per-level request tracking
 ```
 
-### plugin.json
+When all flags are OFF, the system behaves identically to pre-refactoring.
 
-```json
-{
-  "id": "my-agent",
-  "name": "我的 Agent",
-  "version": "1.0.0",
-  "type": "agent",
-  "entry_point": "main"
-}
-```
+### Key Components
 
-詳見 [插件開發指南](plugins/PLUGIN_DEV_GUIDE.md)
+| Component | Flag | Description |
+|-----------|------|-------------|
+| **ResponseCache** | `system1.enable_cache` | SHA-256 keyed cache with TTL and LRU eviction |
+| **CognitiveMetrics** | `metrics.cognitive_metrics` | Per-level latency, success rate, token tracking |
+| **SmartRouting** | `routing.smart_routing` | ComplexityAnalyzer-based runtime dispatch |
+| **ErrorClassifier** | Always active | 5-category classification with retry/fallback |
 
 ---
 
-## 🐳 Docker 部署
+## Environment Variables
 
-### 開發環境
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `OPENAI_API_KEY` | Yes | OpenAI API key | -- |
+| `JWT_SECRET` | No | JWT signing secret | `dev-secret-key` |
+| `JWT_ALGORITHM` | No | JWT algorithm | `HS256` |
+| `JWT_EXPIRE_MINUTES` | No | Token expiry | `1440` |
+| `LOG_LEVEL` | No | Logging level | `INFO` |
+
+---
+
+## Testing
 
 ```bash
-docker-compose up -d
+# Run all tests (exclude known legacy tests)
+python3 -m pytest tests/ -o "addopts=" \
+  --ignore=tests/unit/test_engine.py \
+  --ignore=tests/unit/test_refactored_engine.py
+
+# Run by category
+python3 -m pytest tests/unit/ -o "addopts="           # Unit tests
+python3 -m pytest tests/integration/ -o "addopts="     # Integration tests
+python3 -m pytest tests/e2e/ -o "addopts="             # E2E tests
+
+# Run specific test files
+python3 -m pytest tests/unit/test_cache.py -v -o "addopts="
+python3 -m pytest tests/integration/test_api.py -v -o "addopts="
 ```
 
-### 生產環境（含 Nginx）
+### Test Coverage
 
-```bash
-docker-compose --profile production up -d
-```
-
-### 服務管理
-
-```bash
-# 查看日誌
-docker-compose logs -f
-
-# 停止服務
-docker-compose down
-
-# 重啟單個服務
-docker-compose restart api
-```
+| Category | Tests | Covers |
+|----------|-------|--------|
+| Unit | 90+ | Feature flags, router, cache, metrics, errors, auth, processors |
+| Integration | 20+ | API endpoints, SSE streaming, runtime dispatch |
+| E2E | 50+ | All processing modes end-to-end |
 
 ---
 
-## ⚙️ 配置說明
+## Services
 
-### 環境變數
-
-| 變數 | 必填 | 說明 | 預設值 |
-|------|------|------|--------|
-| `OPENAI_API_KEY` | ✅ | OpenAI API Key | - |
-| `COHERE_API_KEY` | ✅ | Cohere API Key | - |
-| `GEMINI_API_KEY` | ❌ | Google Gemini API Key | - |
-| `JWT_SECRET` | ✅ | JWT 密鑰 | - |
-| `ADMIN_PASSWORD` | ❌ | 管理員密碼 | admin123 |
-| `QDRANT_HOST` | ❌ | Qdrant 主機 | localhost |
-| `QDRANT_PORT` | ❌ | Qdrant 端口 | 6333 |
-| `LOG_LEVEL` | ❌ | 日誌等級 | INFO |
-
-### Qdrant 配置
-
-預設使用 Collection：`opencode_documents`
-
-向量維度：1024 (Cohere embed-multilingual-v3.0)
+| Service | Description |
+|---------|-------------|
+| **LLM (OpenAI)** | GPT model client with streaming support |
+| **Knowledge (RAG)** | Document upload, indexing, semantic retrieval |
+| **Search** | Multi-engine web search (DuckDuckGo, Wikipedia, arXiv) |
+| **Sandbox** | Docker-based Python/Bash code execution |
+| **Research** | Deep multi-step research with report generation |
+| **Browser** | Web page fetching and content extraction |
+| **Repo** | Git repository operations |
 
 ---
 
-## 🧪 測試
+## Troubleshooting
 
-```bash
-# 運行所有測試
-pytest
+**`OPENAI_API_KEY` not set**: Create `.env` in project root with `OPENAI_API_KEY=sk-...`
 
-# 運行特定測試
-pytest tests/test_rag.py
+**`ModuleNotFoundError`**: Run from project root. The `src/` path is added automatically by `main.py`.
 
-# 測試覆蓋率
-pytest --cov=src/opencode
-```
+**`pytest-cov` not installed**: Use `-o "addopts="` to override pyproject.toml coverage flags.
+
+**Import errors in `test_engine.py` / `test_refactored_engine.py`**: Legacy test files with broken imports. Exclude them with `--ignore`.
 
 ---
 
-## ⚠️ 常見問題
+## License
 
-### Q: Qdrant 連接失敗？
-
-確保 Docker 容器正在運行：
-```bash
-docker ps | grep qdrant
-```
-
-### Q: 前端無法連接後端？
-
-檢查 CORS 設定和後端是否在 8000 端口運行。
-
-### Q: 沙箱執行失敗？
-
-確保 Docker 服務正在運行，且有足夠權限。
-
-### Q: API Key 錯誤？
-
-確認 `.env` 文件中的 Key 格式正確，沒有多餘空格。
-
----
-
-## 🤝 貢獻
-
-歡迎貢獻！請查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解詳情。
-
-### 開發流程
-
-1. Fork 本專案
-2. 創建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送分支 (`git push origin feature/amazing-feature`)
-5. 開啟 Pull Request
-
----
-
-## 📄 授權
-
-本專案採用 MIT 授權 - 詳見 [LICENSE](LICENSE) 文件
-
----
-
-## 🙏 致謝
-
-- [OpenAI](https://openai.com/) - GPT 模型
-- [Cohere](https://cohere.com/) - 嵌入模型
-- [Qdrant](https://qdrant.tech/) - 向量資料庫
-- [FastAPI](https://fastapi.tiangolo.com/) - API 框架
-- [React](https://react.dev/) - 前端框架
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by OpenCode Team</sub>
+  <sub>Built by OpenCode Team</sub>
 </p>

@@ -6,9 +6,13 @@
 import asyncio
 from typing import Optional, Dict, Any
 
-from .models import Request, Response, ProcessingContext, ProcessingMode, EventType
+from .models import Request, Response, ProcessingContext, ProcessingMode, EventType, RuntimeType
 from .processor import ProcessorFactory
 from .logger import structured_logger
+from .feature_flags import feature_flags
+from .router import DefaultRouter
+from .runtime import ModelRuntime, AgentRuntime
+from .metrics import CognitiveMetrics
 
 
 class RefactoredEngine:
@@ -33,6 +37,11 @@ class RefactoredEngine:
         self.config = config or {}
         self.processor_factory = ProcessorFactory(llm_client)
         self.logger = structured_logger
+        self.feature_flags = feature_flags
+        self.router = DefaultRouter(feature_flags)
+        self._model_runtime = ModelRuntime(llm_client, self.processor_factory)
+        self._agent_runtime = AgentRuntime(llm_client, self.processor_factory)
+        self._metrics = CognitiveMetrics()
         self.initialized = False
 
     async def initialize(self):
@@ -91,21 +100,20 @@ class RefactoredEngine:
                 data={"name": "opencode", "version": "2.0"}
             ))
 
-            # 自動選擇模式
-            if request.mode == ProcessingMode.AUTO:
-                request.mode = await self._select_mode(request.query)
-                self.logger.log_tool_decision(
-                    tool=request.mode.value,
-                    confidence=0.85,
-                    reason="Auto-selected based on query analysis"
-                )
+            # Route the request
+            decision = await self.router.route(request)
+            request.mode = decision.mode
+            response.mode = decision.mode
 
-            # 獲取處理器
-            processor = self.processor_factory.get_processor(request.mode)
+            self.logger.log_tool_decision(
+                tool=decision.mode.value,
+                confidence=decision.confidence,
+                reason=decision.reason,
+            )
 
-            # 執行處理
+            # Execute via runtime dispatch or legacy path
             with self.logger.measure(f"process_{request.mode.value}"):
-                result = await processor.process(context)
+                result = await self._execute(decision, context)
 
             # 更新響應
             response.result = result
@@ -122,9 +130,26 @@ class RefactoredEngine:
             # SSE: 最終結果
             response.add_event(EventType.RESULT, result)
 
+            # Record cognitive metrics (when enabled)
+            if self.feature_flags.is_enabled("metrics.cognitive_metrics"):
+                self._metrics.record_request(
+                    cognitive_level=request.mode.cognitive_level,
+                    latency_ms=response.time_ms,
+                    tokens=response.tokens_used,
+                    success=True,
+                )
+
             return response
 
         except Exception as e:
+            # Record failure metric
+            if self.feature_flags.is_enabled("metrics.cognitive_metrics"):
+                self._metrics.record_request(
+                    cognitive_level=request.mode.cognitive_level,
+                    latency_ms=context.get_elapsed_time(),
+                    success=False,
+                )
+
             # 錯誤處理
             self.logger.log_error(e, {
                 "query": request.query,
@@ -147,63 +172,73 @@ class RefactoredEngine:
             # 清理上下文
             self.logger.clear_context()
 
-    async def _select_mode(self, query: str) -> ProcessingMode:
+    async def _execute(self, decision, context: ProcessingContext) -> str:
+        """Dispatch to the appropriate runtime or legacy path.
+
+        When feature flag is off: uses ProcessorFactory directly (legacy).
+        When feature flag is on: dispatches to ModelRuntime or AgentRuntime.
         """
-        自動選擇處理模式
+        use_runtime = self.feature_flags.is_enabled("routing.smart_routing")
 
-        Args:
-            query: 用戶查詢
+        if not use_runtime:
+            # Legacy path - direct ProcessorFactory (backward compatible)
+            processor = self.processor_factory.get_processor(context.request.mode)
+            return await processor.process(context)
 
-        Returns:
-            ProcessingMode: 選擇的處理模式
-        """
-        query_lower = query.lower()
-
-        # 簡單的規則匹配
-        if any(word in query_lower for word in ['代碼', 'code', '程式', 'function']):
-            return ProcessingMode.CODE
-        elif any(word in query_lower for word in ['搜尋', 'search', '查詢', 'find']):
-            return ProcessingMode.SEARCH
-        elif any(word in query_lower for word in ['知識', 'knowledge', '解釋', 'explain']):
-            return ProcessingMode.KNOWLEDGE
-        elif any(word in query_lower for word in ['深度', 'deep', '分析', 'analyze', '思考']):
-            return ProcessingMode.THINKING
-        else:
-            return ProcessingMode.CHAT
+        # Runtime dispatch path
+        if decision.runtime_type == RuntimeType.AGENT_RUNTIME:
+            return await self._agent_runtime.execute(context)
+        return await self._model_runtime.execute(context)
 
     async def process_stream(self, request: Request):
-        """
-        流式處理 - 支持 SSE
+        """Async generator that yields SSE events during processing.
 
-        Args:
-            request: 請求對象
-
-        Yields:
-            SSE 事件
+        Uses an asyncio.Queue to bridge the callback-based logger SSE
+        system into a true async generator.
         """
-        # 設置流式標記
+        import json
         request.stream = True
 
-        # 設置 SSE 回調
-        events = []
+        event_queue: asyncio.Queue = asyncio.Queue()
+        done = asyncio.Event()
 
         def sse_callback(signal, data):
-            events.append({"event": signal, "data": data})
+            event_queue.put_nowait({"event": signal, "data": data})
 
         self.logger.set_sse_callback(sse_callback)
 
-        # 處理請求
-        response = await self.process(request)
+        async def _run():
+            try:
+                resp = await self.process(request)
+                event_queue.put_nowait({
+                    "event": EventType.RESULT.value,
+                    "data": {"response": resp.result, "trace_id": resp.trace_id},
+                })
+            except Exception as e:
+                event_queue.put_nowait({
+                    "event": EventType.ERROR.value,
+                    "data": {"message": str(e)},
+                })
+            finally:
+                done.set()
 
-        # 返回所有事件
-        for event in events:
-            yield event
+        task = asyncio.create_task(_run())
 
-        # 最終響應
-        yield {
-            "event": "result",
-            "data": {"response": response.result}
-        }
+        try:
+            while not done.is_set() or not event_queue.empty():
+                try:
+                    evt = await asyncio.wait_for(event_queue.get(), timeout=0.1)
+                    yield evt
+                except asyncio.TimeoutError:
+                    continue
+        finally:
+            if not task.done():
+                task.cancel()
+
+    @property
+    def metrics(self):
+        """Return cognitive metrics summary."""
+        return self._metrics.get_summary()
 
     def register_processor(self, mode: ProcessingMode, processor_class):
         """

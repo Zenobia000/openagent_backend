@@ -1,14 +1,15 @@
-"""
-OpenAI LLM Client - 簡化版本
-"""
+"""OpenAI LLM provider."""
+
+import os
+from typing import Any, AsyncGenerator, Dict, Optional
 
 from openai import AsyncOpenAI
-import os
-from typing import Optional, Dict, Any
+
+from .base import LLMProvider
 
 
-class OpenAILLMClient:
-    """OpenAI LLM 客戶端"""
+class OpenAILLMClient(LLMProvider):
+    """OpenAI LLM client (GPT-4o, GPT-4o-mini, etc.)."""
 
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4o-mini"):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
@@ -21,8 +22,16 @@ class OpenAILLMClient:
 
         self.client = AsyncOpenAI(api_key=self.api_key)
 
-    async def generate(self, prompt: str, **kwargs) -> tuple[str, Dict[str, Any]]:
-        """生成回應，返回 (content, token_info)"""
+    @property
+    def provider_name(self) -> str:
+        return "openai"
+
+    @property
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    async def generate(self, prompt: str, **kwargs) -> str | tuple[str, Dict[str, Any]]:
+        """Generate a response via OpenAI ChatCompletion."""
         try:
             params = {
                 "model": self.model,
@@ -30,36 +39,32 @@ class OpenAILLMClient:
                 "temperature": kwargs.get("temperature", self.temperature),
             }
 
-            # 根據模型選擇正確的參數
-            if self.model in ["gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"]:
+            if self.model in ("gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"):
                 params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
             else:
                 params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)
 
             response = await self.client.chat.completions.create(**params)
 
-            # 提取 token 使用資訊
             token_info = {
                 "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
                 "completion_tokens": response.usage.completion_tokens if response.usage else 0,
-                "total_tokens": response.usage.total_tokens if response.usage else 0
+                "total_tokens": response.usage.total_tokens if response.usage else 0,
             }
 
-            # 為了向後兼容，如果 kwargs 中有 return_token_info=True，返回元組
             if kwargs.get("return_token_info", False):
                 return response.choices[0].message.content, token_info
 
-            # 默認只返回內容（向後兼容）
             return response.choices[0].message.content
 
         except Exception as e:
-            print(f"Error calling OpenAI: {e}")
+            error_msg = f"[OpenAI Error] {e}"
             if kwargs.get("return_token_info", False):
-                return f"[Error] {str(e)}", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-            return f"[Error] {str(e)}"
+                return error_msg, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            return error_msg
 
-    async def stream(self, prompt: str, **kwargs):
-        """串流生成"""
+    async def stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Stream response tokens via OpenAI ChatCompletion."""
         params = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -67,8 +72,7 @@ class OpenAILLMClient:
             "stream": True,
         }
 
-        # 根據模型選擇正確的參數
-        if self.model in ["gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"]:
+        if self.model in ("gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"):
             params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
         else:
             params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)

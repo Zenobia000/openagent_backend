@@ -1,278 +1,278 @@
-# 🚀 OpenCode Platform - 快速開始指南（簡化版）
+# OpenCode Platform - Quick Start Guide
 
-## 🏆 系統狀態
-- ✅ **極簡設計** - 單一 main.py 入口，無複雜依賴
-- ✅ **100% Prompts 整合** - 所有 17 個專業提示詞模板已完全整合
-- ✅ **OpenAI API 整合** - 支援最新 GPT-4/5 模型
-- ✅ **日誌追蹤** - 自動記錄所有查詢和回應
-- ✅ **生產就緒** - 完整功能，簡潔架構
+## System Status
 
-## 📁 專案結構（簡化版）
+- **Engine**: RefactoredEngine with Router + Dual Runtime dispatch
+- **API**: FastAPI with JWT auth, SSE streaming, 11 endpoints
+- **Architecture**: Cognitive 3-tier (System 1 / System 2 / Agent)
+- **LLM**: Multi-Provider fallback chain (OpenAI -> Anthropic -> Gemini)
+- **Feature Flags**: YAML-driven, all flags default OFF for backward compatibility
+- **Tests**: 182+ passing (unit / integration / e2e)
+
+## Project Structure
+
 ```
-opencode_backend/
-├── main.py                     # 單一入口點（所有功能）
-├── QUICK_START.md              # 本文件
+openagent_backend/
+├── main.py                        # CLI entry point (default: auto mode)
+├── config/
+│   └── cognitive_features.yaml    # Feature flag config
 ├── src/
-│   ├── core/                   # 核心引擎
-│   │   ├── engine.py           # 重構版引擎
-│   │   ├── processor.py        # 處理器系統（策略模式）
-│   │   ├── prompts.py          # 17個專業提示詞模板（100%整合）
-│   │   ├── models.py           # 數據模型
-│   │   └── logger.py           # 結構化日誌
-│   └── services/               # 服務層
-│       ├── llm/                # LLM 客戶端
-│       │   └── openai_client.py # OpenAI 客戶端
-│       ├── research/           # 研究服務
-│       ├── browser/            # 瀏覽器服務
-│       └── knowledge_base/     # 知識庫服務
-├── logs/                       # 日誌檔案（自動生成）
-│   └── opencode_YYYYMMDD.log  # 每日日誌
-├── tests/                      # 測試（分類組織）
-│   ├── unit/                   # 單元測試
-│   ├── integration/            # 整合測試
-│   ├── e2e/                   # 端到端測試
-│   └── prompts/               # Prompts 整合驗證
-├── docs/                       # 文檔
-└── .env                       # 環境變數配置
+│   ├── core/                      # Core engine layer
+│   │   ├── engine.py              # RefactoredEngine (router + runtime dispatch)
+│   │   ├── router.py              # DefaultRouter + ComplexityAnalyzer
+│   │   ├── processor.py           # ProcessorFactory + 6 processors
+│   │   ├── models.py              # Request, Response, ProcessingContext, EventType
+│   │   ├── feature_flags.py       # FeatureFlags (YAML-driven)
+│   │   ├── cache.py               # ResponseCache (TTL, eviction, stats)
+│   │   ├── metrics.py             # CognitiveMetrics (per-level tracking)
+│   │   ├── errors.py              # ErrorClassifier, retry, fallback
+│   │   ├── protocols.py           # Service/Router/Runtime protocols
+│   │   ├── runtime/               # Dual runtime system
+│   │   │   ├── model_runtime.py   # System 1+2 (stateless, cached)
+│   │   │   ├── agent_runtime.py   # Agent workflows (stateful, retry)
+│   │   │   └── workflow.py        # WorkflowOrchestrator
+│   │   ├── prompts.py             # 17 prompt templates
+│   │   └── logger.py              # Structured logging
+│   ├── api/                       # API layer
+│   │   ├── routes.py              # FastAPI app + all endpoints
+│   │   ├── schemas.py             # Pydantic request/response models
+│   │   ├── streaming.py           # SSE async generator bridge
+│   │   ├── errors.py              # APIError + error handlers
+│   │   └── middleware.py          # Request logging middleware
+│   ├── auth/                      # Authentication
+│   │   ├── jwt.py                 # JWT encode/decode (python-jose)
+│   │   └── dependencies.py        # get_current_user FastAPI Depends
+│   └── services/                  # Service layer
+│       ├── llm/                   # Multi-Provider LLM
+│       │   ├── base.py            # LLMProvider ABC
+│       │   ├── openai_client.py   # OpenAI (GPT-4o)
+│       │   ├── anthropic_client.py # Anthropic (Claude)
+│       │   ├── gemini_client.py   # Gemini
+│       │   └── multi_provider.py  # Fallback chain orchestrator
+│       ├── knowledge/             # RAG knowledge base
+│       ├── search/                # Web search (multi-engine)
+│       ├── sandbox/               # Docker code execution
+│       ├── research/              # Deep research service
+│       ├── browser/               # Web browsing service
+│       └── repo/                  # Git operations
+├── tests/
+│   ├── unit/                      # Unit tests (feature_flags, router, cache, metrics, errors, auth, multi_provider)
+│   ├── integration/               # Integration tests (runtimes, API, SSE)
+│   └── e2e/                       # End-to-end tests (all modes)
+├── docs/
+│   ├── REFACTORING_CHECKLIST.md   # Phase tracking (P0-P4 complete)
+│   └── CODE_AUDIT_REPORT.md       # Code audit results
+└── .env                           # Environment variables
 ```
 
-## 🎯 快速使用
+## Quick Start
 
-### 1. 環境設置
+### 1. Environment Setup
+
 ```bash
-# 設置環境變數
-echo "OPENAI_API_KEY=your-api-key" > .env
+cd openagent_backend
+
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
+
+pip install -r requirements.txt
+
+cp .env.example .env
+# Edit .env — set at least one LLM API key:
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY
 ```
 
-### 2. 使用方式（超簡單！）
+### 2. CLI Mode
 
 ```bash
-# 方式 1: 直接進入對話模式（預設）
+# Interactive chat (default: auto mode, Router selects best mode)
 python main.py
 
-# 方式 2: 運行測試
+# Run tests
 python main.py test
 
-# 方式 3: 查看幫助
+# Help
 python main.py help
 ```
 
-## 💬 對話模式使用
-
-### 基本操作
+### 3. API Server Mode
 
 ```bash
-# 啟動對話模式
-python main.py
-
-# 系統會顯示：
-==================================================
-OpenCode Platform - 對話模式
-==================================================
-命令:
-  /mode <模式> - 切換模式 (chat/think/knowledge/search/code)
-  /help       - 顯示幫助
-  /exit       - 退出
---------------------------------------------------
-[chat]>
+cd src && python -c "
+import uvicorn
+from api.routes import create_app
+uvicorn.run(create_app(), host='0.0.0.0', port=8000)
+"
 ```
 
-### 對話範例
+Then visit:
+- API docs: http://localhost:8000/docs
+- Health check: http://localhost:8000/health
+
+### 4. API Usage
 
 ```bash
-[chat]> 你好
+# Get a JWT token
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "user", "password": "pass"}'
 
-──────────────────────────────────────────────────
-📝 查詢: 你好
-🎯 模式: chat
-🔄 狀態: 處理中...
-──────────────────────────────────────────────────
+# Chat (with token)
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Hello", "mode": "chat"}'
 
-==================================================
-📊 回應:
-==================================================
-你好！有什麼我可以幫助你的嗎？
-==================================================
-
-📈 處理資訊:
-  ⏱️  處理時間: 907ms
-  📊 Token 使用: N/A
-  🔍 追蹤 ID: d8eb0419...
-  📁 日誌檔案: logs/opencode_20260210.log
-
-[chat]> /mode think
-✅ 切換到 thinking 模式
-
-[thinking]> 1+1等於多少？
-# AI 會進行深度思考...
-
-[thinking]> exit
-👋 再見！
+# Stream (SSE)
+curl -X POST http://localhost:8000/api/v1/chat/stream \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Explain quantum computing", "mode": "thinking"}'
 ```
 
-### 可用命令
+## Processing Modes
 
-| 命令 | 說明 |
-|------|------|
-| `/mode chat` | 切換到一般對話模式 |
-| `/mode think` | 切換到深度思考模式 |
-| `/mode knowledge` | 切換到知識檢索模式 |
-| `/mode search` | 切換到網路搜索模式 |
-| `/mode code` | 切換到代碼執行模式 |
-| `/help` | 顯示可用模式 |
-| `/exit` 或 `exit` | 退出程式 |
+| Mode | Cognitive Level | Runtime | Description |
+|------|----------------|---------|-------------|
+| `auto` | Router decides | Router decides | Automatic mode selection (default) |
+| `chat` | System 1 | ModelRuntime | General conversation (cacheable) |
+| `knowledge` | System 1 | ModelRuntime | RAG knowledge retrieval (cacheable) |
+| `search` | System 2 | ModelRuntime | Web search with analysis |
+| `code` | System 2 | ModelRuntime | Code generation and execution |
+| `thinking` | System 2 | ModelRuntime | Deep reasoning and analysis |
+| `deep_research` | Agent | AgentRuntime | Multi-step research workflows |
 
+## Manual Test Inputs
 
-## ⚙️ 支援的處理模式
+Use these inputs to verify each cognitive level. In auto mode, observe the `auto -> xxx` output to confirm Router classification.
 
-| 模式 | 說明 | 使用場景 |
-|------|------|---------|
-| `chat` | 一般對話 | 預設模式、日常對話 |
-| `thinking` | 深度思考 | 複雜問題、邏輯推理 |
-| `knowledge` | 知識檢索 | 需要專業知識、RAG |
-| `search` | 網路搜索 | 最新資訊、時事查詢 |
-| `code` | 代碼執行 | 程式相關、沙箱執行 |
-| `research` | 深度研究 | 完整研究報告生成 |
+### Auto Mode (Router auto-classification)
 
-## 🧪 測試問題範例
+Enter these directly at the `[auto]>` prompt and check which mode the Router selects:
 
-### Chat Mode (一般對話)
+```
+你好
+```
+```
+幫我分析台灣半導體產業的競爭優勢
+```
+```
+寫一個 Python 快速排序的程式碼
+```
+```
+搜尋 2026 年 AI 晶片最新發展趨勢
+```
+
+### System 1 — `/mode chat`
+
+```
+什麼是機器學習？用簡單的方式說明
+```
+```
+幫我把這段英文翻譯成中文：The architecture follows a strict layered design.
+```
+
+### System 1 — `/mode knowledge`
+
+```
+根據知識庫的內容，解釋本系統的認知架構設計
+```
+
+### System 2 — `/mode thinking`
+
+```
+比較 REST API 和 GraphQL 的優缺點，哪種更適合微服務架構？
+```
+```
+為什麼遞迴演算法在某些情況下比迭代慢？請逐步推理
+```
+
+### System 2 — `/mode search`
+
+```
+2026年台灣有哪些重要的科技政策？
+```
+
+### System 2 — `/mode code`
+
+```
+寫一個費氏數列的函數並計算前20項
+```
+
+### Agent — `/mode research`
+
+```
+深度研究台灣在全球 AI 供應鏈中的角色與未來發展方向
+```
+
+### What to Observe
+
+- **auto mode**: Check `auto -> xxx` in output — does Router classification match query intent?
+- **Cognitive level**: Output shows `system1`, `system2`, or `agent`
+- **LLM provider**: Output shows which provider handled the request (e.g., `OpenAI`, `MultiProvider[OpenAI,Anthropic]`)
+- **Processing time**: System 1 should be fastest, Agent slowest
+- **Token usage**: Higher for thinking/research modes
+
+## API Endpoints
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/` | GET | No | Platform info |
+| `/health` | GET | No | Health check |
+| `/api/status` | GET | No | Engine status |
+| `/api/v1/auth/token` | POST | No | Get JWT token |
+| `/api/v1/chat` | POST | Yes | Sync chat |
+| `/api/v1/chat/stream` | POST | Yes | SSE streaming chat |
+| `/api/v1/documents/upload` | POST | Yes | Upload document |
+| `/api/v1/documents/status/{id}` | GET | Yes | Check upload status |
+| `/api/v1/search` | POST | Yes | Semantic search |
+| `/api/v1/sandbox/execute` | POST | Yes | Execute code |
+| `/api/v1/metrics` | GET | Yes | Cognitive metrics |
+
+## Feature Flags
+
+Edit `config/cognitive_features.yaml` to toggle features:
+
+```yaml
+cognitive_features:
+  enabled: false          # Master switch
+  system1:
+    enable_cache: false   # Response cache for CHAT/KNOWLEDGE
+  routing:
+    smart_routing: false  # Enable dual runtime dispatch
+  metrics:
+    cognitive_metrics: false  # Per-level request tracking
+```
+
+When all flags are OFF, the system behaves identically to pre-refactoring.
+
+## Tests
+
 ```bash
-[chat]> Explain the concept of machine learning in simple terms
-[chat]> What are the benefits of meditation?
-[chat]> How do I make a good cup of coffee?
+# Run all tests (exclude known broken legacy tests)
+python3 -m pytest tests/ -o "addopts=" \
+  --ignore=tests/unit/test_engine.py \
+  --ignore=tests/unit/test_refactored_engine.py
+
+# Run by category
+python3 -m pytest tests/unit/ -o "addopts="           # Unit tests
+python3 -m pytest tests/integration/ -o "addopts="     # Integration tests
+python3 -m pytest tests/e2e/ -o "addopts="             # E2E tests
+
+# Run specific test files
+python3 -m pytest tests/unit/test_multi_provider.py -v -o "addopts="
+python3 -m pytest tests/integration/test_api.py -v -o "addopts="
 ```
 
-### Thinking Mode (深度思考)
-```bash
-[thinking]> Analyze the relationship between NVIDIA and OpenAI
-[thinking]> What are the ethical implications of AI in healthcare?
-[thinking]> Compare and contrast democracy vs authoritarianism
-[thinking]> Solve this logic puzzle: If all roses are flowers, and some flowers fade quickly, can we conclude that some roses fade quickly?
-```
+## Troubleshooting
 
-### Knowledge Mode (知識檢索)
-```bash
-[knowledge]> What is the theory of relativity?
-[knowledge]> Explain the principles of object-oriented programming
-[knowledge]> What are the key differences between TCP and UDP?
-[knowledge]> Describe the process of photosynthesis in detail
-```
+**No LLM API key**: Create `.env` in project root with at least one of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`.
 
-### Search Mode (網路搜索)
-```bash
-[search]> What are the latest developments in quantum computing 2024?
-[search]> Current stock price and news about Tesla
-[search]> Recent breakthroughs in cancer treatment
-[search]> What happened in the tech industry this week?
-```
+**`ModuleNotFoundError`**: Make sure you run from project root. The `src/` path is added automatically by `main.py`.
 
-### Code Mode (代碼執行)
-```bash
-[code]> Write a Python function to calculate fibonacci numbers
-[code]> Debug this code: def sum(a,b) return a+b
-[code]> Create a React component for a todo list
-[code]> Optimize this SQL query: SELECT * FROM users WHERE age > 18
-```
+**`pytest-cov` not installed**: Use `-o "addopts="` to override the pyproject.toml coverage flags.
 
-### Research Mode (深度研究)
-```bash
-[research]> Research the impact of artificial intelligence on job markets
-[research]> Comprehensive analysis of renewable energy technologies
-[research]> Study the history and future of space exploration
-[research]> Investigate the effects of social media on mental health
-```
+**Import errors in `test_engine.py` / `test_refactored_engine.py`**: These are legacy test files with broken imports. Exclude them with `--ignore`.
 
-## 🔧 處理器架構
-
-系統採用策略模式，每個處理器負責特定功能：
-
-```python
-# 處理器類型
-- ChatProcessor         # 一般對話
-- KnowledgeProcessor    # 知識檢索
-- SearchProcessor       # 網路搜索
-- ThinkingProcessor     # 深度思考
-- KnowledgeGraphProcessor # 知識圖譜生成
-- CodeProcessor         # 代碼執行
-- RewritingProcessor    # 文字重寫
-```
-
-## 📊 專業提示詞模板（100% 整合）
-
-系統包含 17 個專業提示詞模板，已全部整合：
-
-- **系統指令** - AI 專家研究者角色定義
-- **輸出規範** - Markdown 和 Mermaid 格式指南
-- **搜索優化** - SERP 查詢生成和結果處理
-- **報告生成** - 研究計劃、審查和最終報告
-- **引用規則** - 確保來源正確標註
-- **知識圖譜** - 自動提取實體和關係
-
-## 🧪 測試
-
-```bash
-# 執行所有測試
-pytest
-
-# 執行特定類型測試
-pytest tests/unit/           # 單元測試
-pytest tests/integration/    # 整合測試
-pytest tests/e2e/           # 端到端測試
-pytest tests/prompts/       # Prompts 測試
-
-# 驗證 100% prompts 整合
-python tests/prompts/verify_100_percent_integration.py
-```
-
-## 🛠️ 開發指南
-
-### 添加新的處理器
-1. 在 `src/core/processor.py` 中創建新的處理器類
-2. 繼承 `BaseProcessor` 並實現 `process()` 方法
-3. 在 `ProcessorFactory` 中註冊新處理器
-
-### 添加新的提示詞
-1. 在 `src/core/prompts.py` 中添加新方法
-2. 在相應的處理器中使用新提示詞
-3. 更新測試確保整合正確
-
-### 擴展 API
-1. 在 `src/opencode/api/main.py` 中添加新端點
-2. 實現對應的處理邏輯
-3. 更新 Swagger 文檔
-
-### 擴展 CLI
-1. 在 `src/opencode/cli/simple_cli.py` 中添加新命令
-2. 使用 `@app.command()` 裝飾器
-3. 實現命令邏輯
-
-## 🐛 故障排除
-
-### 問題：未設置 API Key
-```
-❌ 未設置 OPENAI_API_KEY
-```
-**解決方案**：在專案根目錄創建 `.env` 檔案並添加您的 API Key
-
-### 問題：命令找不到
-```
-No such command 'xxx'
-```
-**解決方案**：使用 `python main.py cli --help` 查看可用命令
-
-### 問題：模組導入錯誤
-```
-ModuleNotFoundError: No module named 'xxx'
-```
-**解決方案**：確保您在專案根目錄執行命令
-
-## 🎉 成就
-
-✅ **100% Prompts 整合** - 所有 17 個提示詞完全整合
-✅ **架構重構完成** - 程式碼減少 60%，更易維護
-✅ **專業級輸出** - 支援 Markdown、Mermaid、引用
-✅ **多模式處理** - 5 種處理器覆蓋各種需求
-✅ **生產就緒** - 完整日誌、錯誤處理、測試覆蓋
-
-專案已準備好進行開發、測試和生產部署！
+**Unicode crash in WSL2**: Fixed in `core/logger.py` and `main.py` with surrogate sanitization. If you still see `UnicodeEncodeError`, clear `__pycache__`: `find src -type d -name __pycache__ -exec rm -rf {} +`

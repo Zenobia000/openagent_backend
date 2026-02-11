@@ -1,185 +1,322 @@
-# 處理模式狀態機 (Processing Mode State Machines)
+# Processing Mode State Machines
 
 ---
 
-**文件版本 (Document Version):** `v1.0`
-**最後更新 (Last Updated):** `2026-02-10`
-**主要作者 (Lead Author):** `Gemini AI Architect`
-**狀態 (Status):** `草稿 (Draft)`
+**Document Version:** `v2.0`
+**Last Updated:** `2026-02-12`
+**Status:** `Current (Implemented)`
 
 ---
 
-## 1. 概述 (Overview)
+## 1. Overview
 
-本文檔旨在通過狀態機圖（State Machine Diagrams）視覺化展示 OpenCode Platform 中不同處理模式（`ProcessingMode`）的內部工作流程。
+This document visualizes the internal workflow of each `ProcessingMode` using state machine diagrams. Each mode is implemented by a corresponding `Processor` class in `src/core/processor.py`.
 
-每種模式都由一個對應的 `Processor` 類在 `src/core/processor.py` 中實現，它們遵循一個定義好的狀態序列來完成任務。
+### Cognitive Architecture Context
 
-## 2. Chat 模式 (`ProcessingMode.CHAT`)
+Every mode is classified into a cognitive level that determines its runtime execution path:
 
-**處理器**: `ChatProcessor`
+| Cognitive Level | Modes | Runtime | Characteristics |
+|:---|:---|:---|:---|
+| **System 1** | CHAT, KNOWLEDGE | ModelRuntime | Fast, cached (optional), stateless |
+| **System 2** | SEARCH, CODE, THINKING | ModelRuntime | Analytical, multi-step, stateless |
+| **Agent** | DEEP_RESEARCH | AgentRuntime | Stateful, workflow-tracked, retry-wrapped |
 
-此模式為最基礎的對話模式，流程非常直接。
-
-### 狀態機圖
+### Request Lifecycle (All Modes)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Start
-    Start: 開始處理請求
-    Start --> GenerateResponse: 調用 LLM 生成回應
-    GenerateResponse --> End: 格式化並返回結果
-    End --> [*]
-```
+    [*] --> RouteRequest
+    RouteRequest: DefaultRouter.route()
+    RouteRequest --> CheckRuntime: RoutingDecision
 
-### 狀態說明
-- **Start**: 接收用戶查詢。
-- **GenerateResponse**: 將用戶查詢與系統提示詞組合，調用 LLM 獲取直接的回答。
-- **End**: 返回 LLM 的生成結果。
+    state CheckRuntime <<choice>>
+    CheckRuntime --> ModelRuntime: System 1 or System 2
+    CheckRuntime --> AgentRuntime: Agent level
+
+    state ModelRuntime {
+        [*] --> CacheCheck
+        CacheCheck --> CacheHit: System 1 + cache enabled
+        CacheCheck --> ProcessorExec: Cache miss or System 2
+        CacheHit --> [*]
+        ProcessorExec --> CachePut: System 1 result
+        ProcessorExec --> [*]: System 2 result
+        CachePut --> [*]
+    }
+
+    state AgentRuntime {
+        [*] --> WorkflowInit
+        WorkflowInit --> RetryableExec: retry_with_backoff(max=2)
+        RetryableExec --> WorkflowComplete: Success
+        RetryableExec --> ErrorClassify: Failure
+        ErrorClassify --> RetryableExec: Retryable (network/LLM)
+        ErrorClassify --> WorkflowFailed: Non-retryable
+        WorkflowComplete --> [*]
+        WorkflowFailed --> [*]
+    }
+
+    ModelRuntime --> RecordMetrics
+    AgentRuntime --> RecordMetrics
+    RecordMetrics --> [*]
+```
 
 ---
 
-## 3. Knowledge 模式 (`ProcessingMode.KNOWLEDGE`)
+## 2. Chat Mode (`ProcessingMode.CHAT`)
 
-**處理器**: `KnowledgeProcessor`
+**Processor**: `ChatProcessor`
+**Cognitive Level**: System 1
+**Runtime**: ModelRuntime (cacheable)
 
-此模式實現了檢索增強生成（RAG），從向量資料庫中檢索知識以生成更準確的回答。
+The simplest mode. Direct LLM call with system prompt.
 
-### 狀態機圖
+### State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Start
-    Start: 開始處理請求
-    Start --> GenerateEmbeddings: 為用戶查詢生成向量
-    GenerateEmbeddings --> SearchKnowledgeBase: 在向量資料庫中搜索相似文檔
-    SearchKnowledgeBase --> SynthesizeAnswer: 綜合檢索到的文檔和用戶查詢
-    SynthesizeAnswer --> CallLLM: 調用 LLM 生成最終答案
-    CallLLM --> End: 返回包含引用的答案
-    End --> [*]
+    [*] --> CacheCheck
+    CacheCheck: Check ResponseCache (SHA-256 key)
+
+    state CacheCheck <<choice>>
+    CacheCheck --> ReturnCached: Cache HIT
+    CacheCheck --> BuildPrompt: Cache MISS
+
+    BuildPrompt: Combine system prompt + user query
+    BuildPrompt --> CallLLM: generate(prompt)
+    CallLLM: MultiProviderLLMClient.generate()
+    CallLLM --> CachePut: Store result
+    CachePut --> ReturnResult
+    ReturnCached --> [*]
+    ReturnResult --> [*]
 ```
 
-### 狀態說明
-- **Start**: 接收用戶查詢。
-- **GenerateEmbeddings**: 將用戶查詢文本轉換為向量。
-- **SearchKnowledgeBase**: 使用向量在 Qdrant 中執行相似性搜索。
-- **SynthesizeAnswer**: 將檢索到的文檔片段（上下文）與原始查詢組合成一個豐富的提示詞。
-- **CallLLM**: 調用 LLM 根據豐富的提示詞生成回答。
-- **End**: 返回 LLM 生成的、基於知識庫的答案。
+### State Descriptions
+
+- **CacheCheck**: SHA-256 hash of `mode:query` checked against ResponseCache. Only when `system1.enable_cache` flag is ON.
+- **BuildPrompt**: Combines CHAT system prompt template with user query.
+- **CallLLM**: Calls `MultiProviderLLMClient.generate()` — OpenAI first, fallback to Anthropic/Gemini on retryable error.
+- **CachePut**: Stores result in ResponseCache with TTL (default 300s).
 
 ---
 
-## 4. Search 模式 (`ProcessingMode.SEARCH`)
+## 3. Knowledge Mode (`ProcessingMode.KNOWLEDGE`)
 
-**處理器**: `SearchProcessor`
+**Processor**: `KnowledgeProcessor`
+**Cognitive Level**: System 1
+**Runtime**: ModelRuntime (cacheable)
 
-此模式通過多步驟的網路搜索來回答需要最新信息的問題。
+RAG (Retrieval-Augmented Generation) pipeline — retrieves from vector DB before generating.
 
-### 狀態機圖
+### State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Start
-    Start: 開始處理請求
-    Start --> GenerateSearchQueries: 根據用戶查詢生成多個優化的搜索關鍵詞
-    GenerateSearchQueries --> ExecuteSearches: 併發執行多次網路搜索
-    ExecuteSearches --> SynthesizeResults: 綜合所有搜索結果
-    SynthesizeResults --> CallLLM: 調用 LLM 生成最終報告
-    CallLLM --> End: 返回綜合報告
-    End --> [*]
+    [*] --> CacheCheck
+    state CacheCheck <<choice>>
+    CacheCheck --> ReturnCached: Cache HIT
+    CacheCheck --> GenerateEmbeddings: Cache MISS
+
+    GenerateEmbeddings: Embed user query (Cohere/OpenAI)
+    GenerateEmbeddings --> SearchVectorDB: Vector similarity search
+    SearchVectorDB: Query Qdrant for top-k documents
+    SearchVectorDB --> SynthesizeContext: Combine retrieved chunks + query
+    SynthesizeContext --> CallLLM: Generate answer with context
+    CallLLM: MultiProviderLLMClient.generate()
+    CallLLM --> CachePut: Store in cache
+    CachePut --> ReturnResult
+    ReturnCached --> [*]
+    ReturnResult --> [*]
 ```
 
-### 狀態說明
-- **Start**: 接收用戶查詢。
-- **GenerateSearchQueries**: 調用 LLM 將一個模糊的用戶問題轉化為 2-3 個精確的、適合搜索引擎的查詢。
-- **ExecuteSearches**: 循環執行生成的每個搜索查詢。
-- **SynthesizeResults**: 將所有搜索結果的內容整合成一個大的上下文。
-- **CallLLM**: 調用 LLM 基於此上下文生成一個全面的回答。
-- **End**: 返回最終的綜合性答案。
+### State Descriptions
+
+- **GenerateEmbeddings**: Converts user query to vector using embedding provider (Cohere or OpenAI).
+- **SearchVectorDB**: Performs similarity search in Qdrant, retrieves top-k document chunks.
+- **SynthesizeContext**: Combines retrieved document fragments with the original query into an enriched prompt.
+- **CallLLM**: Generates a knowledge-grounded answer via the multi-provider LLM chain.
 
 ---
 
-## 5. Code 模式 (`ProcessingMode.CODE`)
+## 4. Search Mode (`ProcessingMode.SEARCH`)
 
-**處理器**: `CodeProcessor`
+**Processor**: `SearchProcessor`
+**Cognitive Level**: System 2
+**Runtime**: ModelRuntime (no cache)
 
-此模式用於生成並在安全的沙箱環境中執行程式碼。
+Multi-step web search with query expansion and result synthesis.
 
-### 狀態機圖
+### State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Start
-    Start: 開始處理請求
-    Start --> GenerateCode: 根據用戶需求生成程式碼
-    GenerateCode --> ExecuteInSandbox: 在 Docker 沙箱中執行生成的程式碼
-    ExecuteInSandbox --> FormatOutput: 捕獲 stdout/stderr 並格式化結果
-    FormatOutput --> End: 返回執行結果
-    End --> [*]
+    [*] --> GenerateSearchQueries
+    GenerateSearchQueries: LLM generates 2-3 optimized search queries
+    GenerateSearchQueries --> ExecuteSearches: Concurrent web searches
+    ExecuteSearches: Search via Tavily / Serper / DuckDuckGo
+    ExecuteSearches --> SynthesizeResults: Aggregate all search results
+    SynthesizeResults --> CallLLM: Generate comprehensive report
+    CallLLM: MultiProviderLLMClient.generate()
+    CallLLM --> [*]
 ```
 
-### 狀態說明
-- **Start**: 接收程式碼執行請求。
-- **GenerateCode**: 調用 LLM 將自然語言需求轉換為可執行的程式碼（如 Python）。
-- **ExecuteInSandbox**: 調用 `SandboxService`，創建一個隔離的 Docker 容器來運行程式碼。
-- **FormatOutput**: 從容器收集執行結果（標準輸出、錯誤、退出碼）。
-- **End**: 將格式化後的執行結果返回給用戶。
+### State Descriptions
+
+- **GenerateSearchQueries**: LLM converts a vague user question into 2-3 precise, search-engine-optimized queries.
+- **ExecuteSearches**: Executes each query through the multi-engine search service (Tavily > Serper > DuckDuckGo fallback).
+- **SynthesizeResults**: Consolidates all search results into a unified context.
+- **CallLLM**: Generates a comprehensive answer based on the aggregated context.
 
 ---
 
-## 6. Thinking 模式 (`ProcessingMode.THINKING`)
+## 5. Code Mode (`ProcessingMode.CODE`)
 
-**處理器**: `ThinkingProcessor`
+**Processor**: `CodeProcessor`
+**Cognitive Level**: System 2
+**Runtime**: ModelRuntime (no cache)
 
-此模式模擬一個多階段的深度思考過程，用於處理複雜或抽象的問題。
+Code generation and isolated execution in Docker sandbox.
 
-### 狀態機圖
+### State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> GenerateCode
+    GenerateCode: LLM generates executable code from natural language
+    GenerateCode --> ExecuteInSandbox: Send to Docker container
+    ExecuteInSandbox: SandboxService.execute(code, timeout)
+
+    state ExecuteInSandbox <<choice>>
+    ExecuteInSandbox --> FormatSuccess: Exit code 0
+    ExecuteInSandbox --> FormatError: Non-zero exit / timeout
+
+    FormatSuccess: Capture stdout + return value
+    FormatError: Capture stderr + error message
+
+    FormatSuccess --> [*]
+    FormatError --> [*]
+```
+
+### State Descriptions
+
+- **GenerateCode**: LLM converts natural language requirements into executable code (Python).
+- **ExecuteInSandbox**: Creates an isolated Docker container with resource limits (CPU, memory, timeout). Executes the generated code.
+- **FormatSuccess/Error**: Collects stdout, stderr, return value, and execution time. Returns formatted result to user.
+
+---
+
+## 6. Thinking Mode (`ProcessingMode.THINKING`)
+
+**Processor**: `ThinkingProcessor`
+**Cognitive Level**: System 2
+**Runtime**: ModelRuntime (no cache)
+
+Multi-stage deep thinking process for complex or abstract problems.
+
+### State Machine
 
 ```mermaid
 stateDiagram-v2
     [*] --> ProblemAnalysis
 
-    ProblemAnalysis: 問題分解
-    MultiPerspective: 多角度分析
-    DeepReasoning: 深度推理
-    SynthesisAndReflection: 綜合與反思
-    FinalAnswer: 生成最終答案
+    ProblemAnalysis: Decompose and understand the problem
+    ProblemAnalysis --> MultiPerspective: Analyze from multiple angles
 
-    ProblemAnalysis --> MultiPerspective
-    MultiPerspective --> DeepReasoning
-    DeepReasoning --> SynthesisAndReflection
-    SynthesisAndReflection --> FinalAnswer
+    MultiPerspective: Critical, creative, analytical perspectives
+    MultiPerspective --> DeepReasoning: Chain-of-thought reasoning
+
+    DeepReasoning: Logical inference with step-by-step thinking
+    DeepReasoning --> SynthesisAndReflection: Consolidate + self-reflect
+
+    SynthesisAndReflection: Quality check and refinement
+    SynthesisAndReflection --> FinalAnswer: Generate structured answer
+
     FinalAnswer --> [*]
 ```
 
-### 狀態說明
-- **ProblemAnalysis**: 對問題進行分解和理解。
-- **MultiPerspective**: 從不同角度（如批判性、創造性）對問題進行分析。
-- **DeepReasoning**: 使用思維鏈（Chain of Thought）等方法進行邏輯推理。
-- **SynthesisAndReflection**: 綜合所有中間步驟的分析結果，並進行反思以提高答案質量。
-- **FinalAnswer**: 基於所有思考過程，生成一個全面、結構化的最終答案。
+### State Descriptions
+
+- **ProblemAnalysis**: Decomposes the problem into components and identifies key aspects.
+- **MultiPerspective**: Analyzes from different angles (critical, creative, analytical).
+- **DeepReasoning**: Applies chain-of-thought (CoT) methodology for logical reasoning.
+- **SynthesisAndReflection**: Consolidates all intermediate analysis, self-reflects to improve quality.
+- **FinalAnswer**: Produces a comprehensive, structured final answer based on the full thinking process.
 
 ---
 
-## 7. Deep Research 模式 (`ProcessingMode.DEEP_RESEARCH`)
+## 7. Deep Research Mode (`ProcessingMode.DEEP_RESEARCH`)
 
-**處理器**: `DeepResearchProcessor`
+**Processor**: `DeepResearchProcessor`
+**Cognitive Level**: Agent
+**Runtime**: AgentRuntime (stateful, retry-wrapped)
 
-此模式是一個完整的、自動化的研究管道，從計劃到生成最終報告。
+Automated research pipeline. This is the only mode that uses AgentRuntime, which provides:
+- **WorkflowState tracking**: steps = `[plan, search, synthesize]`
+- **Smart retry**: `retry_with_backoff(max_retries=2, base_delay=1.0)` — retries on network/LLM errors only
+- **Error classification**: Failed steps recorded with `ErrorClassifier.classify()` category
 
-### 狀態機圖
+### State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> WriteReportPlan: 制定研究計畫
-    WriteReportPlan --> GenerateSearchQueries: 從計畫中提取搜索關鍵詞
-    GenerateSearchQueries --> ExecuteSearchTasks: 執行所有搜索任務
-    ExecuteSearchTasks --> WriteFinalReport: 綜合所有結果撰寫最終報告
-    WriteFinalReport --> [*]
+    [*] --> InitWorkflow
+    InitWorkflow: AgentRuntime creates WorkflowState
+
+    state RetryBoundary {
+        [*] --> WriteReportPlan
+        WriteReportPlan: Generate detailed research outline
+        WriteReportPlan --> GenerateSearchQueries: Extract structured search tasks
+
+        GenerateSearchQueries: Create (query, goal, priority) tuples
+        GenerateSearchQueries --> ExecuteSearchTasks: Iterate through tasks
+
+        state ExecuteSearchTasks {
+            [*] --> SearchTask
+            SearchTask: Execute web search for current task
+            SearchTask --> ProcessResult: Collect and summarize
+            ProcessResult --> SearchTask: Next task
+            ProcessResult --> [*]: All tasks done
+        }
+
+        ExecuteSearchTasks --> WriteFinalReport: Synthesize all results
+        WriteFinalReport: Generate structured report with citations
+        WriteFinalReport --> [*]
+    }
+
+    InitWorkflow --> RetryBoundary: retry_with_backoff(max=2)
+
+    state ErrorHandling <<choice>>
+    RetryBoundary --> WorkflowComplete: Success
+    RetryBoundary --> ErrorHandling: Exception
+
+    ErrorHandling --> RetryBoundary: Retryable (network/LLM)
+    ErrorHandling --> WorkflowFailed: Non-retryable or max retries exceeded
+
+    WorkflowComplete: WorkflowState.complete()
+    WorkflowFailed: ErrorClassifier.classify(error)
+
+    WorkflowComplete --> [*]
+    WorkflowFailed --> [*]
 ```
 
-### 狀態說明
-- **WriteReportPlan**: 根據用戶需求，生成一份詳細的研究報告大綱和計畫。
-- **GenerateSearchQueries**: 從研究計畫中提取結構化的搜索任務（查詢、目標、優先級）。
-- **ExecuteSearchTasks**: 遍歷搜索任務列表，為每個任務執行網路搜索並處理結果。
-- **WriteFinalReport**: 綜合所有搜索任務的結果和原始的研究計畫，生成一份結構完整、包含引用的最終報告。
+### State Descriptions
+
+- **InitWorkflow**: AgentRuntime creates a `WorkflowState(steps=["plan", "search", "synthesize"])` and sets status to "running".
+- **WriteReportPlan**: LLM generates a detailed research report outline based on user requirements.
+- **GenerateSearchQueries**: Extracts structured search tasks (query, goal, priority) from the research plan.
+- **ExecuteSearchTasks**: Iterates through each search task, executing web searches and processing results.
+- **WriteFinalReport**: Synthesizes all search results with the original plan into a structured report with citations.
+- **ErrorHandling**: On failure, `ErrorClassifier` categorizes the error. NETWORK/LLM errors trigger retry (up to 2 times with exponential backoff). BUSINESS/RESOURCE_LIMIT/UNKNOWN errors fail immediately.
+- **WorkflowComplete/Failed**: Final workflow state is recorded in `context.intermediate_results["workflow_state"]`.
+
+---
+
+## 8. Mode-to-Infrastructure Mapping
+
+| Mode | Cognitive Level | Runtime | Cache | Retry | LLM Calls | External Services |
+|:---|:---|:---|:---:|:---:|:---:|:---|
+| **CHAT** | System 1 | ModelRuntime | Yes | No | 1 | LLM only |
+| **KNOWLEDGE** | System 1 | ModelRuntime | Yes | No | 1 | Embedding + Qdrant + LLM |
+| **SEARCH** | System 2 | ModelRuntime | No | No | 2+ | Search engines + LLM |
+| **CODE** | System 2 | ModelRuntime | No | No | 1 | LLM + Docker |
+| **THINKING** | System 2 | ModelRuntime | No | No | 4-5 | LLM only |
+| **DEEP_RESEARCH** | Agent | AgentRuntime | No | Yes (max 2) | 3+ | Search engines + LLM |

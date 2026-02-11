@@ -21,26 +21,24 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from core.engine import RefactoredEngine
 from core.models import Request, ProcessingMode
 from core.logger import structured_logger as logger
-from services.llm.openai_client import OpenAILLMClient
+from services.llm import create_llm_client
 
 
 async def chat_mode():
     """對話模式 - 使用核心 logger"""
 
-    # 檢查 API Key
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        logger.error("❌ 未設置 OPENAI_API_KEY", "main", "chat_mode")
-        print("請在 .env 檔案中設置: OPENAI_API_KEY=your-key")
-        return
-
-    # 初始化
+    # 初始化 LLM
     logger.info("="*50, "main", "initialize")
     logger.info("🚀 Initializing OpenCode Platform", "main", "initialize")
     logger.info("="*50, "main", "initialize")
 
-    llm_client = OpenAILLMClient(api_key=api_key)
-    logger.info("✅ OpenAI LLM Client initialized successfully", "main", "initialize")
+    try:
+        llm_client = create_llm_client()
+    except ValueError as e:
+        logger.error(f"❌ {e}", "main", "chat_mode")
+        print(f"請在 .env 檔案中設置 LLM API Key (OPENAI_API_KEY, ANTHROPIC_API_KEY, 或 GEMINI_API_KEY)")
+        return
+    logger.info(f"✅ LLM Client initialized: {llm_client.provider_name}", "main", "initialize")
 
     engine = RefactoredEngine(llm_client=llm_client)
     await engine.initialize()
@@ -48,6 +46,7 @@ async def chat_mode():
 
     # 模式映射
     modes = {
+        "auto": ProcessingMode.AUTO,
         "chat": ProcessingMode.CHAT,
         "think": ProcessingMode.THINKING,
         "thinking": ProcessingMode.THINKING,
@@ -60,15 +59,15 @@ async def chat_mode():
     }
 
     print("\n" + "="*50)
-    print("OpenCode Platform - 對話模式")
+    print("OpenCode Platform - Cognitive AI Engine")
     print("="*50)
     print("命令:")
-    print("  /mode <模式> - 切換模式 (chat/thinking/knowledge/search/code/research)")
+    print("  /mode <模式> - 切換模式 (auto/chat/thinking/knowledge/search/code/research)")
     print("  /help       - 顯示幫助")
     print("  /exit       - 退出")
     print("-"*50)
 
-    current_mode = ProcessingMode.CHAT
+    current_mode = ProcessingMode.AUTO
     session_start = datetime.now()
     query_count = 0
 
@@ -76,7 +75,9 @@ async def chat_mode():
         try:
             # 顯示提示符
             prompt = f"[{current_mode.value}]> "
-            user_input = input(prompt).strip()
+            raw_input = input(prompt).strip()
+            # Sanitize surrogate characters from WSL2 terminal
+            user_input = raw_input.encode('utf-8', errors='replace').decode('utf-8')
 
             # 處理命令
             if user_input.lower() in ['/exit', '/quit', 'exit', 'quit']:
@@ -90,12 +91,16 @@ async def chat_mode():
 
             elif user_input.lower() == '/help':
                 print("\n可用模式:")
+                print("  auto     - 自動分類 (Router 根據查詢內容選擇最佳模式)")
+                print("  ─── System 1 (快速回應, 可快取) ───")
                 print("  chat     - 一般對話")
+                print("  knowledge - 知識檢索 (RAG)")
+                print("  ─── System 2 (深度分析, 多步驟) ───")
                 print("  thinking - 深度思考")
-                print("  knowledge - 知識檢索")
                 print("  search   - 網路搜索")
-                print("  code     - 代碼執行")
-                print("  research - 深度研究（完整研究報告）\n")
+                print("  code     - 代碼執行 (Docker 沙箱)")
+                print("  ─── Agent (有狀態工作流, 自動重試) ───")
+                print("  research - 深度研究 (完整研究報告)\n")
                 continue
 
             elif user_input.lower().startswith('/mode'):
@@ -166,11 +171,15 @@ async def chat_mode():
                 print("="*50)
 
                 # 顯示處理資訊
+                resolved_mode = response.mode
+                cognitive = resolved_mode.cognitive_level
                 print(f"\n📈 處理資訊:")
+                print(f"  🧠 認知層級: {cognitive} | 模式: {resolved_mode.value}" +
+                      (f" (auto -> {resolved_mode.value})" if current_mode == ProcessingMode.AUTO else ""))
                 print(f"  ⏱️  處理時間: {elapsed_time:.0f}ms")
-                print(f"  📊 Token 使用: {response.tokens_used if response.tokens_used > 0 else 'N/A (Mock Mode)'}")
+                print(f"  📊 Token 使用: {response.tokens_used if response.tokens_used > 0 else 'N/A'}")
+                print(f"  🔗 LLM 提供者: {llm_client.provider_name}")
                 print(f"  🔍 追蹤 ID: {request.trace_id[:8]}...")
-                print(f"  📁 日誌檔案: logs/opencode_{datetime.now().strftime('%Y%m%d')}.log")
                 print()
 
                 # 清除追蹤 ID
@@ -189,14 +198,13 @@ async def chat_mode():
 async def test_mode():
     """測試模式 - 驗證系統功能"""
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        logger.error("❌ 未設置 OPENAI_API_KEY", "main", "test_mode")
-        return
-
     logger.info("🧪 Starting test suite...", "main", "test_mode")
 
-    llm_client = OpenAILLMClient(api_key=api_key)
+    try:
+        llm_client = create_llm_client()
+    except ValueError as e:
+        logger.error(f"❌ {e}", "main", "test_mode")
+        return
     engine = RefactoredEngine(llm_client=llm_client)
     await engine.initialize()
 
@@ -243,30 +251,35 @@ def main():
 def print_help():
     """顯示幫助"""
     print("""
-OpenCode Platform - 專業版
+OpenCode Platform - Cognitive AI Engine
 
 使用方式:
-  python main.py         # 進入對話模式（預設）
+  python main.py         # 進入對話模式（預設 auto 模式）
   python main.py test    # 運行測試
   python main.py help    # 顯示此幫助
 
 對話模式命令:
   /mode <模式>  - 切換處理模式
-  /help        - 顯示可用模式
+  /help        - 顯示可用模式與認知層級
   /exit        - 退出程式
 
 可用模式:
-  chat         - 一般對話
-  thinking     - 深度思考
-  knowledge    - 知識檢索
-  search       - 網路搜索
-  code         - 代碼執行
+  auto     - 自動分類 (Router 智慧選擇)
+  chat     - 一般對話          [System 1]
+  knowledge - 知識檢索 (RAG)   [System 1]
+  thinking - 深度思考           [System 2]
+  search   - 網路搜索           [System 2]
+  code     - 代碼執行           [System 2]
+  research - 深度研究報告       [Agent]
 
-日誌系統:
-  - 彩色控制台輸出
-  - JSON 格式檔案記錄
-  - 自動性能測量
-  - 錯誤追蹤
+認知架構:
+  System 1 - 快速回應, 可快取
+  System 2 - 深度分析, 多步驟
+  Agent    - 有狀態工作流, 自動重試
+
+LLM 提供者:
+  自動偵測 .env 中可用的 API Key
+  Fallback: OpenAI -> Anthropic -> Gemini
     """)
 
 

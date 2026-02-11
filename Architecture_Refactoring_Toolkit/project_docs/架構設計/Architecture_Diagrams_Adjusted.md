@@ -85,7 +85,7 @@ graph TB
 ## 2. 認知路由決策流程（增強版）
 
 ```mermaid
-flowchart TD
+graph TD
     Start[請求到達] --> Check{認知路由<br/>是否啟用?}
 
     Check -->|禁用| Traditional[傳統路由]
@@ -131,7 +131,7 @@ flowchart TD
 ## 3. 執行流程對比（微調版）
 
 ```mermaid
-flowchart LR
+graph LR
     subgraph "現有流程（基礎路徑）"
         A1[Request] --> B1[Mode Check]
         B1 --> C1[Get Processor]
@@ -174,25 +174,23 @@ flowchart LR
 
 ```mermaid
 graph TB
-    subgraph "Processor 分類（僅添加標記）"
-        subgraph "System 1 類別"
-            S1_1[ChatProcessor<br/>對話處理]
-            S1_2[QuickProcessor<br/>快速響應]
-            S1_3[KnowledgeProcessor<br/>知識檢索]
-            S1_Cache[⭐ ResponseCache<br/>結果緩存]
-        end
+    subgraph "System 1 類別"
+        S1_1[ChatProcessor<br/>對話處理]
+        S1_2[QuickProcessor<br/>快速響應]
+        S1_3[KnowledgeProcessor<br/>知識檢索]
+        S1_Cache[⭐ ResponseCache<br/>結果緩存]
+    end
 
-        subgraph "System 2 類別"
-            S2_1[ThinkingProcessor<br/>深度推理]
-            S2_2[CodeProcessor<br/>代碼生成]
-            S2_Chain[⭐ ThinkingChain<br/>思考鏈增強]
-        end
+    subgraph "System 2 類別"
+        S2_1[ThinkingProcessor<br/>深度推理]
+        S2_2[CodeProcessor<br/>代碼生成]
+        S2_Chain[⭐ ThinkingChain<br/>思考鏈增強]
+    end
 
-        subgraph "Agent 類別"
-            A1[ResearchAgent<br/>研究任務]
-            A2[CodeAgent<br/>編程任務]
-            A3[AnalysisAgent<br/>分析任務]
-        end
+    subgraph "Agent 類別"
+        A1[ResearchAgent<br/>研究任務]
+        A2[CodeAgent<br/>編程任務]
+        A3[AnalysisAgent<br/>分析任務]
     end
 
     subgraph "性能特徵"
@@ -395,7 +393,7 @@ graph LR
 ## 9. 灰度發布流程
 
 ```mermaid
-flowchart TB
+graph TB
     Start[開始發布] --> Config[配置準備]
 
     Config --> Enable{啟用特性}
@@ -437,10 +435,10 @@ flowchart TB
 ```mermaid
 graph TB
     subgraph "API 層（完全兼容）"
-        API1[/v1/chat<br/>現有 API]
-        API2[/v1/thinking<br/>現有 API]
-        API3[/v1/research<br/>現有 API]
-        API4[/v1/chat/cognitive<br/>⭐ 新增可選]
+        API1["API: /v1/chat<br/>現有 API"]
+        API2["API: /v1/thinking<br/>現有 API"]
+        API3["API: /v1/research<br/>現有 API"]
+        API4["API: /v1/chat/cognitive<br/>⭐ 新增可選"]
     end
 
     subgraph "路由層"

@@ -9,6 +9,13 @@ from datetime import datetime
 import uuid
 
 
+class CognitiveLevel:
+    """Cognitive level constants for processor classification"""
+    SYSTEM1 = "system1"     # Fast response: CHAT, KNOWLEDGE
+    SYSTEM2 = "system2"     # Deep thinking: THINKING, CODE, SEARCH
+    AGENT = "agent"         # Workflow: DEEP_RESEARCH
+
+
 class ProcessingMode(Enum):
     """處理模式 - 簡化版"""
     AUTO = "auto"           # 自動選擇
@@ -19,15 +26,40 @@ class ProcessingMode(Enum):
     THINKING = "thinking"   # 深度思考
     DEEP_RESEARCH = "deep_research"  # 深度研究
 
+    @property
+    def cognitive_level(self) -> str:
+        """Return the cognitive level for this processing mode"""
+        _mapping = {
+            "auto": CognitiveLevel.SYSTEM1,
+            "chat": CognitiveLevel.SYSTEM1,
+            "knowledge": CognitiveLevel.SYSTEM1,
+            "search": CognitiveLevel.SYSTEM2,
+            "code": CognitiveLevel.SYSTEM2,
+            "thinking": CognitiveLevel.SYSTEM2,
+            "deep_research": CognitiveLevel.AGENT,
+        }
+        return _mapping.get(self.value, CognitiveLevel.SYSTEM1)
+
+
+class RuntimeType(Enum):
+    """Runtime type for dispatch decisions"""
+    MODEL_RUNTIME = "model_runtime"    # System 1 + System 2
+    AGENT_RUNTIME = "agent_runtime"    # Stateful workflows
+
 
 class EventType(Enum):
     """事件類型 - SSE 兼容"""
+    START = "start"
     INFO = "info"
+    TOKEN = "token"
     MESSAGE = "message"
     REASONING = "reasoning"
+    TOOL_CALL = "tool_call"
+    SOURCE = "source"
     PROGRESS = "progress"
     ERROR = "error"
     RESULT = "result"
+    END = "end"
 
 
 @dataclass
@@ -133,3 +165,59 @@ class SSEEvent:
         if self.status:
             result["status"] = self.status
         return result
+
+
+@dataclass
+class ComplexityScore:
+    """Query complexity assessment"""
+    score: float  # 0.0 (trivial) to 1.0 (very complex)
+    factors: Dict[str, float] = field(default_factory=dict)
+    recommended_level: str = CognitiveLevel.SYSTEM1
+
+
+@dataclass
+class RoutingDecision:
+    """Result of routing analysis"""
+    mode: ProcessingMode
+    cognitive_level: str
+    runtime_type: RuntimeType = RuntimeType.MODEL_RUNTIME
+    complexity: Optional[ComplexityScore] = None
+    confidence: float = 0.85
+    reason: str = ""
+
+
+@dataclass
+class ExecutionResult:
+    """Unified execution result from any runtime"""
+    result: str
+    tokens: int = 0
+    duration_ms: float = 0
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class WorkflowState:
+    """Stateful workflow tracking for AgentRuntime"""
+    steps: List[str] = field(default_factory=list)
+    current_step: str = ""
+    completed_steps: List[str] = field(default_factory=list)
+    checkpoints: Dict[str, Any] = field(default_factory=dict)
+    status: str = "pending"  # pending, running, completed, failed
+
+    def advance(self, step: str):
+        """Mark current step complete and move to next."""
+        if self.current_step and self.current_step not in self.completed_steps:
+            self.completed_steps.append(self.current_step)
+        self.current_step = step
+        self.status = "running"
+
+    def complete(self):
+        """Mark workflow as completed."""
+        if self.current_step and self.current_step not in self.completed_steps:
+            self.completed_steps.append(self.current_step)
+        self.current_step = ""
+        self.status = "completed"
+
+    def checkpoint(self, key: str, data: Any):
+        """Save a checkpoint for potential resume."""
+        self.checkpoints[key] = data

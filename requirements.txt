@@ -30,8 +30,9 @@ httpx>=0.25.0
 # AI/LLM Providers
 # ─────────────────────────────────────────────────────────────────
 openai>=1.0.0
+anthropic>=0.40.0           # Claude (optional fallback)
 cohere>=5.0.0
-google-generativeai>=0.3.0  # Gemini (optional)
+google-generativeai>=0.3.0  # Gemini (optional fallback)
 
 # ─────────────────────────────────────────────────────────────────
 # Vector Database

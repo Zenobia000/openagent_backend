@@ -54,3 +54,33 @@ class LLMClientProtocol(ABC):
     async def complete(self, messages: List[Dict[str, str]]) -> str:
         """完成對話"""
         pass
+
+
+class RouterProtocol(ABC):
+    """Router protocol - decides how to process a request."""
+
+    @abstractmethod
+    async def route(self, request: Any) -> Any:
+        """Route a request to a processing decision.
+
+        Args:
+            request: The incoming request
+
+        Returns:
+            RoutingDecision with mode, cognitive_level, runtime_type
+        """
+        pass
+
+
+class RuntimeProtocol(ABC):
+    """Runtime protocol - executes processing for a given context."""
+
+    @abstractmethod
+    async def execute(self, context: Any) -> str:
+        """Execute processing and return result string."""
+        pass
+
+    @abstractmethod
+    def supports(self, mode: Any) -> bool:
+        """Check if this runtime supports the given processing mode."""
+        pass

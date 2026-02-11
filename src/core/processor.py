@@ -21,6 +21,7 @@ class BaseProcessor(ABC):
     def __init__(self, llm_client=None):
         self.llm_client = llm_client
         self.logger = structured_logger
+        self._cognitive_level: Optional[str] = None
 
     @abstractmethod
     async def process(self, context: ProcessingContext) -> str:
@@ -1017,6 +1018,16 @@ class ProcessorFactory:
         ProcessingMode.DEEP_RESEARCH: DeepResearchProcessor,
     }
 
+    # Cognitive level mapping for each processing mode
+    COGNITIVE_MAPPING: Dict[str, str] = {
+        "chat": "system1",
+        "knowledge": "system1",
+        "search": "system2",
+        "code": "system2",
+        "thinking": "system2",
+        "deep_research": "agent",
+    }
+
     def __init__(self, llm_client=None):
         self.llm_client = llm_client
         self._instances: Dict[ProcessingMode, BaseProcessor] = {}
@@ -1025,7 +1036,9 @@ class ProcessorFactory:
         """獲取處理器實例"""
         if mode not in self._instances:
             processor_class = self._processors.get(mode, ChatProcessor)
-            self._instances[mode] = processor_class(self.llm_client)
+            instance = processor_class(self.llm_client)
+            instance._cognitive_level = self.COGNITIVE_MAPPING.get(mode.value)
+            self._instances[mode] = instance
 
         return self._instances[mode]
 

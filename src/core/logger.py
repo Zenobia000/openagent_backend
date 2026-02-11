@@ -170,6 +170,8 @@ class StructuredLogger:
     def _log(self, level: LogLevel, message: str, category: LogCategory = LogCategory.SYSTEM,
              module: str = None, function: str = None, **kwargs):
         """內部日誌方法 - 優化版"""
+        # Sanitize surrogate characters from WSL2 / non-UTF-8 terminal input
+        message = message.encode('utf-8', errors='replace').decode('utf-8')
 
         # 控制台輸出
         if self._should_log_to_console(level, category):
@@ -244,8 +246,8 @@ class StructuredLogger:
         # 組合最終日誌行
         log_line = " ".join(log_parts)
 
-        # 寫入檔案
-        with open(log_file, 'a', encoding='utf-8') as f:
+        # 寫入檔案 (replace surrogates from WSL2 terminal input)
+        with open(log_file, 'a', encoding='utf-8', errors='replace') as f:
             f.write(log_line + '\n')
 
     # 標準日誌方法

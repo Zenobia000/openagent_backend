@@ -39,7 +39,8 @@ class OpenAILLMClient(LLMProvider):
                 "temperature": kwargs.get("temperature", self.temperature),
             }
 
-            if self.model in ("gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"):
+            # GPT-4, GPT-5 系列模型使用 max_completion_tokens
+            if self.model.startswith(("gpt-4", "gpt-5")):
                 params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
             else:
                 params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)
@@ -72,7 +73,8 @@ class OpenAILLMClient(LLMProvider):
             "stream": True,
         }
 
-        if self.model in ("gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"):
+        # GPT-4, GPT-5 系列模型使用 max_completion_tokens
+        if self.model.startswith(("gpt-4", "gpt-5")):
             params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
         else:
             params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)

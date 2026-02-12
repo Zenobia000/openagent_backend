@@ -951,6 +951,11 @@ class SearchEngineConfig:
     max_results: int = 10
     timeout: float = 30.0
     parallel_searches: int = 3
+    # 平行策略配置
+    enable_race_mode: bool = False  # 競速模式：所有引擎同時搜索
+    enable_batch_parallel: bool = True  # 批次平行：多個查詢同時執行
+    batch_size: int = 3  # 批次大小
+    parallel_strategy: str = "batch"  # batch | race | hybrid
 
     def __post_init__(self):
         if self.fallback_chain is None:
@@ -960,6 +965,18 @@ class SearchEngineConfig:
                 SearchProviderType.DUCKDUCKGO,
                 SearchProviderType.MODEL
             ]
+
+        # 根據策略設置對應的標誌
+        if self.parallel_strategy == "race":
+            self.enable_race_mode = True
+            self.enable_batch_parallel = False
+        elif self.parallel_strategy == "batch":
+            self.enable_race_mode = False
+            self.enable_batch_parallel = True
+        elif self.parallel_strategy == "hybrid":
+            # 混合模式：批次執行 + 每個查詢使用競速
+            self.enable_race_mode = True
+            self.enable_batch_parallel = True
 
 
 @dataclass
@@ -1362,65 +1379,125 @@ Answer (YES/NO):"""
         return queries
 
     async def _execute_search_tasks(self, context: ProcessingContext, search_tasks: List[Dict]) -> List[Dict]:
-        """Phase 3: 執行搜索任務"""
+        """Phase 3: 執行搜索任務 - 支援批次平行搜索"""
         self.logger.progress("task-list", "start")
 
         # 記錄任務列表
         self.logger.info(
-            f"📋 Task List: Executing {len(search_tasks)} search tasks",
+            f"📋 Task List: Executing {len(search_tasks)} search tasks (parallel batch size: {self.search_config.parallel_searches})",
             "deep_research",
             "tasks",
             phase="task-list",
-            total_tasks=len(search_tasks)
+            total_tasks=len(search_tasks),
+            parallel_batch_size=self.search_config.parallel_searches
         )
 
         results = []
 
-        for i, task in enumerate(search_tasks, 1):
-            query = task.get('query', '')
-            goal = task.get('researchGoal', '')
-            priority = task.get('priority', 1)
+        # 將任務分批執行
+        batch_size = self.search_config.parallel_searches
 
+        for batch_start in range(0, len(search_tasks), batch_size):
+            batch_end = min(batch_start + batch_size, len(search_tasks))
+            batch_tasks = search_tasks[batch_start:batch_end]
+
+            self.logger.info(
+                f"🚀 Executing batch {batch_start//batch_size + 1}: Tasks {batch_start+1}-{batch_end}",
+                "deep_research",
+                "batch_execution",
+                batch_index=batch_start//batch_size + 1,
+                batch_size=len(batch_tasks)
+            )
+
+            # 準備批次搜索任務
+            async_tasks = []
+            for i, task in enumerate(batch_tasks, batch_start + 1):
+                query = task.get('query', '')
+                goal = task.get('researchGoal', '')
+                priority = task.get('priority', 1)
+
+                # 記錄搜索任務
+                self.logger.info(
+                    f"🔎 Search Task {i}/{len(search_tasks)}: {query}",
+                    "deep_research",
+                    "search_task",
+                    task_index=i,
+                    query=query,
+                    goal=goal,
+                    priority=priority,
+                    provider=self.search_config.primary.value
+                )
+
+                # 添加到異步任務列表
+                async_tasks.append(
+                    self._execute_single_search_task(i, task, query, goal, priority)
+                )
+
+            # 平行執行批次搜索
+            batch_results = await asyncio.gather(*async_tasks, return_exceptions=True)
+
+            # 處理批次結果
+            for task, result in zip(batch_tasks, batch_results):
+                if isinstance(result, Exception):
+                    self.logger.error(
+                        f"❌ Search task failed: {str(result)}",
+                        "deep_research",
+                        "search_error",
+                        error=str(result)
+                    )
+                    # 創建錯誤結果
+                    result = {
+                        'query': task.get('query', ''),
+                        'goal': task.get('researchGoal', ''),
+                        'priority': task.get('priority', 1),
+                        'result': {
+                            'error': str(result),
+                            'sources': [],
+                            'summary': f"Search failed: {str(result)}"
+                        }
+                    }
+
+                results.append(result)
+
+        self.logger.progress("task-list", "end")
+
+        # 記錄總結
+        total_sources = sum(len(r.get('result', {}).get('sources', [])) for r in results)
+        self.logger.info(
+            f"📊 Search Summary: {total_sources} total sources from {len(search_tasks)} tasks",
+            "deep_research",
+            "summary",
+            phase="search-complete",
+            total_sources=total_sources,
+            total_tasks=len(search_tasks)
+        )
+
+        return results
+
+    async def _execute_single_search_task(self, index: int, task: Dict, query: str, goal: str, priority: int) -> Dict:
+        """執行單個搜索任務"""
+        try:
             # 開始單個搜索任務
             self.logger.progress("search-task", "start", {"name": query})
-
-            # 記錄搜索任務
-            self.logger.info(
-                f"🔎 Search Task {i}/{len(search_tasks)}: {query}",
-                "deep_research",
-                "search_task",
-                task_index=i,
-                query=query,
-                goal=goal,
-                priority=priority,
-                provider="tavily"
-            )
 
             # 推理過程
             self.logger.reasoning(f"正在搜索：{query}...", streaming=True)
 
-            # 執行搜索
-            search_result = await self._perform_deep_search(query, goal)
+            # 執行搜索（支援多引擎平行搜索）
+            search_result = await self._perform_parallel_deep_search(query, goal)
 
             # 記錄搜索結果
             self.logger.info(
-                f"✅ Search Result {i}: Found {len(search_result.get('sources', []))} sources",
+                f"✅ Search Result {index}: Found {len(search_result.get('sources', []))} sources",
                 "deep_research",
                 "search_result",
-                task_index=i,
+                task_index=index,
                 sources_count=len(search_result.get('sources', [])),
                 relevance_score=search_result.get('relevance', 0)
             )
 
             # 消息輸出
-            self.logger.message(f"搜索 {i}: {query}\n結果: {search_result.get('summary', '')[:200]}...")
-
-            results.append({
-                'query': query,
-                'goal': goal,
-                'priority': priority,
-                'result': search_result
-            })
+            self.logger.message(f"搜索 {index}: {query}\n結果: {search_result.get('summary', '')[:200]}...")
 
             # 結束單個搜索任務
             self.logger.progress("search-task", "end", {
@@ -1428,9 +1505,103 @@ Answer (YES/NO):"""
                 "data": search_result
             })
 
-        self.logger.progress("task-list", "end")
+            return {
+                'query': query,
+                'goal': goal,
+                'priority': priority,
+                'result': search_result
+            }
+        except Exception as e:
+            self.logger.error(
+                f"Error in search task: {str(e)}",
+                "deep_research",
+                "task_error"
+            )
+            raise
 
-        return results
+    async def _perform_parallel_deep_search(self, query: str, goal: str) -> Dict:
+        """執行平行深度搜索 - 同時使用多個搜索引擎"""
+
+        # 如果啟用了 race 模式，同時啟動所有搜索引擎
+        if hasattr(self.search_config, 'enable_race_mode') and self.search_config.enable_race_mode:
+            return await self._perform_race_search(query, goal)
+
+        # 否則使用增強版搜索（帶降級）
+        return await self._perform_deep_search_enhanced(query, goal)
+
+    async def _perform_race_search(self, query: str, goal: str) -> Dict:
+        """競速模式：同時執行多個搜索引擎，返回第一個成功的結果"""
+
+        # 準備所有搜索提供商
+        providers = [self.search_config.primary] + (self.search_config.fallback_chain or [])
+
+        self.logger.info(
+            f"🏁 Race mode: Starting {len(providers)} search engines in parallel",
+            "deep_research",
+            "race_mode",
+            providers=[p.value for p in providers]
+        )
+
+        # 創建所有搜索任務
+        search_tasks = [
+            self._try_search_provider_with_timeout(provider, query, goal)
+            for provider in providers
+        ]
+
+        # 使用 asyncio.as_completed 獲取第一個成功的結果
+        for future in asyncio.as_completed(search_tasks):
+            try:
+                result = await future
+                if result and result.get('sources'):
+                    provider_name = result.get('provider', 'unknown')
+                    self.logger.info(
+                        f"🏆 Race winner: {provider_name} returned first with {len(result.get('sources', []))} sources",
+                        "deep_research",
+                        "race_winner",
+                        provider=provider_name
+                    )
+                    return result
+            except Exception as e:
+                # 忽略單個引擎的錯誤，繼續等待其他引擎
+                continue
+
+        # 如果所有引擎都失敗，返回空結果
+        return {
+            'summary': 'No search results available',
+            'sources': [],
+            'relevance': 0
+        }
+
+    async def _try_search_provider_with_timeout(self, provider: SearchProviderType, query: str, goal: str) -> Optional[Dict]:
+        """帶超時的搜索提供商嘗試"""
+        try:
+            # 使用配置的超時時間
+            timeout = getattr(self.search_config, 'timeout', 30.0)
+
+            result = await asyncio.wait_for(
+                self._try_search_provider(provider, query, goal),
+                timeout=timeout
+            )
+
+            if result:
+                result['provider'] = provider.value
+
+            return result
+
+        except asyncio.TimeoutError:
+            self.logger.warning(
+                f"⏱️ Search timeout for {provider.value} after {timeout}s",
+                "deep_research",
+                "timeout"
+            )
+            return None
+        except Exception as e:
+            self.logger.error(
+                f"Search error with {provider.value}: {str(e)}",
+                "deep_research",
+                "provider_error"
+            )
+            return None
 
     async def _perform_deep_search(self, query: str, goal: str) -> Dict:
         """執行深度搜索 — 使用真實搜索服務，無則返回空結果"""

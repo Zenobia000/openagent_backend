@@ -151,34 +151,148 @@ class WebSearchService:
         query: str,
         max_results: int = 5
     ) -> List[SearchResult]:
-        """多引擎並行搜尋"""
+        """多引擎並行搜尋 - 增強版"""
         logger.info(f"🔍 多引擎搜尋: {query}")
-        
-        # 並行執行多個搜尋引擎
-        tasks = [
-            self._search_bing(query, max_results),
-            self._search_duckduckgo_html(query, max_results),
-        ]
-        
+
+        # 準備所有可用的搜索引擎
+        tasks = []
+        engine_names = []
+
+        # 根據可用的 API 密鑰添加搜索任務
+        if self.tavily_key:
+            tasks.append(self._search_tavily(query, max_results))
+            engine_names.append("Tavily")
+
+        if self.exa_key:
+            tasks.append(self._search_exa(query, max_results))
+            engine_names.append("Exa")
+
+        if self.serper_key:
+            tasks.append(self._search_serper(query, max_results))
+            engine_names.append("Serper")
+
+        # 總是添加免費搜索引擎
+        tasks.append(self._search_bing(query, max_results))
+        engine_names.append("Bing")
+
+        tasks.append(self._search_duckduckgo_html(query, max_results))
+        engine_names.append("DuckDuckGo")
+
+        logger.info(f"🚀 啟動 {len(tasks)} 個搜索引擎並行搜索: {', '.join(engine_names)}")
+
+        # 並行執行所有搜索任務
         all_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # 合併結果，去重
         seen_urls = set()
         merged = []
-        
-        for results in all_results:
+        successful_engines = []
+
+        for engine_name, results in zip(engine_names, all_results):
             if isinstance(results, Exception):
-                logger.warning(f"⚠️ 引擎失敗: {results}")
+                logger.warning(f"⚠️ {engine_name} 引擎失敗: {results}")
                 continue
             if not results:
+                logger.warning(f"⚠️ {engine_name} 引擎無結果")
                 continue
+
+            successful_engines.append(engine_name)
             for r in results:
                 if r.url and r.url not in seen_urls:
                     seen_urls.add(r.url)
                     merged.append(r)
-        
-        logger.info(f"✅ 多引擎搜尋完成，共 {len(merged)} 個不重複結果")
+
+        logger.info(
+            f"✅ 多引擎搜尋完成 - 成功引擎: {', '.join(successful_engines)} - "
+            f"共 {len(merged)} 個不重複結果"
+        )
+
         return merged[:max_results]
+
+    async def search_parallel_race(
+        self,
+        query: str,
+        max_results: int = 5,
+        providers: List[str] = None
+    ) -> List[SearchResult]:
+        """競速模式：同時執行多個搜索引擎，返回第一個成功的結果"""
+
+        if not providers:
+            # 默認使用所有可用的提供商
+            providers = []
+            if self.tavily_key:
+                providers.append("tavily")
+            if self.exa_key:
+                providers.append("exa")
+            if self.serper_key:
+                providers.append("serper")
+            providers.extend(["bing", "duckduckgo"])
+
+        logger.info(f"🏁 Race mode: {', '.join(providers)} competing for: {query}")
+
+        # 創建所有搜索任務
+        search_tasks = []
+        for provider in providers:
+            if provider == "tavily" and self.tavily_key:
+                search_tasks.append(self._search_tavily(query, max_results))
+            elif provider == "exa" and self.exa_key:
+                search_tasks.append(self._search_exa(query, max_results))
+            elif provider == "serper" and self.serper_key:
+                search_tasks.append(self._search_serper(query, max_results))
+            elif provider == "bing":
+                search_tasks.append(self._search_bing(query, max_results))
+            elif provider == "duckduckgo":
+                search_tasks.append(self._search_duckduckgo_html(query, max_results))
+
+        # 使用 asyncio.as_completed 獲取第一個成功的結果
+        for future in asyncio.as_completed(search_tasks):
+            try:
+                results = await future
+                if results:
+                    # 找出是哪個提供商贏得了競賽
+                    winner = results[0].source if results else "unknown"
+                    logger.info(
+                        f"🏆 Race winner: {winner} returned first with {len(results)} results"
+                    )
+                    return results
+            except Exception as e:
+                # 忽略單個引擎的錯誤
+                continue
+
+        logger.warning("⚠️ All search engines failed in race mode")
+        return []
+
+    async def search_batch(
+        self,
+        queries: List[str],
+        max_results: int = 5,
+        batch_size: int = 3
+    ) -> Dict[str, List[SearchResult]]:
+        """批量搜索：同時處理多個查詢"""
+
+        logger.info(f"📦 Batch search: {len(queries)} queries, batch size: {batch_size}")
+
+        results = {}
+
+        # 分批處理查詢
+        for i in range(0, len(queries), batch_size):
+            batch = queries[i:i+batch_size]
+            logger.info(f"🔄 Processing batch {i//batch_size + 1}: {batch}")
+
+            # 並行執行批次內的搜索
+            batch_tasks = [self.search(query, max_results) for query in batch]
+            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+
+            # 收集結果
+            for query, result in zip(batch, batch_results):
+                if isinstance(result, Exception):
+                    logger.error(f"❌ Failed to search '{query}': {result}")
+                    results[query] = []
+                else:
+                    results[query] = result
+
+        logger.info(f"✅ Batch search complete: {len(results)} queries processed")
+        return results
     
     async def _search_bing(
         self,

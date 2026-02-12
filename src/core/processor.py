@@ -4,16 +4,18 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Type, Optional, Any, List
+from typing import Dict, Type, Optional, Any, List, Callable, AsyncGenerator
+from dataclasses import dataclass
+from enum import Enum
 import asyncio
 from datetime import datetime
+import json
+import time
 
 from .models import ProcessingContext, ProcessingMode, EventType
 from .logger import structured_logger, LogCategory
 from .prompts import PromptTemplates
 from .error_handler import robust_processor, enhanced_error_handler
-import json
-import time
 
 
 class BaseProcessor(ABC):
@@ -926,8 +928,95 @@ class RewritingProcessor(BaseProcessor):
         return rewritten_content
 
 
+# ============================================================
+# Enhanced Deep Research Components
+# ============================================================
+
+class SearchProviderType(Enum):
+    """搜索引擎提供商類型"""
+    TAVILY = "tavily"
+    EXA = "exa"  # Neural search with semantic understanding
+    SERPER = "serper"
+    BRAVE = "brave"
+    DUCKDUCKGO = "duckduckgo"
+    SEARXNG = "searxng"
+    MODEL = "model"  # AI內建搜索
+
+
+@dataclass
+class SearchEngineConfig:
+    """搜索引擎配置"""
+    primary: SearchProviderType = SearchProviderType.TAVILY
+    fallback_chain: List[SearchProviderType] = None
+    max_results: int = 10
+    timeout: float = 30.0
+    parallel_searches: int = 3
+
+    def __post_init__(self):
+        if self.fallback_chain is None:
+            self.fallback_chain = [
+                SearchProviderType.EXA,
+                SearchProviderType.SERPER,
+                SearchProviderType.DUCKDUCKGO,
+                SearchProviderType.MODEL
+            ]
+
+
+@dataclass
+class ResearchEvent:
+    """研究事件"""
+    type: str  # progress, message, reasoning, error, search_result
+    step: str  # plan, search, synthesize
+    data: Any
+    timestamp: datetime = None
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now()
+
+    def to_sse(self) -> str:
+        """轉換為 SSE 格式"""
+        event_data = {
+            "type": self.type,
+            "step": self.step,
+            "data": self.data,
+            "timestamp": self.timestamp.isoformat()
+        }
+        return f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+
+
 class DeepResearchProcessor(BaseProcessor):
-    """深度研究處理器 - Agent Level with WorkflowState and Retry"""
+    """
+    深度研究處理器 - Agent Level with Enhanced Features
+
+    Features:
+    - WorkflowState tracking and retry mechanism
+    - SSE Streaming support
+    - Multi-search engine configuration
+    - Event-driven architecture
+    - Closed-loop iteration (max 3 iterations)
+    - Academic-style reference formatting
+    """
+
+    def __init__(self,
+                 llm_client=None,
+                 services: Optional[Dict[str, Any]] = None,
+                 search_config: Optional[SearchEngineConfig] = None,
+                 event_callback: Optional[Callable[[ResearchEvent], None]] = None):
+        """
+        初始化增強版處理器
+
+        Args:
+            llm_client: LLM客戶端
+            services: 服務字典
+            search_config: 搜索引擎配置
+            event_callback: 事件回調函數
+        """
+        super().__init__(llm_client, services)
+        self.search_config = search_config or SearchEngineConfig()
+        self.event_callback = event_callback
+        self.event_queue: asyncio.Queue = asyncio.Queue()
+        self._streaming_enabled = False
 
     async def process(self, context: ProcessingContext) -> str:
         """執行完整的深度研究流程 - 符合 AgentRuntime 規範"""
@@ -1660,6 +1749,320 @@ Generate the report body (without references section):"""
         full_report = f"{report_body}{references_section}"
 
         return full_report
+
+    # ============================================================
+    # Enhanced Deep Research Methods (SSE Streaming & Events)
+    # ============================================================
+
+    async def process_with_streaming(self, context: ProcessingContext) -> AsyncGenerator[str, None]:
+        """
+        支援 SSE Streaming 的處理方法
+
+        Yields:
+            SSE 格式的事件字符串
+        """
+        self._streaming_enabled = True
+
+        # 啟動事件處理協程
+        event_task = asyncio.create_task(self._event_stream_handler())
+
+        try:
+            # 發送開始事件
+            await self._emit_event(ResearchEvent(
+                type="progress",
+                step="init",
+                data={"status": "start", "query": context.request.query}
+            ))
+
+            # 執行研究流程
+            result = await self.process(context)
+
+            # 發送完成事件
+            await self._emit_event(ResearchEvent(
+                type="progress",
+                step="complete",
+                data={"status": "complete", "result_length": len(result)}
+            ))
+
+            # 發送最終結果
+            yield f"data: {json.dumps({'type': 'final_report', 'data': result}, ensure_ascii=False)}\n\n"
+
+        finally:
+            # 清理
+            self._streaming_enabled = False
+            await self.event_queue.put(None)  # 結束信號
+            await event_task
+
+    async def _event_stream_handler(self):
+        """處理事件流"""
+        while True:
+            event = await self.event_queue.get()
+            if event is None:
+                break
+
+            # 如果有回調函數，調用它
+            if self.event_callback:
+                try:
+                    await self._call_event_callback(event)
+                except Exception as e:
+                    self.logger.warning(f"Event callback error: {e}", "deep_research", "callback_error")
+
+    async def _call_event_callback(self, event: ResearchEvent):
+        """安全調用事件回調"""
+        if asyncio.iscoroutinefunction(self.event_callback):
+            await self.event_callback(event)
+        else:
+            self.event_callback(event)
+
+    async def _emit_event(self, event: ResearchEvent):
+        """發送事件"""
+        if hasattr(self, 'event_queue'):
+            await self.event_queue.put(event)
+
+        # 同時記錄到日誌
+        self.logger.info(
+            f"📡 Event: {event.type} - {event.step}",
+            "deep_research",
+            "event",
+            event_type=event.type,
+            event_step=event.step
+        )
+
+    # ============================================================
+    # Multi-Search Engine Support
+    # ============================================================
+
+    async def _perform_deep_search_enhanced(self, query: str, goal: str) -> Dict:
+        """
+        增強版深度搜索 - 支援多搜索引擎和智能降級
+        """
+        # 發送搜索開始事件
+        await self._emit_event(ResearchEvent(
+            type="progress",
+            step="search",
+            data={
+                "status": "start",
+                "query": query,
+                "goal": goal,
+                "provider": self.search_config.primary.value
+            }
+        ))
+
+        # 嘗試主要搜索引擎
+        search_result = await self._try_search_provider(
+            self.search_config.primary,
+            query,
+            goal
+        )
+
+        # 如果主要引擎失敗，嘗試備用鏈
+        if not search_result or not search_result.get('sources'):
+            for fallback_provider in self.search_config.fallback_chain:
+                self.logger.info(
+                    f"🔄 Switching to fallback: {fallback_provider.value}",
+                    "deep_research",
+                    "fallback"
+                )
+
+                await self._emit_event(ResearchEvent(
+                    type="message",
+                    step="search",
+                    data={
+                        "message": f"Switching to {fallback_provider.value}...",
+                        "provider": fallback_provider.value
+                    }
+                ))
+
+                search_result = await self._try_search_provider(
+                    fallback_provider,
+                    query,
+                    goal
+                )
+
+                if search_result and search_result.get('sources'):
+                    break
+
+        # 發送搜索結果事件
+        if search_result:
+            await self._emit_event(ResearchEvent(
+                type="search_result",
+                step="search",
+                data={
+                    "query": query,
+                    "sources_count": len(search_result.get('sources', [])),
+                    "summary": search_result.get('summary', '')[:200]
+                }
+            ))
+
+        return search_result or self._empty_search_result(query)
+
+    async def _try_search_provider(self,
+                                   provider: SearchProviderType,
+                                   query: str,
+                                   goal: str) -> Optional[Dict]:
+        """嘗試使用特定搜索提供商"""
+        try:
+            if provider == SearchProviderType.MODEL:
+                # 使用 AI 模型內建搜索
+                return await self._model_based_search(query, goal)
+            elif provider == SearchProviderType.EXA:
+                # 使用 Exa neural search
+                return await self._exa_search(query, goal)
+
+            # 使用其他搜索服務
+            search_service = self.services.get("search")
+            if search_service:
+                # 如果服務支援設置提供商
+                if hasattr(search_service, 'set_provider'):
+                    search_service.set_provider(provider.value.lower())
+
+                results = await search_service.search(
+                    query=query,
+                    max_results=self.search_config.max_results
+                )
+
+                if results:
+                    return self._format_search_results(results, provider.value)
+
+        except Exception as e:
+            self.logger.warning(
+                f"Search error with {provider.value}: {e}",
+                "deep_research",
+                "search_error"
+            )
+
+        return None
+
+    async def _exa_search(self, query: str, goal: str) -> Optional[Dict]:
+        """使用 Exa API 進行神經搜索"""
+        search_service = self.services.get("search")
+        if not search_service:
+            return None
+
+        # 判斷搜索類型
+        search_type = "general"
+        if "code" in goal.lower() or "programming" in goal.lower():
+            search_type = "code"
+        elif "research" in goal.lower() or "paper" in goal.lower():
+            search_type = "research"
+        elif "news" in goal.lower() or "latest" in goal.lower():
+            search_type = "news"
+
+        try:
+            # 使用整合的搜索服務（已包含 Exa）
+            if hasattr(search_service, 'provider'):
+                old_provider = search_service.provider
+                search_service.provider = "exa"
+                results = await search_service.search(
+                    query=query,
+                    max_results=self.search_config.max_results,
+                    search_type=search_type
+                )
+                search_service.provider = old_provider
+
+                if results:
+                    return self._format_search_results(results, "exa")
+
+        except Exception as e:
+            self.logger.error(f"Exa search failed: {e}", "deep_research", "exa_error")
+
+        return None
+
+    async def _model_based_search(self, query: str, goal: str) -> Dict:
+        """使用 AI 模型的內建搜索能力"""
+        if not self.llm_client:
+            return self._empty_search_result(query)
+
+        search_prompt = f"""Please search and provide information about:
+Query: {query}
+Research Goal: {goal}
+
+Provide a comprehensive answer based on your knowledge, formatted as:
+1. Summary of findings
+2. Key facts and details
+3. Relevant context
+
+Focus on accuracy and relevance."""
+
+        try:
+            response = await self._call_llm(search_prompt, None)
+
+            return {
+                'summary': response,
+                'sources': [{
+                    'title': 'AI Knowledge Base',
+                    'url': 'model://knowledge',
+                    'relevance': 0.8
+                }],
+                'relevance': 0.8,
+                'timestamp': datetime.now().isoformat(),
+                'provider': 'model'
+            }
+        except Exception as e:
+            self.logger.error(f"Model search failed: {e}", "deep_research", "model_search_error")
+            return self._empty_search_result(query)
+
+    def _format_search_results(self, results: List, provider: str) -> Dict:
+        """格式化搜索結果"""
+        if not results:
+            return None
+
+        sources = []
+        summary_parts = []
+
+        for r in results[:self.search_config.max_results]:
+            # 適配不同的結果格式
+            if hasattr(r, 'url'):
+                sources.append({
+                    'url': r.url,
+                    'title': getattr(r, 'title', 'Untitled'),
+                    'relevance': getattr(r, 'score', 0.5)
+                })
+                summary_parts.append(f"- {r.title}: {getattr(r, 'snippet', '')[:100]}")
+            elif isinstance(r, dict):
+                sources.append({
+                    'url': r.get('url', ''),
+                    'title': r.get('title', 'Untitled'),
+                    'relevance': r.get('score', 0.5)
+                })
+                summary_parts.append(f"- {r.get('title')}: {r.get('snippet', '')[:100]}")
+
+        return {
+            'summary': '\n'.join(summary_parts),
+            'sources': sources,
+            'relevance': sum(s['relevance'] for s in sources) / max(len(sources), 1),
+            'timestamp': datetime.now().isoformat(),
+            'provider': provider
+        }
+
+    def _empty_search_result(self, query: str) -> Dict:
+        """返回空搜索結果"""
+        return {
+            'summary': f"[No search results available for: {query}]",
+            'sources': [],
+            'relevance': 0.0,
+            'timestamp': datetime.now().isoformat(),
+            'provider': 'none'
+        }
+
+    # Configuration methods
+    def configure_search_engines(self, config: SearchEngineConfig):
+        """動態配置搜索引擎"""
+        self.search_config = config
+        self.logger.info(
+            f"Search engines configured: primary={config.primary.value}, "
+            f"fallback={[p.value for p in config.fallback_chain]}",
+            "deep_research",
+            "config_update"
+        )
+
+    def enable_streaming(self, enabled: bool = True):
+        """啟用/禁用 streaming"""
+        self._streaming_enabled = enabled
+
+    def set_event_callback(self, callback: Callable[[ResearchEvent], None]):
+        """設置事件回調"""
+        self.event_callback = callback
 
 
 class ProcessorFactory:

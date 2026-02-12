@@ -51,19 +51,28 @@ class WebSearchService:
         self._initialized = False
         self.provider = None
         self.tavily_key = os.getenv("TAVILY_API_KEY")
+        self.exa_key = os.getenv("EXA_API_KEY")
         self.serpapi_key = os.getenv("SERPAPI_KEY")
         self.serper_key = os.getenv("SERPER_API_KEY")
         self._session: Optional[aiohttp.ClientSession] = None
+
+        # Exa configuration
+        self.exa_search_type = os.getenv("EXA_SEARCH_TYPE", "auto")
+        self.exa_content_type = os.getenv("EXA_CONTENT_TYPE", "text")
+        self.exa_max_characters = int(os.getenv("EXA_MAX_CHARACTERS", "20000"))
         
     async def initialize(self) -> None:
         """初始化服務"""
         if self._initialized:
             return
-            
-        # 優先順序: Tavily > Serper > SerpAPI > Bing/DDG
+
+        # 優先順序: Tavily > Exa > Serper > SerpAPI > Bing/DDG
         if self.tavily_key:
             self.provider = "tavily"
             logger.info("✅ WebSearch 使用 Tavily API (推薦)")
+        elif self.exa_key:
+            self.provider = "exa"
+            logger.info("✅ WebSearch 使用 Exa API (Neural Search)")
         elif self.serper_key:
             self.provider = "serper"
             logger.info("✅ WebSearch 使用 Serper (Google)")
@@ -73,7 +82,7 @@ class WebSearchService:
         else:
             self.provider = "multi"  # 多引擎模式
             logger.info("⚠️ WebSearch 使用免費多引擎模式 (Bing + DuckDuckGo)")
-            
+
         self._initialized = True
     
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -114,6 +123,8 @@ class WebSearchService:
         try:
             if self.provider == "tavily":
                 results = await self._search_tavily(query, max_results, search_type)
+            elif self.provider == "exa":
+                results = await self._search_exa(query, max_results, search_type)
             elif self.provider == "serper":
                 results = await self._search_serper(query, max_results)
             elif self.provider == "serpapi":
@@ -298,7 +309,95 @@ class WebSearchService:
         except Exception as e:
             logger.error(f"❌ Tavily 搜尋失敗: {e}")
         return []
-    
+
+    async def _search_exa(
+        self,
+        query: str,
+        max_results: int = 5,
+        search_type: str = "general"
+    ) -> List[SearchResult]:
+        """
+        使用 Exa API 進行神經搜索
+
+        Exa 提供語義理解的神經搜索，特別適合：
+        - 代碼和技術文檔搜索
+        - 研究論文搜索
+        - 新聞和即時資訊
+        - 人物和公司搜索
+        """
+        try:
+            session = await self._get_session()
+
+            # 構建請求 payload
+            payload = {
+                "query": query,
+                "type": self.exa_search_type,
+                "num_results": max_results
+            }
+
+            # 根據搜索類型調整參數
+            if search_type == "news":
+                payload["category"] = "news"
+                payload["type"] = "fast"
+                payload["maxAgeHours"] = 24
+            elif search_type == "code" or "programming" in query.lower():
+                # 代碼相關搜索，限制在技術網站
+                payload["includeDomains"] = [
+                    "github.com", "stackoverflow.com",
+                    "dev.to", "medium.com"
+                ]
+            elif search_type == "research" or "paper" in query.lower():
+                payload["category"] = "research paper"
+
+            # 配置內容選項
+            if self.exa_content_type == "text":
+                payload["contents"] = {
+                    "text": {"max_characters": self.exa_max_characters}
+                }
+            else:
+                payload["contents"] = {
+                    "highlights": {"max_characters": min(self.exa_max_characters, 2000)}
+                }
+
+            async with session.post(
+                "https://api.exa.ai/search",
+                headers={
+                    "x-api-key": self.exa_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    results = []
+
+                    for r in data.get("results", []):
+                        # 提取內容
+                        content = r.get("text", "") or r.get("snippet", "")
+                        if r.get("highlights"):
+                            content = " ".join(r["highlights"])
+
+                        results.append(SearchResult(
+                            title=r.get("title", ""),
+                            url=r.get("url", ""),
+                            snippet=content[:500] if content else "",
+                            content=content,
+                            source="Exa",
+                            published_date=r.get("publishedDate"),
+                            fetched=bool(content)
+                        ))
+
+                    logger.info(f"✅ Exa 找到 {len(results)} 個結果 (Neural Search)")
+                    return results
+                else:
+                    error = await resp.text()
+                    logger.error(f"❌ Exa API 錯誤: {resp.status} - {error}")
+
+        except Exception as e:
+            logger.error(f"❌ Exa 搜尋失敗: {e}")
+
+        return []
+
     async def _search_serper(
         self,
         query: str,

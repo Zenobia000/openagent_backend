@@ -1766,7 +1766,7 @@ Answer (YES/NO):"""
 
         # 組合完整報告：主體 + 區分的參考文獻
         final_report = self._format_report_with_categorized_references(
-            report_body, cited_refs, uncited_refs
+            report_body, cited_refs, uncited_refs, context
         )
 
         # 記錄記憶體回收
@@ -1917,7 +1917,8 @@ Generate the report body (without references section):"""
 
     def _format_report_with_categorized_references(self, report_body: str,
                                                    cited_refs: List[Dict],
-                                                   uncited_refs: List[Dict]) -> str:
+                                                   uncited_refs: List[Dict],
+                                                   context: ProcessingContext = None) -> str:
         """格式化報告，區分引用和未引用的參考文獻"""
 
         # 構建參考文獻部分

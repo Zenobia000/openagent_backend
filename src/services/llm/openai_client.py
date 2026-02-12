@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator, Dict, Optional
 from openai import AsyncOpenAI
 
 from .base import LLMProvider
+from .gpt5_adapter import GPT5Adapter
 
 
 class OpenAILLMClient(LLMProvider):
@@ -36,20 +37,12 @@ class OpenAILLMClient(LLMProvider):
             params = {
                 "model": self.model,
                 "messages": [{"role": "user", "content": prompt}],
+                "temperature": kwargs.get("temperature", self.temperature),
+                "max_tokens": kwargs.get("max_tokens", self.max_tokens)
             }
 
-            # GPT-5 系列模型只支援 temperature=1 (預設值)
-            if self.model.startswith("gpt-5"):
-                # GPT-5 不需要設定 temperature，使用預設值
-                pass
-            else:
-                params["temperature"] = kwargs.get("temperature", self.temperature)
-
-            # GPT-4, GPT-5 系列模型使用 max_completion_tokens
-            if self.model.startswith(("gpt-4", "gpt-5")):
-                params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
-            else:
-                params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)
+            # 使用 GPT5Adapter 適配參數
+            params = GPT5Adapter.adapt_parameters(self.model, params)
 
             response = await self.client.chat.completions.create(**params)
 
@@ -75,21 +68,13 @@ class OpenAILLMClient(LLMProvider):
         params = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
+            "temperature": kwargs.get("temperature", self.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             "stream": True,
         }
 
-        # GPT-5 系列模型只支援 temperature=1 (預設值)
-        if self.model.startswith("gpt-5"):
-            # GPT-5 不需要設定 temperature，使用預設值
-            pass
-        else:
-            params["temperature"] = kwargs.get("temperature", self.temperature)
-
-        # GPT-4, GPT-5 系列模型使用 max_completion_tokens
-        if self.model.startswith(("gpt-4", "gpt-5")):
-            params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
-        else:
-            params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)
+        # 使用 GPT5Adapter 適配參數
+        params = GPT5Adapter.adapt_parameters(self.model, params)
 
         async for chunk in await self.client.chat.completions.create(**params):
             if chunk.choices[0].delta.content:

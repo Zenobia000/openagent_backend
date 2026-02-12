@@ -75,13 +75,47 @@ class BaseProcessor(ABC):
             )
 
             # 記錄 LLM Response (用於 debugging，顯示實際輸出)
-            self.logger.info(
-                f"💬 LLM Response: {response[:5000]}...",
-                "llm",
-                "response",
-                response_length=len(response),
-                response_preview=response[:200]
-            )
+            # 檢查是否需要分割長內容
+            try:
+                from core.enhanced_logger import get_enhanced_logger
+                enhanced_logger = get_enhanced_logger()
+
+                if len(response) > 10000:  # 超過 10KB
+                    # 使用增強日誌器處理長內容
+                    trace_id = context.trace_id if context and hasattr(context, 'trace_id') else "unknown"
+                    enhanced_logger.log_long_content(
+                        "INFO",
+                        f"LLM Response (Long: {len(response)} chars, {total_tokens} tokens)",
+                        response,
+                        trace_id,
+                        "llm_response"
+                    )
+                    # 主日誌只記錄摘要
+                    self.logger.info(
+                        f"💬 LLM Response [Long content: {len(response)} chars, see segments]",
+                        "llm",
+                        "response",
+                        response_length=len(response),
+                        total_tokens=total_tokens
+                    )
+                else:
+                    # 正常記錄
+                    self.logger.info(
+                        f"💬 LLM Response: {response[:5000]}...",
+                        "llm",
+                        "response",
+                        response_length=len(response),
+                        response_preview=response[:200]
+                    )
+            except ImportError:
+                # 如果增強日誌器不可用，使用原始方式
+                self.logger.info(
+                    f"💬 LLM Response: {response[:5000]}...",
+                    "llm",
+                    "response",
+                    response_length=len(response),
+                    response_preview=response[:200]
+                )
 
             # 更新上下文的 token 統計
             if context:
@@ -1033,6 +1067,13 @@ class DeepResearchProcessor(BaseProcessor):
         self.search_config = search_config or SearchEngineConfig()
         self.event_callback = event_callback
         self.event_queue: asyncio.Queue = asyncio.Queue()
+
+        # 初始化增強日誌系統
+        try:
+            from core.enhanced_logger import get_enhanced_logger
+            self.enhanced_logger = get_enhanced_logger()
+        except ImportError:
+            self.enhanced_logger = None
         self._streaming_enabled = False
 
     async def process(self, context: ProcessingContext) -> str:
@@ -1918,6 +1959,49 @@ Generate the report body (without references section):"""
 
         # 組合完整報告
         full_report = f"{report_body}{references_section}"
+
+        # 保存報告到 Markdown（如果增強日誌器可用）
+        if self.enhanced_logger and context:
+            try:
+                # 準備元數據
+                metadata = {
+                    "query": context.request.query if context.request else "N/A",
+                    "mode": "deep_research",
+                    "model": getattr(self.llm_client, 'model', 'unknown'),
+                    "timestamp": datetime.now().isoformat(),
+                    "duration_ms": context.intermediate_results.get("total_duration_ms", 0),
+                    "tokens": context.intermediate_results.get("total_tokens", {}),
+                    "citations": {
+                        "cited_count": len(cited_refs),
+                        "uncited_count": len(uncited_refs),
+                        "total_count": len(cited_refs) + len(uncited_refs),
+                        "citation_rate": len(cited_refs) / max(1, len(cited_refs) + len(uncited_refs)) * 100
+                    },
+                    "stages": context.intermediate_results.get("stages", [])
+                }
+
+                # 保存到 Markdown
+                trace_id = context.trace_id if hasattr(context, 'trace_id') else str(hash(context.request.query))[:8]
+                md_path = self.enhanced_logger.save_response_as_markdown(
+                    full_report,
+                    metadata,
+                    trace_id
+                )
+
+                # 記錄長內容（如果超過限制）
+                if len(full_report) > self.enhanced_logger.MAX_LOG_SIZE:
+                    self.enhanced_logger.log_long_content(
+                        "INFO",
+                        "Deep Research Report Generated",
+                        full_report,
+                        trace_id,
+                        "deep_research"
+                    )
+
+                self.logger.info(f"📄 Report saved to: {md_path}", "deep_research", "markdown_saved")
+
+            except Exception as e:
+                self.logger.warning(f"Failed to save markdown report: {e}", "deep_research", "save_error")
 
         return full_report
 

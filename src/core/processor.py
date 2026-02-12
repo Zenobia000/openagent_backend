@@ -1212,9 +1212,15 @@ class DeepResearchProcessor(BaseProcessor):
 
             self.logger.info(f"📊 Research needs more depth, continuing...", "deep_research", "continue")
 
+        # 4.5. 批判性分析階段 (可選 - 借鑒 ThinkingProcessor)
+        critical_analysis = None
+        if await self._requires_critical_analysis(context.request.query):
+            workflow_state["current_step"] = "critical_analysis"
+            critical_analysis = await self._critical_analysis_stage(context, all_search_results, report_plan)
+
         # 5. 生成最終報告 (WriteFinalReport)
         workflow_state["current_step"] = "synthesize"
-        final_report = await self._write_final_report(context, all_search_results, report_plan)
+        final_report = await self._write_final_report(context, all_search_results, report_plan, critical_analysis)
 
         # WorkflowComplete: 標記成功完成
         workflow_state["status"] = "completed"
@@ -1247,6 +1253,100 @@ class DeepResearchProcessor(BaseProcessor):
         context.intermediate_results["clarifying_questions"] = questions
 
         self.logger.progress("clarification", "end")
+
+    async def _requires_critical_analysis(self, query: str) -> bool:
+        """判斷是否需要批判性分析階段"""
+
+        # 批判性思考關鍵詞
+        critical_keywords = [
+            # 分析類
+            '分析', '評估', '批判', '檢視', '思考', '反思',
+            # 比較類
+            '比較', '對比', '差異', '優缺點', '利弊',
+            # 深度思考類
+            '為什麼', '如何看待', '怎麼看', '觀點', '看法',
+            # 複雜問題類
+            '影響', '原因', '後果', '趨勢', '預測',
+            # 多角度類
+            '各方面', '全面', '深入', '綜合', '整體'
+        ]
+
+        # 實證研究 + 抽象思考的混合關鍵詞
+        mixed_patterns = [
+            ('趨勢', '分析'), ('發展', '評估'), ('市場', '觀點'),
+            ('數據', '思考'), ('研究', '批判'), ('報告', '反思')
+        ]
+
+        query_lower = query.lower()
+
+        # 檢查單一關鍵詞
+        has_critical_keywords = any(kw in query_lower for kw in critical_keywords)
+
+        # 檢查混合模式
+        has_mixed_patterns = any(
+            kw1 in query_lower and kw2 in query_lower
+            for kw1, kw2 in mixed_patterns
+        )
+
+        # 長查詢（>50字符）通常需要更深度的分析
+        is_complex_query = len(query) > 50
+
+        # 如果符合以上任一條件，啟用批判性分析
+        return has_critical_keywords or has_mixed_patterns or is_complex_query
+
+    async def _critical_analysis_stage(self, context: ProcessingContext,
+                                     search_results: List[Dict],
+                                     report_plan: str) -> str:
+        """批判性分析階段 - 借鑒 ThinkingProcessor 的能力"""
+
+        self.logger.progress("critical-analysis", "start")
+        self.logger.info(
+            f"🧠 Critical Analysis: Analyzing research findings from multiple perspectives",
+            "deep_research",
+            "critical_analysis",
+            phase="critical-analysis"
+        )
+
+        # 準備分析上下文
+        research_summary = self._summarize_search_results(search_results)
+
+        # 借用 ThinkingProcessor 的批判性思維提示詞
+        critical_prompt = PromptTemplates.get_critical_thinking_prompt(
+            question=context.request.query,
+            context=f"Research Plan:\n{report_plan}\n\nResearch Findings:\n{research_summary}"
+        )
+
+        # 執行批判性分析
+        self.logger.reasoning("進行批判性分析和多角度思考...", streaming=True)
+        critical_analysis = await self._call_llm(critical_prompt, context)
+
+        # 記錄分析結果到日誌
+        self.logger.info(
+            f"💭 Critical Analysis Result: {critical_analysis[:300]}...",
+            "deep_research",
+            "critical_analysis_result",
+            full_length=len(critical_analysis)
+        )
+
+        # 儲存到中間結果
+        context.intermediate_results["critical_analysis"] = critical_analysis
+
+        self.logger.progress("critical-analysis", "end")
+        return critical_analysis
+
+    def _summarize_search_results(self, search_results: List[Dict]) -> str:
+        """將搜索結果總結為簡潔的上下文"""
+
+        summaries = []
+        for i, result in enumerate(search_results[:5], 1):  # 限制前5個結果避免上下文過長
+            query = result.get('query', 'Unknown')
+            content = result.get('results', '')
+
+            # 截取每個結果的前200字符
+            content_preview = content[:200] + "..." if len(content) > 200 else content
+            summaries.append(f"Search {i} - Query: {query}\nFindings: {content_preview}")
+
+        return "\n\n".join(summaries)
 
     async def _generate_followup_queries(self, context: ProcessingContext,
                                         report_plan: str,
@@ -1729,7 +1829,8 @@ Answer (YES/NO):"""
 
     async def _write_final_report(self, context: ProcessingContext,
                                   search_results: List[Dict],
-                                  report_plan: str) -> str:
+                                  report_plan: str,
+                                  critical_analysis: Optional[str] = None) -> str:
         """Phase 4: 生成最終報告 - 學術論文格式（區分引用/未引用）"""
         self.logger.progress("final-report", "start")
 
@@ -1757,12 +1858,13 @@ Answer (YES/NO):"""
             type="research_report"
         )
 
-        # 構建增強的 prompt，包含參考文獻指引
+        # 構建增強的 prompt，包含參考文獻指引和批判性分析
         enhanced_prompt = self._build_academic_report_prompt(
             report_plan,
             combined_context,
             references_list,
-            context.request.query
+            context.request.query,
+            critical_analysis
         )
 
         # 推理最終報告
@@ -1776,7 +1878,7 @@ Answer (YES/NO):"""
 
         # 組合完整報告：主體 + 區分的參考文獻
         final_report = self._format_report_with_categorized_references(
-            report_body, cited_refs, uncited_refs, context
+            report_body, cited_refs, uncited_refs, context, critical_analysis is not None
         )
 
         # 記錄記憶體回收
@@ -1856,14 +1958,16 @@ Answer (YES/NO):"""
         return references
 
     def _build_academic_report_prompt(self, plan: str, context: str,
-                                     references: List[Dict], requirement: str) -> str:
-        """構建學術格式的報告 prompt"""
+                                     references: List[Dict], requirement: str,
+                                     critical_analysis: Optional[str] = None) -> str:
+        """構建學術格式的報告 prompt（含批判性分析）"""
         # 準備參考文獻摘要
         ref_summary = "\n".join([
             f"[{ref['id']}] {ref['title']}"
             for ref in references[:20]  # 最多使用前20個參考
         ])
 
+        # 基礎 prompt
         prompt = f"""Generate a comprehensive research report based on the following information.
 
 Research Plan:
@@ -1873,7 +1977,20 @@ Research Context and Findings:
 {context}
 
 Available References:
-{ref_summary}
+{ref_summary}"""
+
+        # 如果有批判性分析，添加到 prompt 中
+        if critical_analysis:
+            prompt += f"""
+
+Critical Analysis (Multi-Perspective Thinking):
+{critical_analysis}
+
+IMPORTANT: Integrate the insights from the critical analysis throughout your report.
+Use the multi-perspective thinking to enrich your conclusions and provide more nuanced views."""
+
+        # 添加要求
+        prompt += f"""
 
 Requirements:
 1. Write in academic style with clear sections
@@ -1881,10 +1998,21 @@ Requirements:
 3. Each claim should be supported by citations
 4. DO NOT include a references section in your output (it will be added separately)
 5. Focus on synthesis and analysis, not just summarization
-6. Ensure logical flow between sections
+6. Ensure logical flow between sections"""
+
+        # 如果有批判性分析，添加特殊要求
+        if critical_analysis:
+            prompt += """
+7. Incorporate critical analysis insights to provide balanced, multi-perspective conclusions
+8. Address potential limitations, counterarguments, or alternative interpretations
+9. Demonstrate analytical depth beyond surface-level findings"""
+
+        prompt += f"""
 
 User's Research Question:
-{requirement}
+{requirement}"""
+
+        return prompt
 
 IMPORTANT:
 - Use citations [1] to [{len(references)}] naturally throughout the text
@@ -1928,8 +2056,9 @@ Generate the report body (without references section):"""
     def _format_report_with_categorized_references(self, report_body: str,
                                                    cited_refs: List[Dict],
                                                    uncited_refs: List[Dict],
-                                                   context: ProcessingContext = None) -> str:
-        """格式化報告，區分引用和未引用的參考文獻"""
+                                                   context: ProcessingContext = None,
+                                                   has_critical_analysis: bool = False) -> str:
+        """格式化報告, 區分引用和未引用的參考文獻"""
 
         # 構建參考文獻部分
         references_section = "\n\n---\n\n"
@@ -1964,9 +2093,22 @@ Generate the report body (without references section):"""
         references_section += f"- **相關未引用文獻**: {len(uncited_refs)} 篇\n"
         references_section += f"- **總查閱文獻**: {len(cited_refs) + len(uncited_refs)} 篇\n"
         references_section += f"- **引用率**: {len(cited_refs) / max(1, len(cited_refs) + len(uncited_refs)) * 100:.1f}%\n"
+
+        # 如果有批判性分析，添加說明
+        if has_critical_analysis:
+            references_section += f"- **分析模式**: 深度研究 + 批判性思考 🧠\n"
+            references_section += f"- **分析層次**: 多角度批判性分析\n"
+        else:
+            references_section += f"- **分析模式**: 深度研究\n"
+
         references_section += f"\n---\n"
         references_section += f"*Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n"
-        references_section += f"*Powered by OpenCode Deep Research Engine*"
+        references_section += f"*Powered by OpenCode Deep Research Engine"
+
+        if has_critical_analysis:
+            references_section += f" with Critical Analysis*"
+        else:
+            references_section += f"*"
 
         # 組合完整報告
         full_report = f"{report_body}{references_section}"

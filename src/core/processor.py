@@ -11,6 +11,7 @@ from datetime import datetime
 from .models import ProcessingContext, ProcessingMode, EventType
 from .logger import structured_logger, LogCategory
 from .prompts import PromptTemplates
+from .error_handler import robust_processor, enhanced_error_handler
 import json
 import time
 
@@ -73,7 +74,7 @@ class BaseProcessor(ABC):
 
             # 記錄 LLM Response (用於 debugging，顯示實際輸出)
             self.logger.info(
-                f"💬 LLM Response: {response[:500]}...",
+                f"💬 LLM Response: {response[:5000]}...",
                 "llm",
                 "response",
                 response_length=len(response),
@@ -100,19 +101,37 @@ class BaseProcessor(ABC):
 
 
 class ChatProcessor(BaseProcessor):
-    """對話處理器"""
+    """對話處理器 - System 1 with Cache Support"""
 
     async def process(self, context: ProcessingContext) -> str:
         self.logger.progress("chat", "start")
         context.set_current_step("chat")
 
-        # 使用系統指令提示詞
+        # Step 1: Cache Check (System 1 特性)
+        cache_key = f"chat:{context.request.query}"
+        cache = getattr(self, 'cache', None)  # 從處理器獲取快取實例
+
+        if cache:
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                self.logger.info("💾 Cache HIT for chat query", "chat", "cache_hit")
+                self.logger.message(cached_response)
+                context.mark_step_complete("chat")
+                self.logger.progress("chat", "end")
+                return cached_response
+
+        # Step 2: Build Prompt (符合狀態機 BuildPrompt)
         system_prompt = PromptTemplates.get_system_instruction()
         output_guidelines = PromptTemplates.get_output_guidelines()
-
-        # 組合完整提示
         full_prompt = f"{system_prompt}\n\n{output_guidelines}\n\nUser: {context.request.query}"
+
+        # Step 3: Call LLM (符合狀態機 CallLLM)
         response = await self._call_llm(full_prompt, context)
+
+        # Step 4: Cache Put (System 1 特性)
+        if cache:
+            cache.put(cache_key, response, ttl=300)
+            self.logger.info("💾 Cache PUT for chat response", "chat", "cache_put")
 
         # 發送消息
         self.logger.message(response)
@@ -124,11 +143,24 @@ class ChatProcessor(BaseProcessor):
 
 
 class KnowledgeProcessor(BaseProcessor):
-    """知識檢索處理器"""
+    """知識檢索處理器 - System 1 with Cache Support"""
 
     async def process(self, context: ProcessingContext) -> str:
         self.logger.progress("knowledge-retrieval", "start")
         context.set_current_step("knowledge-retrieval")
+
+        # Step 1: Cache Check (System 1 特性 - 符合狀態機)
+        cache_key = f"knowledge:{context.request.query}"
+        cache = getattr(self, 'cache', None)
+
+        if cache:
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                self.logger.info("💾 Cache HIT for knowledge query", "knowledge", "cache_hit")
+                self.logger.message(cached_response)
+                context.mark_step_complete("knowledge-retrieval")
+                self.logger.progress("knowledge-retrieval", "end")
+                return cached_response
 
         # 記錄 RAG 決策
         await self._log_tool_decision(
@@ -137,7 +169,7 @@ class KnowledgeProcessor(BaseProcessor):
             0.9
         )
 
-        # Step 1: 檢索相關知識
+        # Step 2: Generate Embeddings (符合狀態機)
         self.logger.progress("embedding", "start")
         self.logger.info(
             f"🔢 Generating embeddings for query: {context.request.query[:100]}",
@@ -198,7 +230,18 @@ class KnowledgeProcessor(BaseProcessor):
 
         self.logger.progress("search", "end", {"docs_found": len(relevant_docs)})
 
-        # Step 3: 生成答案
+        # Step 3: 文檔重排序 (P1 優化)
+        if len(relevant_docs) > 1:
+            self.logger.progress("rerank", "start")
+            self.logger.info(
+                f"🎯 Reranking {len(relevant_docs)} documents for relevance...",
+                "knowledge",
+                "reranking"
+            )
+            relevant_docs = await self._rerank_documents(relevant_docs, context.request.query)
+            self.logger.progress("rerank", "end", {"reranked": len(relevant_docs)})
+
+        # Step 4: 生成答案
         self.logger.info(
             f"🔄 Synthesizing answer from {len(relevant_docs)} retrieved documents...",
             "knowledge",
@@ -218,6 +261,11 @@ class KnowledgeProcessor(BaseProcessor):
 
         response = await self._call_llm(full_prompt, context)
 
+        # Step 5: Cache Put (System 1 特性 - 符合狀態機)
+        if cache:
+            cache.put(cache_key, response, ttl=300)
+            self.logger.info("💾 Cache PUT for knowledge response", "knowledge", "cache_put")
+
         # 只輸出最終答案
         self.logger.message(response)
         context.mark_step_complete("knowledge-retrieval")
@@ -225,10 +273,68 @@ class KnowledgeProcessor(BaseProcessor):
 
         return response
 
+    async def _rerank_documents(self, docs: List[str], query: str) -> List[str]:
+        """使用 LLM 對文檔進行相關性重排序"""
+        import json
+
+        # 如果文檔太多，只重排前 10 個
+        docs_to_rerank = docs[:10]
+
+        # 準備重排序 prompt
+        rerank_prompt = f"""Rank these documents by relevance to the query. Score each from 1-10.
+
+Query: {query}
+
+Documents:
+{chr(10).join([f"{i+1}. {doc[:300]}..." for i, doc in enumerate(docs_to_rerank)])}
+
+Output JSON format:
+[{{"doc_id": 1, "score": 8}}, {{"doc_id": 2, "score": 6}}, ...]
+
+Only include documents with score >= 5.
+Output the ranking:"""
+
+        try:
+            response = await self._call_llm(rerank_prompt, None)
+
+            # 解析排名
+            import re
+            json_match = re.search(r'\[.*?\]', response, re.DOTALL)
+            if json_match:
+                rankings = json.loads(json_match.group(0))
+
+                # 根據分數排序
+                rankings.sort(key=lambda x: x.get('score', 0), reverse=True)
+
+                # 重新排序文檔
+                reranked_docs = []
+                for rank in rankings:
+                    doc_id = rank.get('doc_id', 0) - 1  # 轉為 0-based index
+                    if 0 <= doc_id < len(docs_to_rerank) and rank.get('score', 0) >= 5:
+                        reranked_docs.append(docs_to_rerank[doc_id])
+
+                # 如果重排失敗或結果太少，保留原始順序的前幾個
+                if len(reranked_docs) < 2:
+                    return docs[:5]
+
+                self.logger.info(
+                    f"✅ Reranked {len(reranked_docs)} documents (filtered by relevance)",
+                    "knowledge",
+                    "rerank_complete"
+                )
+                return reranked_docs
+
+        except Exception as e:
+            self.logger.warning(f"Reranking failed, using original order: {e}", "knowledge", "rerank_error")
+
+        # 失敗時返回原始順序
+        return docs[:5]
+
 
 class SearchProcessor(BaseProcessor):
-    """網路搜索處理器"""
+    """網路搜索處理器 - 支援迭代搜索與質量評估"""
 
+    @enhanced_error_handler(max_retries=2, retryable_categories=["NETWORK", "LLM"])
     async def process(self, context: ProcessingContext) -> str:
         self.logger.progress("web-search", "start")
         context.set_current_step("web-search")
@@ -240,52 +346,76 @@ class SearchProcessor(BaseProcessor):
             0.95
         )
 
-        # Step 1: 生成 SERP 查詢
-        self.logger.progress("query-generation", "start")
-        self.logger.info(
-            f"🔍 Generating search queries for: {context.request.query[:100]}",
-            "search",
-            "query_generation"
-        )
-        search_queries = await self._generate_serp_queries(context.request.query)
-        self.logger.info(
-            f"📝 Generated {len(search_queries)} search queries",
-            "search",
-            "queries_generated",
-            queries=search_queries
-        )
-        self.logger.progress("query-generation", "end", {"queries": len(search_queries)})
+        # 迭代搜索機制
+        MAX_ITERATIONS = 2
+        all_search_results = []
+        iteration = 0
 
-        # Step 2: 執行多個搜索
-        self.logger.progress("searching", "start")
-        all_results = []
-        for i, query_obj in enumerate(search_queries, 1):
-            self.logger.info(
-                f"🌐 Searching {i}/{len(search_queries)}: {query_obj.get('query', '')[:100]}",
-                "search",
-                "performing_search"
-            )
-            results = await self._perform_search(query_obj.get('query', ''))
-            all_results.append({
-                'query': query_obj.get('query'),
-                'goal': query_obj.get('researchGoal'),
-                'results': results
-            })
-            self.logger.info(
-                f"✅ Search {i} complete: {len(results)} chars of results",
-                "search",
-                "search_complete"
-            )
-        self.logger.progress("searching", "end", {"total_results": len(all_results)})
+        while iteration < MAX_ITERATIONS:
+            iteration += 1
+            self.logger.info(f"🔄 Search Iteration {iteration}/{MAX_ITERATIONS}", "search", "iteration")
 
-        # Step 3: 使用專業 prompt 處理結果 - 只輸出最終結果
+            # Step 1: 生成 SERP 查詢
+            self.logger.progress("query-generation", "start")
+
+            if iteration == 1:
+                # 第一次：基於原始查詢生成
+                search_queries = await self._generate_serp_queries(context.request.query)
+            else:
+                # 後續迭代：基於質量評估改進查詢
+                search_queries = await self._refine_search_queries(
+                    context.request.query,
+                    all_search_results
+                )
+
+            if not search_queries:
+                break
+
+            self.logger.info(
+                f"📝 Generated {len(search_queries)} search queries",
+                "search",
+                "queries_generated",
+                queries=search_queries
+            )
+            self.logger.progress("query-generation", "end", {"queries": len(search_queries)})
+
+            # Step 2: 執行搜索
+            self.logger.progress("searching", "start")
+            iteration_results = []
+            for i, query_obj in enumerate(search_queries, 1):
+                self.logger.info(
+                    f"🌐 Searching {i}/{len(search_queries)}: {query_obj.get('query', '')[:100]}",
+                    "search",
+                    "performing_search"
+                )
+                results = await self._perform_search(query_obj.get('query', ''))
+                iteration_results.append({
+                    'query': query_obj.get('query'),
+                    'goal': query_obj.get('researchGoal'),
+                    'results': results,
+                    'iteration': iteration
+                })
+            self.logger.progress("searching", "end", {"total_results": len(iteration_results)})
+
+            all_search_results.extend(iteration_results)
+
+            # Step 3: 評估搜索質量
+            is_sufficient = await self._evaluate_search_quality(all_search_results, context.request.query)
+
+            if is_sufficient:
+                self.logger.info("✅ Search quality is sufficient", "search", "quality_ok")
+                break
+
+            self.logger.info("📊 Search needs refinement, continuing...", "search", "refine")
+
+        # Step 4: 合成最終結果
         combined_context = "\n\n".join([
             f"Query: {r['query']}\nGoal: {r['goal']}\nResults: {r['results']}"
-            for r in all_results
+            for r in all_search_results
         ])
 
         self.logger.info(
-            f"🔄 Synthesizing search results...",
+            f"🔄 Synthesizing {len(all_search_results)} search results...",
             "search",
             "synthesis"
         )
@@ -296,13 +426,11 @@ class SearchProcessor(BaseProcessor):
             context=combined_context
         )
 
-        # 加上引用規則
         citation_rules = PromptTemplates.get_citation_rules()
         full_prompt = f"{prompt}\n\n{citation_rules}"
 
         response = await self._call_llm(full_prompt, context)
 
-        # 只輸出最終答案
         self.logger.message(response)
         context.mark_step_complete("web-search")
         self.logger.progress("web-search", "end")
@@ -397,10 +525,83 @@ class SearchProcessor(BaseProcessor):
 
         return raw_results
 
+    async def _evaluate_search_quality(self, results: List[Dict], original_query: str) -> bool:
+        """評估搜索結果質量是否充分"""
+        if not results:
+            return False
+
+        # 簡單的質量檢查
+        total_content = sum(len(r.get('results', '')) for r in results)
+        unique_queries = len(set(r['query'] for r in results))
+
+        # 基於內容量和查詢多樣性評估
+        if total_content < 500 or unique_queries < 2:
+            return False
+
+        # 使用 LLM 評估相關性
+        evaluation_prompt = f"""Evaluate if the search results are sufficient for answering the query.
+
+Original Query: {original_query}
+
+Search Results Summary:
+- Total results: {len(results)}
+- Total content: {total_content} characters
+- Unique queries: {unique_queries}
+
+First few results:
+{results[0].get('results', '')[:500] if results else 'No results'}
+
+Answer with YES if sufficient, NO if more search is needed.
+Consider: coverage, relevance, quality.
+
+Answer (YES/NO):"""
+
+        response = await self._call_llm(evaluation_prompt, None)
+        return "YES" in response.upper()[:10]
+
+    async def _refine_search_queries(self, original_query: str, previous_results: List[Dict]) -> List[Dict[str, str]]:
+        """基於前次結果改進搜索查詢"""
+        import json
+
+        # 準備已有結果摘要
+        results_summary = "\n".join([
+            f"Query: {r['query']}\nFound: {r['results'][:200]}..."
+            for r in previous_results[:3]
+        ])
+
+        refine_prompt = f"""Based on the original query and previous search results, generate improved search queries to fill knowledge gaps.
+
+Original Query: {original_query}
+
+Previous Search Results:
+{results_summary}
+
+Identify what's missing and generate 1-2 new search queries that would provide additional valuable information.
+
+Output JSON array format:
+[{{"query": "specific search query", "researchGoal": "what to find"}}]
+
+Generate queries:"""
+
+        response = await self._call_llm(refine_prompt, None)
+
+        try:
+            # 嘗試解析 JSON
+            import re
+            json_match = re.search(r'\[.*?\]', response, re.DOTALL)
+            if json_match:
+                queries = json.loads(json_match.group(0))
+                return queries[:2]  # 限制最多2個新查詢
+        except:
+            pass
+
+        return []
+
 
 class ThinkingProcessor(BaseProcessor):
     """深度思考處理器"""
 
+    @enhanced_error_handler(max_retries=1, retryable_categories=["LLM"])
     async def process(self, context: ProcessingContext) -> str:
         self.logger.progress("deep-thinking", "start")
         context.set_current_step("deep-thinking")
@@ -638,6 +839,7 @@ class KnowledgeGraphProcessor(BaseProcessor):
 class CodeProcessor(BaseProcessor):
     """代碼執行處理器"""
 
+    @enhanced_error_handler(max_retries=1, retryable_categories=["LLM", "SANDBOX"])
     async def process(self, context: ProcessingContext) -> str:
         self.logger.progress("code-execution", "start")
         context.set_current_step("code-execution")
@@ -647,10 +849,14 @@ class CodeProcessor(BaseProcessor):
         code_request = context.request.query
         self.logger.progress("code-analysis", "end")
 
-        # Step 2: 生成代碼
+        # Step 2: 生成代碼（使用專門的 prompt）
         self.logger.progress("code-generation", "start")
-        prompt = f"生成代碼來完成：{code_request}"
+        prompt = PromptTemplates.get_code_generation_prompt(code_request)
         generated_code = await self._call_llm(prompt, context)
+
+        # 清理可能的空白行
+        generated_code = generated_code.strip()
+
         self.logger.message(f"```python\n{generated_code}\n```")
         self.logger.progress("code-generation", "end")
 
@@ -721,10 +927,20 @@ class RewritingProcessor(BaseProcessor):
 
 
 class DeepResearchProcessor(BaseProcessor):
-    """深度研究處理器 - 完整 SSE 事件管道實現"""
+    """深度研究處理器 - Agent Level with WorkflowState and Retry"""
 
     async def process(self, context: ProcessingContext) -> str:
-        """執行完整的深度研究流程"""
+        """執行完整的深度研究流程 - 符合 AgentRuntime 規範"""
+
+        # Step 1: Init Workflow (符合狀態機 InitWorkflow)
+        workflow_state = {
+            "status": "running",
+            "steps": ["plan", "search", "synthesize"],
+            "current_step": None,
+            "iterations": 0,
+            "errors": []
+        }
+        context.intermediate_results["workflow_state"] = workflow_state
 
         # 記錄深度研究決策
         await self._log_tool_decision(
@@ -733,19 +949,243 @@ class DeepResearchProcessor(BaseProcessor):
             0.95
         )
 
-        # 1. 報告計劃階段
+        try:
+            # 執行研究流程 (包裹在 retry 邏輯中)
+            return await self._execute_with_retry(context, workflow_state)
+        except Exception as e:
+            # WorkflowFailed: 記錄失敗狀態
+            workflow_state["status"] = "failed"
+            workflow_state["errors"].append({
+                "error": str(e),
+                "step": workflow_state["current_step"],
+                "timestamp": datetime.now().isoformat()
+            })
+            self.logger.error(f"Research workflow failed: {e}", "deep_research", "workflow_failed")
+            raise
+
+    async def _execute_with_retry(self, context: ProcessingContext, workflow_state: dict) -> str:
+        """執行研究流程，支援重試機制 (符合狀態機 RetryBoundary)"""
+        from core.errors import ErrorClassifier
+
+        MAX_RETRIES = 2
+        retry_count = 0
+        last_error = None
+
+        while retry_count <= MAX_RETRIES:
+            try:
+                # 執行核心研究流程
+                return await self._execute_research_workflow(context, workflow_state)
+
+            except Exception as e:
+                # Error Classification (符合狀態機 ErrorHandling)
+                error_category = ErrorClassifier.classify(e)
+
+                workflow_state["errors"].append({
+                    "error": str(e),
+                    "category": error_category,
+                    "retry_count": retry_count,
+                    "step": workflow_state["current_step"]
+                })
+
+                if error_category in ["NETWORK", "LLM"] and retry_count < MAX_RETRIES:
+                    # Retryable error - 指數退避重試
+                    retry_count += 1
+                    delay = 2 ** retry_count  # Exponential backoff
+                    self.logger.warning(
+                        f"Retryable error ({error_category}), retrying {retry_count}/{MAX_RETRIES} after {delay}s",
+                        "deep_research", "retry"
+                    )
+                    await asyncio.sleep(delay)
+                    last_error = e
+                else:
+                    # Non-retryable or max retries exceeded
+                    raise e
+
+        # 如果所有重試都失敗
+        if last_error:
+            raise last_error
+
+    async def _execute_research_workflow(self, context: ProcessingContext, workflow_state: dict) -> str:
+        """執行核心研究工作流程"""
+
+        # 0. 如果查詢複雜，先澄清研究方向
+        workflow_state["current_step"] = "clarification"
+        if await self._should_clarify(context):
+            await self._ask_clarifying_questions(context)
+
+        # 1. 報告計劃階段 (WriteReportPlan)
+        workflow_state["current_step"] = "plan"
         report_plan = await self._write_report_plan(context)
 
-        # 2. SERP 查詢生成
-        search_tasks = await self._generate_serp_queries(context, report_plan)
+        # 初始化研究迭代
+        MAX_ITERATIONS = 3
+        all_search_results = []
+        iteration = 0
 
-        # 3. 執行搜索任務
-        search_results = await self._execute_search_tasks(context, search_tasks)
+        while iteration < MAX_ITERATIONS:
+            iteration += 1
+            workflow_state["iterations"] = iteration
+            self.logger.info(f"🔄 Research Iteration {iteration}/{MAX_ITERATIONS}", "deep_research", "iteration")
 
-        # 4. 生成最終報告
-        final_report = await self._write_final_report(context, search_results, report_plan)
+            # 2. SERP 查詢生成 (GenerateSearchQueries)
+            workflow_state["current_step"] = "search"
+            if iteration == 1:
+                search_tasks = await self._generate_serp_queries(context, report_plan)
+            else:
+                # 後續迭代：基於已有結果生成補充查詢
+                search_tasks = await self._generate_followup_queries(
+                    context, report_plan, all_search_results
+                )
+
+            if not search_tasks:  # 沒有更多查詢需求
+                break
+
+            # 3. 執行搜索任務 (ExecuteSearchTasks)
+            search_results = await self._execute_search_tasks(context, search_tasks)
+            all_search_results.extend(search_results)
+
+            # 4. 評估研究是否充分
+            is_sufficient = await self._review_research_completeness(
+                context, report_plan, all_search_results, iteration
+            )
+
+            if is_sufficient:
+                self.logger.info("✅ Research is sufficient, proceeding to final report", "deep_research", "complete")
+                break
+
+            self.logger.info(f"📊 Research needs more depth, continuing...", "deep_research", "continue")
+
+        # 5. 生成最終報告 (WriteFinalReport)
+        workflow_state["current_step"] = "synthesize"
+        final_report = await self._write_final_report(context, all_search_results, report_plan)
+
+        # WorkflowComplete: 標記成功完成
+        workflow_state["status"] = "completed"
+        self.logger.info("✅ Research workflow completed successfully", "deep_research", "workflow_complete")
 
         return final_report
+
+    async def _should_clarify(self, context: ProcessingContext) -> bool:
+        """判斷是否需要澄清研究方向"""
+        # 基於查詢複雜度判斷
+        complexity_indicators = ['比較', '分析', '評估', '深度', '全面', '詳細', '對比']
+        query_lower = context.request.query.lower()
+        return any(indicator in query_lower for indicator in complexity_indicators)
+
+    async def _ask_clarifying_questions(self, context: ProcessingContext):
+        """詢問澄清問題以更好理解研究需求"""
+        self.logger.progress("clarification", "start")
+
+        question_prompt = PromptTemplates.get_system_question_prompt(context.request.query)
+        questions = await self._call_llm(question_prompt, context)
+
+        self.logger.info(
+            f"❓ Clarifying Questions Generated:\n{questions}",
+            "deep_research",
+            "clarification"
+        )
+
+        # 這裡可以實際發送給用戶並獲取回應
+        # 目前先記錄供參考
+        context.intermediate_results["clarifying_questions"] = questions
+
+        self.logger.progress("clarification", "end")
+
+    async def _generate_followup_queries(self, context: ProcessingContext,
+                                        report_plan: str,
+                                        existing_results: List[Dict]) -> List[Dict]:
+        """生成後續查詢以填補研究空缺"""
+        self.logger.progress("followup-query", "start")
+
+        # 準備已有學習成果
+        learnings = self._prepare_report_context(existing_results)
+
+        # 使用 review prompt 來生成補充查詢
+        output_schema = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "researchGoal": {"type": "string"},
+                    "priority": {"type": "number"}
+                }
+            }
+        }
+
+        review_prompt = PromptTemplates.get_review_prompt(
+            plan=report_plan,
+            learnings=learnings,
+            suggestion="Focus on filling knowledge gaps and getting more specific details",
+            output_schema=output_schema
+        )
+
+        response = await self._call_llm(review_prompt, context)
+
+        # 解析新查詢
+        try:
+            import re
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
+            if json_match:
+                queries = json.loads(json_match.group(1))
+            else:
+                queries = json.loads(response)
+        except:
+            queries = []
+
+        self.logger.info(
+            f"📋 Follow-up Queries: Generated {len(queries)} additional queries",
+            "deep_research",
+            "followup"
+        )
+
+        self.logger.progress("followup-query", "end")
+        return queries
+
+    async def _review_research_completeness(self, context: ProcessingContext,
+                                           report_plan: str,
+                                           search_results: List[Dict],
+                                           iteration: int) -> bool:
+        """評估研究是否充分完整"""
+        self.logger.progress("review", "start")
+
+        # 準備評估上下文
+        learnings = self._prepare_report_context(search_results)
+
+        # 簡單的完整性檢查
+        review_prompt = f"""Based on the research plan and collected information, evaluate if the research is sufficient.
+
+Research Plan:
+{report_plan[:500]}
+
+Collected Information Summary:
+- Number of sources: {sum(len(r['result'].get('sources', [])) for r in search_results)}
+- Topics covered: {len(search_results)}
+- Current iteration: {iteration}
+
+Learnings:
+{learnings[:1000]}
+
+Answer with YES if research is sufficient, NO if more research is needed.
+Consider: coverage of all plan sections, depth of information, quality of sources.
+
+Answer (YES/NO):"""
+
+        response = await self._call_llm(review_prompt, context)
+
+        is_sufficient = "YES" in response.upper()[:10]
+
+        self.logger.info(
+            f"📊 Research Completeness: {'Sufficient' if is_sufficient else 'Needs more'}",
+            "deep_research",
+            "review",
+            iteration=iteration,
+            is_sufficient=is_sufficient
+        )
+
+        self.logger.progress("review", "end", {"is_sufficient": is_sufficient})
+
+        return is_sufficient
 
     async def _write_report_plan(self, context: ProcessingContext) -> str:
         """Phase 1: 生成研究報告計畫"""
@@ -979,7 +1419,7 @@ class DeepResearchProcessor(BaseProcessor):
     async def _write_final_report(self, context: ProcessingContext,
                                   search_results: List[Dict],
                                   report_plan: str) -> str:
-        """Phase 4: 生成最終報告"""
+        """Phase 4: 生成最終報告 - 學術論文格式（區分引用/未引用）"""
         self.logger.progress("final-report", "start")
 
         # 記錄最終報告生成
@@ -992,8 +1432,9 @@ class DeepResearchProcessor(BaseProcessor):
             plan_length=len(report_plan)
         )
 
-        # 準備上下文
+        # 準備上下文和參考文獻
         combined_context = self._prepare_report_context(search_results)
+        references_list = self._extract_references(search_results)
 
         # 記錄記憶體操作
         self.logger.info(
@@ -1005,29 +1446,27 @@ class DeepResearchProcessor(BaseProcessor):
             type="research_report"
         )
 
-        # 使用最終報告 prompt
-        # 準備來源和圖片（簡化版）
-        sources = "\n".join([f"- {r['result'].get('summary', '')[:100]}..." for r in search_results[:5]])
-        images = ""  # 暫時沒有圖片
-
-        report_prompt = PromptTemplates.get_final_report_prompt(
-            plan=report_plan,
-            learnings=combined_context,
-            sources=sources,
-            images=images,
-            requirement=context.request.query
+        # 構建增強的 prompt，包含參考文獻指引
+        enhanced_prompt = self._build_academic_report_prompt(
+            report_plan,
+            combined_context,
+            references_list,
+            context.request.query
         )
-
-        # 加上引用規則和輸出指南
-        citation_rules = PromptTemplates.get_citation_rules()
-        output_guidelines = PromptTemplates.get_output_guidelines()
-        full_prompt = f"{report_prompt}\n\n{citation_rules}\n\n{output_guidelines}"
 
         # 推理最終報告
         self.logger.reasoning("綜合所有研究結果，生成最終報告...", streaming=True)
 
-        # 生成報告
-        final_report = await self._call_llm(full_prompt, context)
+        # 生成報告主體
+        report_body = await self._call_llm(enhanced_prompt, context)
+
+        # 分析哪些參考文獻被實際引用
+        cited_refs, uncited_refs = self._analyze_citations(report_body, references_list)
+
+        # 組合完整報告：主體 + 區分的參考文獻
+        final_report = self._format_report_with_categorized_references(
+            report_body, cited_refs, uncited_refs
+        )
 
         # 記錄記憶體回收
         self.logger.info(
@@ -1082,6 +1521,145 @@ class DeepResearchProcessor(BaseProcessor):
         # 匹配 Markdown 標題
         headers = re.findall(r'^#{1,3}\s+(.+)$', report, re.MULTILINE)
         return headers[:10]  # 返回前10個章節標題
+
+    def _extract_references(self, search_results: List[Dict]) -> List[Dict]:
+        """從搜索結果中提取參考文獻"""
+        references = []
+        ref_id = 1
+
+        for result in search_results:
+            sources = result.get('result', {}).get('sources', [])
+            for source in sources:
+                if source.get('url'):
+                    references.append({
+                        'id': ref_id,
+                        'title': source.get('title', 'Untitled'),
+                        'url': source.get('url'),
+                        'query': result.get('query', ''),
+                        'relevance': source.get('relevance', 0)
+                    })
+                    ref_id += 1
+
+        # 按相關性排序
+        references.sort(key=lambda x: x.get('relevance', 0), reverse=True)
+        return references
+
+    def _build_academic_report_prompt(self, plan: str, context: str,
+                                     references: List[Dict], requirement: str) -> str:
+        """構建學術格式的報告 prompt"""
+        # 準備參考文獻摘要
+        ref_summary = "\n".join([
+            f"[{ref['id']}] {ref['title']}"
+            for ref in references[:20]  # 最多使用前20個參考
+        ])
+
+        prompt = f"""Generate a comprehensive research report based on the following information.
+
+Research Plan:
+{plan}
+
+Research Context and Findings:
+{context}
+
+Available References:
+{ref_summary}
+
+Requirements:
+1. Write in academic style with clear sections
+2. Use inline citations like [1], [2], [3] when referencing information
+3. Each claim should be supported by citations
+4. DO NOT include a references section in your output (it will be added separately)
+5. Focus on synthesis and analysis, not just summarization
+6. Ensure logical flow between sections
+
+User's Research Question:
+{requirement}
+
+IMPORTANT:
+- Use citations [1] to [{len(references)}] naturally throughout the text
+- Make the report comprehensive and detailed (aim for 1000+ words)
+- Structure with clear headings using ## for main sections
+- Write in professional, academic tone
+
+Generate the report body (without references section):"""
+
+        # 加上輸出指南
+        output_guidelines = PromptTemplates.get_output_guidelines()
+        return f"{prompt}\n\n{output_guidelines}"
+
+    def _analyze_citations(self, report_body: str, references: List[Dict]) -> tuple:
+        """分析報告中實際引用的參考文獻"""
+        import re
+
+        # 找出所有引用的編號
+        citation_pattern = r'\[(\d+)\]'
+        cited_numbers = set()
+
+        for match in re.finditer(citation_pattern, report_body):
+            try:
+                ref_num = int(match.group(1))
+                cited_numbers.add(ref_num)
+            except ValueError:
+                continue
+
+        # 分類參考文獻
+        cited_refs = []
+        uncited_refs = []
+
+        for ref in references:
+            if ref['id'] in cited_numbers:
+                cited_refs.append(ref)
+            else:
+                uncited_refs.append(ref)
+
+        return cited_refs, uncited_refs
+
+    def _format_report_with_categorized_references(self, report_body: str,
+                                                   cited_refs: List[Dict],
+                                                   uncited_refs: List[Dict]) -> str:
+        """格式化報告，區分引用和未引用的參考文獻"""
+
+        # 構建參考文獻部分
+        references_section = "\n\n---\n\n"
+
+        # 第一部分：引用的參考文獻
+        if cited_refs:
+            references_section += "## 📚 參考文獻 (Cited References)\n\n"
+            references_section += "*以下為報告中實際引用的文獻：*\n\n"
+
+            for ref in cited_refs[:30]:  # 限制最多30個
+                ref_entry = f"[{ref['id']}] **{ref['title']}**\n"
+                if ref.get('url'):
+                    ref_entry += f"   📍 URL: {ref['url']}\n"
+                if ref.get('query'):
+                    ref_entry += f"   🔍 Search context: {ref['query'][:50]}...\n"
+                references_section += f"{ref_entry}\n"
+
+        # 第二部分：相關但未引用的參考文獻
+        if uncited_refs:
+            references_section += "\n## 📖 相關文獻 (Related Sources - Not Cited)\n\n"
+            references_section += "*以下為研究過程中查閱但未直接引用的相關資料：*\n\n"
+
+            for ref in uncited_refs[:20]:  # 限制最多20個
+                ref_entry = f"• {ref['title']}\n"
+                if ref.get('url'):
+                    ref_entry += f"  URL: {ref['url']}\n"
+                references_section += f"{ref_entry}\n"
+
+        # 添加統計資訊
+        references_section += f"\n---\n\n## 📊 引用統計 (Citation Statistics)\n\n"
+        references_section += f"- **實際引用文獻**: {len(cited_refs)} 篇\n"
+        references_section += f"- **相關未引用文獻**: {len(uncited_refs)} 篇\n"
+        references_section += f"- **總查閱文獻**: {len(cited_refs) + len(uncited_refs)} 篇\n"
+        references_section += f"- **引用率**: {len(cited_refs) / max(1, len(cited_refs) + len(uncited_refs)) * 100:.1f}%\n"
+        references_section += f"\n---\n"
+        references_section += f"*Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n"
+        references_section += f"*Powered by OpenCode Deep Research Engine*"
+
+        # 組合完整報告
+        full_report = f"{report_body}{references_section}"
+
+        return full_report
 
 
 class ProcessorFactory:

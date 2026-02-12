@@ -456,6 +456,23 @@ Verify the reasonableness of the answer:
 Please demonstrate a complete, clear, and logically rigorous reasoning process. Each step should have sufficient explanation and justification."""
 
     @staticmethod
+    def get_code_generation_prompt(query: str) -> str:
+        """代碼生成提示詞"""
+        return f"""Generate Python code to complete the following task:
+
+Task: {query}
+
+IMPORTANT INSTRUCTIONS:
+1. Output ONLY the Python code, no explanations or descriptions
+2. Do NOT include markdown code block markers (``` or ```python)
+3. Do NOT include any text before or after the code
+4. Make sure the code is complete and executable
+5. Include necessary imports at the beginning
+6. Add comments in the code for clarity
+
+Output the code directly:"""
+
+    @staticmethod
     def get_reflection_prompt(original_response: str, question: str = None) -> str:
         """Reflection and improvement prompt"""
         question_context = f"\nOriginal Question: {question}" if question else ""

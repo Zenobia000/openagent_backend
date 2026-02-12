@@ -36,8 +36,14 @@ class OpenAILLMClient(LLMProvider):
             params = {
                 "model": self.model,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": kwargs.get("temperature", self.temperature),
             }
+
+            # GPT-5 系列模型只支援 temperature=1 (預設值)
+            if self.model.startswith("gpt-5"):
+                # GPT-5 不需要設定 temperature，使用預設值
+                pass
+            else:
+                params["temperature"] = kwargs.get("temperature", self.temperature)
 
             # GPT-4, GPT-5 系列模型使用 max_completion_tokens
             if self.model.startswith(("gpt-4", "gpt-5")):
@@ -69,9 +75,15 @@ class OpenAILLMClient(LLMProvider):
         params = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": kwargs.get("temperature", self.temperature),
             "stream": True,
         }
+
+        # GPT-5 系列模型只支援 temperature=1 (預設值)
+        if self.model.startswith("gpt-5"):
+            # GPT-5 不需要設定 temperature，使用預設值
+            pass
+        else:
+            params["temperature"] = kwargs.get("temperature", self.temperature)
 
         # GPT-4, GPT-5 系列模型使用 max_completion_tokens
         if self.model.startswith(("gpt-4", "gpt-5")):

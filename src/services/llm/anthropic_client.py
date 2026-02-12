@@ -38,12 +38,22 @@ class AnthropicLLMClient:
 
     async def generate(self, prompt: str, **kwargs) -> str | tuple[str, Dict[str, Any]]:
         """Generate a response via Anthropic Messages API."""
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=kwargs.get("max_tokens", self.max_tokens),
-            temperature=kwargs.get("temperature", self.temperature),
-            messages=[{"role": "user", "content": prompt}],
-        )
+        # 構建參數
+        params = {
+            "model": self.model,
+            "temperature": kwargs.get("temperature", self.temperature),
+            "messages": [{"role": "user", "content": prompt}]
+        }
+
+        # Anthropic API 需要 max_tokens，但我們使用更大的預設值
+        max_tokens = kwargs.get("max_tokens")
+        if max_tokens is not None and max_tokens > 0:
+            params["max_tokens"] = max_tokens
+        else:
+            # 使用較大的預設值讓模型自由發揮
+            params["max_tokens"] = 8192
+
+        response = await self.client.messages.create(**params)
 
         content = response.content[0].text if response.content else ""
 
@@ -59,11 +69,20 @@ class AnthropicLLMClient:
 
     async def stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Stream response tokens via Anthropic Messages API."""
-        async with self.client.messages.stream(
-            model=self.model,
-            max_tokens=kwargs.get("max_tokens", self.max_tokens),
-            temperature=kwargs.get("temperature", self.temperature),
-            messages=[{"role": "user", "content": prompt}],
-        ) as stream:
+        # 構建參數
+        params = {
+            "model": self.model,
+            "temperature": kwargs.get("temperature", self.temperature),
+            "messages": [{"role": "user", "content": prompt}]
+        }
+
+        # Anthropic API 需要 max_tokens
+        max_tokens = kwargs.get("max_tokens")
+        if max_tokens is not None and max_tokens > 0:
+            params["max_tokens"] = max_tokens
+        else:
+            params["max_tokens"] = 8192
+
+        async with self.client.messages.stream(**params) as stream:
             async for text in stream.text_stream:
                 yield text

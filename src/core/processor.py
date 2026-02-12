@@ -117,6 +117,16 @@ class BaseProcessor(ABC):
                     response_preview=response[:200]
                 )
 
+            # 檢查響應是否為空
+            if not response or response.strip() == "":
+                self.logger.warning(
+                    "LLM returned empty response",
+                    "llm",
+                    "empty_response",
+                    model=getattr(self.llm_client, 'model_name', 'unknown')
+                )
+                response = "[LLM returned empty response - please check API configuration]"
+
             # 更新上下文的 token 統計
             if context:
                 context.total_tokens += total_tokens

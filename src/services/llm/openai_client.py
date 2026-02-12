@@ -37,9 +37,13 @@ class OpenAILLMClient(LLMProvider):
             params = {
                 "model": self.model,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": kwargs.get("temperature", self.temperature),
-                "max_tokens": kwargs.get("max_tokens", self.max_tokens)
+                "temperature": kwargs.get("temperature", self.temperature)
             }
+
+            # 只有當明確指定 max_tokens 時才添加此參數
+            max_tokens = kwargs.get("max_tokens")
+            if max_tokens is not None and max_tokens > 0:
+                params["max_tokens"] = max_tokens
 
             # 使用 GPT5Adapter 適配參數
             params = GPT5Adapter.adapt_parameters(self.model, params)
@@ -52,10 +56,17 @@ class OpenAILLMClient(LLMProvider):
                 "total_tokens": response.usage.total_tokens if response.usage else 0,
             }
 
-            if kwargs.get("return_token_info", False):
-                return response.choices[0].message.content, token_info
+            # 檢查響應內容是否為空
+            content = response.choices[0].message.content
+            if not content:
+                content = "[Empty response from OpenAI API]"
+                import logging
+                logging.warning(f"OpenAI API returned empty content for model {self.model}")
 
-            return response.choices[0].message.content
+            if kwargs.get("return_token_info", False):
+                return content, token_info
+
+            return content
 
         except Exception as e:
             error_msg = f"[OpenAI Error] {e}"
@@ -69,9 +80,13 @@ class OpenAILLMClient(LLMProvider):
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": kwargs.get("temperature", self.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             "stream": True,
         }
+
+        # 只有當明確指定 max_tokens 時才添加此參數
+        max_tokens = kwargs.get("max_tokens")
+        if max_tokens is not None and max_tokens > 0:
+            params["max_tokens"] = max_tokens
 
         # 使用 GPT5Adapter 適配參數
         params = GPT5Adapter.adapt_parameters(self.model, params)

@@ -11,7 +11,7 @@ class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=50000)
     mode: str = Field("auto", pattern="^(auto|chat|knowledge|search|code|thinking|deep_research)$")
     temperature: float = Field(0.7, ge=0.0, le=2.0)
-    max_tokens: int = Field(4000, ge=1, le=128000)
+    max_tokens: Optional[int] = Field(None, ge=1, le=128000)
     stream: bool = False
     metadata: Dict[str, Any] = Field(default_factory=dict)
 

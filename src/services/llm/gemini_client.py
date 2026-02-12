@@ -41,10 +41,16 @@ class GeminiLLMClient:
         """Generate a response via Gemini generateContent."""
         import google.generativeai as genai
 
-        config = genai.GenerationConfig(
-            temperature=kwargs.get("temperature", self.temperature),
-            max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
-        )
+        config_params = {
+            "temperature": kwargs.get("temperature", self.temperature)
+        }
+
+        # 只有當明確指定 max_tokens 時才添加此參數
+        max_tokens = kwargs.get("max_tokens")
+        if max_tokens is not None and max_tokens > 0:
+            config_params["max_output_tokens"] = max_tokens
+
+        config = genai.GenerationConfig(**config_params)
 
         response = await self.model.generate_content_async(prompt, generation_config=config)
 
@@ -67,10 +73,16 @@ class GeminiLLMClient:
         """Stream response tokens via Gemini generateContent."""
         import google.generativeai as genai
 
-        config = genai.GenerationConfig(
-            temperature=kwargs.get("temperature", self.temperature),
-            max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
-        )
+        config_params = {
+            "temperature": kwargs.get("temperature", self.temperature)
+        }
+
+        # 只有當明確指定 max_tokens 時才添加此參數
+        max_tokens = kwargs.get("max_tokens")
+        if max_tokens is not None and max_tokens > 0:
+            config_params["max_output_tokens"] = max_tokens
+
+        config = genai.GenerationConfig(**config_params)
 
         response = await self.model.generate_content_async(
             prompt, generation_config=config, stream=True,

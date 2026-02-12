@@ -72,7 +72,7 @@ class Request:
 
     # 可選參數
     temperature: float = 0.7
-    max_tokens: int = 4000
+    max_tokens: Optional[int] = None
     stream: bool = False
 
     # 元數據

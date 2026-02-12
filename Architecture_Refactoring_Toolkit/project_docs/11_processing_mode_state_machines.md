@@ -2,9 +2,30 @@
 
 ---
 
-**Document Version:** `v2.0`
+**Document Version:** `v2.1`
 **Last Updated:** `2026-02-12`
-**Status:** `Current (Implemented)`
+**Status:** `Current (Enhanced with Parallel Search & Logging)`
+
+---
+
+## Changelog
+
+### v2.1 (2026-02-12)
+- Enhanced DeepResearchProcessor with parallel search execution
+- Added multi-iteration support (up to 3 iterations)
+- Implemented batch parallel search with configurable strategies
+- Added Exa neural search integration
+- Enhanced logging with content segmentation
+- Added Markdown export capability
+- Improved reference formatting (cited vs uncited)
+- Added optional query clarification step
+- **NEW**: Integrated critical analysis stage with ThinkingProcessor capabilities
+- **NEW**: Intelligent detection for queries requiring multi-perspective analysis
+- **NEW**: Enhanced report quality with critical thinking insights
+
+### v2.0 (2026-02-12)
+- Initial implementation with cognitive architecture
+- Basic state machines for all processing modes
 
 ---
 
@@ -249,37 +270,69 @@ stateDiagram-v2
 **Cognitive Level**: Agent
 **Runtime**: AgentRuntime (stateful, retry-wrapped)
 
-Automated research pipeline. This is the only mode that uses AgentRuntime, which provides:
-- **WorkflowState tracking**: steps = `[plan, search, synthesize]`
+Automated research pipeline with advanced features. This is the only mode that uses AgentRuntime, which provides:
+- **WorkflowState tracking**: steps = `[plan, search, synthesize]` with iteration support
 - **Smart retry**: `retry_with_backoff(max_retries=2, base_delay=1.0)` — retries on network/LLM errors only
 - **Error classification**: Failed steps recorded with `ErrorClassifier.classify()` category
+- **Parallel search execution**: Batch parallel search with configurable strategies
+- **Multi-iteration support**: Up to 3 iterations for comprehensive research
+- **Enhanced logging**: Content segmentation for large responses and Markdown export
 
 ### State Machine
 
 ```mermaid
 stateDiagram-v2
     [*] --> InitWorkflow
-    InitWorkflow: AgentRuntime creates WorkflowState
+    InitWorkflow: Creates WorkflowState with iteration tracking
 
     state RetryBoundary {
-        [*] --> WriteReportPlan
+        [*] --> Clarification
+        Clarification: Optional query clarification
+        Clarification --> WriteReportPlan: Skip or clarified
+
         WriteReportPlan: Generate detailed research outline
-        WriteReportPlan --> GenerateSearchQueries: Extract structured search tasks
+        WriteReportPlan --> IterativeResearch: Start iteration loop
 
-        GenerateSearchQueries: Create (query, goal, priority) tuples
-        GenerateSearchQueries --> ExecuteSearchTasks: Iterate through tasks
+        state IterativeResearch {
+            [*] --> GenerateSearchQueries
+            GenerateSearchQueries: Create (query, goal, priority) tuples
 
-        state ExecuteSearchTasks {
-            [*] --> SearchTask
-            SearchTask: Execute web search for current task
-            SearchTask --> ProcessResult: Collect and summarize
-            ProcessResult --> SearchTask: Next task
-            ProcessResult --> [*]: All tasks done
+            state ParallelSearchExecution {
+                [*] --> BatchPreparation
+                BatchPreparation: Prepare search tasks for batch execution
+                BatchPreparation --> ParallelBatch: Execute in batches
+
+                state ParallelBatch {
+                    SearchTask1: Tavily search
+                    SearchTask2: Serper search
+                    SearchTask3: DuckDuckGo search
+                    SearchTask4: Exa neural search
+                }
+
+                ParallelBatch --> ResultAggregation: Collect all results
+                ResultAggregation --> [*]
+            }
+
+            GenerateSearchQueries --> ParallelSearchExecution: Batch size configured
+            ParallelSearchExecution --> EvaluateCompleteness: Check research sufficiency
+
+            state EvaluateCompleteness <<choice>>
+            EvaluateCompleteness --> GenerateSearchQueries: Need more depth (iteration < 3)
+            EvaluateCompleteness --> [*]: Research sufficient
         }
 
-        ExecuteSearchTasks --> WriteFinalReport: Synthesize all results
-        WriteFinalReport: Generate structured report with citations
-        WriteFinalReport --> [*]
+        IterativeResearch --> CriticalAnalysis: Check if analysis needed
+
+        state CriticalAnalysis <<choice>>
+        CriticalAnalysis --> ThinkingStage: Complex query requiring analysis
+        CriticalAnalysis --> WriteFinalReport: Simple query, skip analysis
+
+        ThinkingStage: Multi-perspective critical analysis
+        ThinkingStage --> WriteFinalReport: Analysis complete
+
+        WriteFinalReport: Generate report with categorized references
+        WriteFinalReport --> SaveMarkdown: Export to markdown file
+        SaveMarkdown --> [*]
     }
 
     InitWorkflow --> RetryBoundary: retry_with_backoff(max=2)
@@ -288,8 +341,8 @@ stateDiagram-v2
     RetryBoundary --> WorkflowComplete: Success
     RetryBoundary --> ErrorHandling: Exception
 
-    ErrorHandling --> RetryBoundary: Retryable (network/LLM)
-    ErrorHandling --> WorkflowFailed: Non-retryable or max retries exceeded
+    ErrorHandling --> RetryBoundary: Retryable (NETWORK/LLM)
+    ErrorHandling --> WorkflowFailed: Non-retryable or max retries
 
     WorkflowComplete: WorkflowState.complete()
     WorkflowFailed: ErrorClassifier.classify(error)
@@ -300,13 +353,101 @@ stateDiagram-v2
 
 ### State Descriptions
 
-- **InitWorkflow**: AgentRuntime creates a `WorkflowState(steps=["plan", "search", "synthesize"])` and sets status to "running".
-- **WriteReportPlan**: LLM generates a detailed research report outline based on user requirements.
-- **GenerateSearchQueries**: Extracts structured search tasks (query, goal, priority) from the research plan.
-- **ExecuteSearchTasks**: Iterates through each search task, executing web searches and processing results.
-- **WriteFinalReport**: Synthesizes all search results with the original plan into a structured report with citations.
-- **ErrorHandling**: On failure, `ErrorClassifier` categorizes the error. NETWORK/LLM errors trigger retry (up to 2 times with exponential backoff). BUSINESS/RESOURCE_LIMIT/UNKNOWN errors fail immediately.
-- **WorkflowComplete/Failed**: Final workflow state is recorded in `context.intermediate_results["workflow_state"]`.
+- **InitWorkflow**: Creates `WorkflowState` with:
+  ```python
+  {
+      "status": "running",
+      "steps": ["plan", "search", "synthesize"],
+      "current_step": None,
+      "iterations": 0,
+      "errors": []
+  }
+  ```
+
+- **Clarification** (Optional): If query is ambiguous, asks clarifying questions before research.
+
+- **WriteReportPlan**: LLM generates detailed research outline with structured sections.
+
+- **IterativeResearch**: Multi-iteration loop (max 3) for comprehensive coverage:
+  - First iteration: Initial broad search based on plan
+  - Subsequent iterations: Follow-up queries based on gaps
+
+- **GenerateSearchQueries**: Creates structured search tasks with:
+  - `query`: Optimized search query
+  - `goal`: Specific research objective
+  - `priority`: Task importance (high/medium/low)
+
+- **ParallelSearchExecution**: Executes searches in parallel batches:
+  - **Batch Strategy**: Configurable batch size (default 5)
+  - **Race Mode**: First successful provider wins
+  - **Multi-Engine**: Tavily → Serper → DuckDuckGo → Exa fallback chain
+  - Uses `asyncio.gather()` for concurrent execution
+
+- **EvaluateCompleteness**: AI-driven assessment of research quality:
+  - Checks coverage of key topics
+  - Identifies information gaps
+  - Decides if more iterations needed
+
+- **CriticalAnalysis** (Choice Point): Determines if critical analysis is needed:
+  - Checks for critical thinking keywords (分析, 評估, 批判, 比較, 為什麼)
+  - Mixed patterns (趨勢+分析, 市場+觀點)
+  - Complex queries (>50 characters)
+
+- **ThinkingStage** (Optional): Multi-perspective critical analysis:
+  - Borrows critical thinking capability from ThinkingProcessor
+  - Analyzes research findings from multiple angles
+  - Provides deeper insights and balanced perspectives
+  - Integrates with search results for enriched conclusions
+
+- **WriteFinalReport**: Generates comprehensive report with:
+  - Academic-style formatting
+  - Categorized references (cited vs uncited)
+  - Citation statistics
+  - Structured sections
+
+- **SaveMarkdown**: Exports response using `EnhancedLogger`:
+  - Saves as `.md` file with metadata
+  - Segments long content (>10KB) into multiple files
+  - Includes trace ID and timestamp
+
+- **ErrorHandling**: Intelligent error classification:
+  - **Retryable** (NETWORK/LLM): Exponential backoff retry
+  - **Non-retryable** (BUSINESS/RESOURCE_LIMIT): Immediate failure
+  - All errors recorded in workflow state
+
+### Enhanced Features
+
+#### Parallel Search Configuration
+```python
+SearchEngineConfig:
+  - parallel_strategy: "batch" | "race" | "hybrid"
+  - batch_size: 5 (default)
+  - enable_race_mode: True/False
+  - enable_batch_parallel: True/False
+  - max_concurrent_searches: 10
+```
+
+#### Reference Formatting
+```markdown
+## References
+### Cited Sources (Used in Report)
+[1] Title - URL
+[2] Title - URL
+
+### Additional Sources (Not Cited)
+[3] Title - URL
+[4] Title - URL
+
+Citation Statistics:
+- Cited: 60%
+- Total: 10 sources
+```
+
+#### Enhanced Logging
+- Content segmentation for responses >10KB
+- Automatic markdown export to `logs/reports/`
+- Segment files with checksums for integrity
+- Metadata tracking (tokens, duration, errors)
 
 ---
 

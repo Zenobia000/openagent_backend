@@ -7,7 +7,7 @@ from typing import Any, AsyncGenerator, Dict, Optional
 class GeminiLLMClient:
     """Google Gemini client.
 
-    Lazily imports google.generativeai so the package is only required
+    Lazily imports google.genai so the package is only required
     when this provider is actually instantiated.
     """
 
@@ -24,10 +24,9 @@ class GeminiLLMClient:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is required")
 
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(self.model_name)
+        self.client = genai.Client(api_key=self.api_key)
 
     @property
     def provider_name(self) -> str:
@@ -39,14 +38,18 @@ class GeminiLLMClient:
 
     async def generate(self, prompt: str, **kwargs) -> str | tuple[str, Dict[str, Any]]:
         """Generate a response via Gemini generateContent."""
-        import google.generativeai as genai
+        from google.genai import types
 
-        config = genai.GenerationConfig(
+        config = types.GenerateContentConfig(
             temperature=kwargs.get("temperature", self.temperature),
             max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
         )
 
-        response = await self.model.generate_content_async(prompt, generation_config=config)
+        response = await self.client.aio.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=config,
+        )
 
         content = response.text or ""
 
@@ -65,15 +68,17 @@ class GeminiLLMClient:
 
     async def stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Stream response tokens via Gemini generateContent."""
-        import google.generativeai as genai
+        from google.genai import types
 
-        config = genai.GenerationConfig(
+        config = types.GenerateContentConfig(
             temperature=kwargs.get("temperature", self.temperature),
             max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
         )
 
-        response = await self.model.generate_content_async(
-            prompt, generation_config=config, stream=True,
+        response = self.client.aio.models.generate_content_stream(
+            model=self.model_name,
+            contents=prompt,
+            config=config,
         )
         async for chunk in response:
             if chunk.text:

@@ -1724,7 +1724,7 @@ Answer (YES/NO):"""
         }
 
     async def _try_search_provider_with_timeout(self, provider: SearchProviderType, query: str, goal: str) -> Optional[Dict]:
-        """帶超時的搜索提供商嘗試"""
+        # 帶超時的搜索提供商嘗試
         try:
             # 使用配置的超時時間
             timeout = getattr(self.search_config, 'timeout', 30.0)
@@ -1755,7 +1755,7 @@ Answer (YES/NO):"""
             return None
 
     async def _perform_deep_search(self, query: str, goal: str) -> Dict:
-        """執行深度搜索 — 使用真實搜索服務，無則返回空結果"""
+        # 執行深度搜索 — 使用真實搜索服務，無則返回空結果
 
         search_service = self.services.get("search")
 
@@ -1831,7 +1831,7 @@ Answer (YES/NO):"""
                                   search_results: List[Dict],
                                   report_plan: str,
                                   critical_analysis: Optional[str] = None) -> str:
-        """Phase 4: 生成最終報告 - 學術論文格式（區分引用/未引用）"""
+        # Phase 4: 生成最終報告 - 學術論文格式（區分引用/未引用）
         self.logger.progress("final-report", "start")
 
         # 記錄最終報告生成
@@ -1915,7 +1915,7 @@ Answer (YES/NO):"""
         return final_report
 
     def _prepare_report_context(self, search_results: List[Dict]) -> str:
-        """準備報告上下文"""
+        # 準備報告上下文
         context_parts = []
         for i, result in enumerate(search_results, 1):
             context_parts.append(f"""
@@ -1929,14 +1929,14 @@ Answer (YES/NO):"""
         return "\n\n".join(context_parts)
 
     def _extract_report_sections(self, report: str) -> List[str]:
-        """提取報告章節"""
+        # 提取報告章節
         import re
         # 匹配 Markdown 標題
         headers = re.findall(r'^#{1,3}\s+(.+)$', report, re.MULTILINE)
         return headers[:10]  # 返回前10個章節標題
 
     def _extract_references(self, search_results: List[Dict]) -> List[Dict]:
-        """從搜索結果中提取參考文獻"""
+        # 從搜索結果中提取參考文獻
         references = []
         ref_id = 1
 
@@ -1960,7 +1960,7 @@ Answer (YES/NO):"""
     def _build_academic_report_prompt(self, plan: str, context: str,
                                      references: List[Dict], requirement: str,
                                      critical_analysis: Optional[str] = None) -> str:
-        """構建學術格式的報告 prompt（含批判性分析）"""
+        # 構建學術格式的報告 prompt（含批判性分析）
         # 準備參考文獻摘要
         ref_summary = "\n".join([
             f"[{ref['id']}] {ref['title']}"
@@ -2012,7 +2012,7 @@ Requirements:
 User's Research Question:
 {requirement}"""
 
-        return prompt
+        prompt += f"""
 
 IMPORTANT:
 - Use citations [1] to [{len(references)}] naturally throughout the text
@@ -2020,14 +2020,17 @@ IMPORTANT:
 - Structure with clear headings using ## for main sections
 - Write in professional, academic tone
 
-Generate the report body (without references section):"""
+Generate the report body (without references section):
+"""
+
+        return prompt
 
         # 加上輸出指南
         output_guidelines = PromptTemplates.get_output_guidelines()
         return f"{prompt}\n\n{output_guidelines}"
 
     def _analyze_citations(self, report_body: str, references: List[Dict]) -> tuple:
-        """分析報告中實際引用的參考文獻"""
+        # 分析報告中實際引用的參考文獻
         import re
 
         # 找出所有引用的編號
@@ -2058,7 +2061,7 @@ Generate the report body (without references section):"""
                                                    uncited_refs: List[Dict],
                                                    context: ProcessingContext = None,
                                                    has_critical_analysis: bool = False) -> str:
-        """格式化報告, 區分引用和未引用的參考文獻"""
+        # 格式化報告, 區分引用和未引用的參考文獻
 
         # 構建參考文獻部分
         references_section = "\n\n---\n\n"
@@ -2163,12 +2166,8 @@ Generate the report body (without references section):"""
     # ============================================================
 
     async def process_with_streaming(self, context: ProcessingContext) -> AsyncGenerator[str, None]:
-        """
-        支援 SSE Streaming 的處理方法
-
-        Yields:
-            SSE 格式的事件字符串
-        """
+        # 支援 SSE Streaming 的處理方法
+        # Yields: SSE 格式的事件字符串
         self._streaming_enabled = True
 
         # 啟動事件處理協程
@@ -2202,7 +2201,7 @@ Generate the report body (without references section):"""
             await event_task
 
     async def _event_stream_handler(self):
-        """處理事件流"""
+        # 處理事件流
         while True:
             event = await self.event_queue.get()
             if event is None:
@@ -2216,14 +2215,14 @@ Generate the report body (without references section):"""
                     self.logger.warning(f"Event callback error: {e}", "deep_research", "callback_error")
 
     async def _call_event_callback(self, event: ResearchEvent):
-        """安全調用事件回調"""
+        # 安全調用事件回調
         if asyncio.iscoroutinefunction(self.event_callback):
             await self.event_callback(event)
         else:
             self.event_callback(event)
 
     async def _emit_event(self, event: ResearchEvent):
-        """發送事件"""
+        # 發送事件
         if hasattr(self, 'event_queue'):
             await self.event_queue.put(event)
 
@@ -2241,9 +2240,7 @@ Generate the report body (without references section):"""
     # ============================================================
 
     async def _perform_deep_search_enhanced(self, query: str, goal: str) -> Dict:
-        """
-        增強版深度搜索 - 支援多搜索引擎和智能降級
-        """
+        # 增強版深度搜索 - 支援多搜索引擎和智能降級
         # 發送搜索開始事件
         await self._emit_event(ResearchEvent(
             type="progress",
@@ -2308,7 +2305,7 @@ Generate the report body (without references section):"""
                                    provider: SearchProviderType,
                                    query: str,
                                    goal: str) -> Optional[Dict]:
-        """嘗試使用特定搜索提供商"""
+        # 嘗試使用特定搜索提供商
         try:
             if provider == SearchProviderType.MODEL:
                 # 使用 AI 模型內建搜索
@@ -2342,7 +2339,7 @@ Generate the report body (without references section):"""
         return None
 
     async def _exa_search(self, query: str, goal: str) -> Optional[Dict]:
-        """使用 Exa API 進行神經搜索"""
+        # 使用 Exa API 進行神經搜索
         search_service = self.services.get("search")
         if not search_service:
             return None
@@ -2377,20 +2374,20 @@ Generate the report body (without references section):"""
         return None
 
     async def _model_based_search(self, query: str, goal: str) -> Dict:
-        """使用 AI 模型的內建搜索能力"""
+        # 使用 AI 模型的內建搜索能力
         if not self.llm_client:
             return self._empty_search_result(query)
 
-        search_prompt = f"""Please search and provide information about:
-Query: {query}
-Research Goal: {goal}
-
-Provide a comprehensive answer based on your knowledge, formatted as:
-1. Summary of findings
-2. Key facts and details
-3. Relevant context
-
-Focus on accuracy and relevance."""
+        search_prompt = (
+            f"Please search and provide information about:\n"
+            f"Query: {query}\n"
+            f"Research Goal: {goal}\n\n"
+            f"Provide a comprehensive answer based on your knowledge, formatted as:\n"
+            f"1. Summary of findings\n"
+            f"2. Key facts and details\n"
+            f"3. Relevant context\n\n"
+            f"Focus on accuracy and relevance."
+        )
 
         try:
             response = await self._call_llm(search_prompt, None)
@@ -2411,7 +2408,7 @@ Focus on accuracy and relevance."""
             return self._empty_search_result(query)
 
     def _format_search_results(self, results: List, provider: str) -> Dict:
-        """格式化搜索結果"""
+        # 格式化搜索結果
         if not results:
             return None
 
@@ -2444,7 +2441,7 @@ Focus on accuracy and relevance."""
         }
 
     def _empty_search_result(self, query: str) -> Dict:
-        """返回空搜索結果"""
+        # 返回空搜索結果
         return {
             'summary': f"[No search results available for: {query}]",
             'sources': [],
@@ -2455,7 +2452,7 @@ Focus on accuracy and relevance."""
 
     # Configuration methods
     def configure_search_engines(self, config: SearchEngineConfig):
-        """動態配置搜索引擎"""
+        # 動態配置搜索引擎
         self.search_config = config
         self.logger.info(
             f"Search engines configured: primary={config.primary.value}, "
@@ -2465,16 +2462,16 @@ Focus on accuracy and relevance."""
         )
 
     def enable_streaming(self, enabled: bool = True):
-        """啟用/禁用 streaming"""
+        # 啟用/禁用 streaming
         self._streaming_enabled = enabled
 
     def set_event_callback(self, callback: Callable[[ResearchEvent], None]):
-        """設置事件回調"""
+        # 設置事件回調
         self.event_callback = callback
 
 
 class ProcessorFactory:
-    """處理器工廠 - 創建和管理處理器"""
+    # 處理器工廠 - 創建和管理處理器
 
     _processors: Dict[ProcessingMode, Type[BaseProcessor]] = {
         ProcessingMode.CHAT: ChatProcessor,
@@ -2501,7 +2498,7 @@ class ProcessorFactory:
         self._instances: Dict[ProcessingMode, BaseProcessor] = {}
 
     def get_processor(self, mode: ProcessingMode) -> BaseProcessor:
-        """獲取處理器實例"""
+        # 獲取處理器實例
         if mode not in self._instances:
             processor_class = self._processors.get(mode, ChatProcessor)
             instance = processor_class(self.llm_client, services=self.services)
@@ -2511,7 +2508,7 @@ class ProcessorFactory:
         return self._instances[mode]
 
     def register_processor(self, mode: ProcessingMode, processor_class: Type[BaseProcessor]):
-        """註冊自定義處理器"""
+        # 註冊自定義處理器
         self._processors[mode] = processor_class
         # 清除已有實例，下次獲取時會創建新的
         if mode in self._instances:

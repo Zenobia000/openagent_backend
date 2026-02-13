@@ -31,11 +31,14 @@ class LLMService:
                 "temperature": kwargs.get("temperature", 0.7)
             }
 
-            # 根據模型選擇正確的參數名
-            if "gpt-4" in self.model or "gpt-5" in self.model:
-                params["max_completion_tokens"] = kwargs.get("max_tokens", 4000)
-            else:
-                params["max_tokens"] = kwargs.get("max_tokens", 4000)
+            # 只有當明確指定 max_tokens 時才添加此參數
+            max_tokens = kwargs.get("max_tokens")
+            if max_tokens is not None and max_tokens > 0:
+                # 根據模型選擇正確的參數名
+                if "gpt-4" in self.model or "gpt-5" in self.model:
+                    params["max_completion_tokens"] = max_tokens
+                else:
+                    params["max_tokens"] = max_tokens
 
             response = await self.client.chat.completions.create(**params)
             return response.choices[0].message.content
@@ -57,10 +60,13 @@ class LLMService:
                 "temperature": kwargs.get("temperature", 0.7)
             }
 
-            if "gpt-4" in self.model or "gpt-5" in self.model:
-                params["max_completion_tokens"] = kwargs.get("max_tokens", 4000)
-            else:
-                params["max_tokens"] = kwargs.get("max_tokens", 4000)
+            # 只有當明確指定 max_tokens 時才添加此參數
+            max_tokens = kwargs.get("max_tokens")
+            if max_tokens is not None and max_tokens > 0:
+                if "gpt-4" in self.model or "gpt-5" in self.model:
+                    params["max_completion_tokens"] = max_tokens
+                else:
+                    params["max_tokens"] = max_tokens
 
             async for chunk in await self.client.chat.completions.create(**params):
                 if chunk.choices[0].delta.content:

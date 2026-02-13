@@ -3,6 +3,8 @@
 import os
 from typing import Any, AsyncGenerator, Dict, Optional
 
+from .errors import GeminiError
+
 
 class GeminiLLMClient:
     """Google Gemini client.
@@ -38,48 +40,54 @@ class GeminiLLMClient:
 
     async def generate(self, prompt: str, **kwargs) -> str | tuple[str, Dict[str, Any]]:
         """Generate a response via Gemini generateContent."""
-        from google.genai import types
+        try:
+            from google.genai import types
 
-        config = types.GenerateContentConfig(
-            temperature=kwargs.get("temperature", self.temperature),
-            max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
-        )
+            config = types.GenerateContentConfig(
+                temperature=kwargs.get("temperature", self.temperature),
+                max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
+            )
 
-        response = await self.client.aio.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-            config=config,
-        )
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=config,
+            )
 
-        content = response.text or ""
+            content = response.text or ""
 
-        token_info = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            meta = response.usage_metadata
-            token_info = {
-                "prompt_tokens": getattr(meta, "prompt_token_count", 0) or 0,
-                "completion_tokens": getattr(meta, "candidates_token_count", 0) or 0,
-                "total_tokens": getattr(meta, "total_token_count", 0) or 0,
-            }
+            token_info = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                meta = response.usage_metadata
+                token_info = {
+                    "prompt_tokens": getattr(meta, "prompt_token_count", 0) or 0,
+                    "completion_tokens": getattr(meta, "candidates_token_count", 0) or 0,
+                    "total_tokens": getattr(meta, "total_token_count", 0) or 0,
+                }
 
-        if kwargs.get("return_token_info", False):
-            return content, token_info
-        return content
+            if kwargs.get("return_token_info", False):
+                return content, token_info
+            return content
+        except Exception as e:
+            raise GeminiError(f"Gemini API call failed: {e}") from e
 
     async def stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Stream response tokens via Gemini generateContent."""
-        from google.genai import types
+        try:
+            from google.genai import types
 
-        config = types.GenerateContentConfig(
-            temperature=kwargs.get("temperature", self.temperature),
-            max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
-        )
+            config = types.GenerateContentConfig(
+                temperature=kwargs.get("temperature", self.temperature),
+                max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
+            )
 
-        response = self.client.aio.models.generate_content_stream(
-            model=self.model_name,
-            contents=prompt,
-            config=config,
-        )
-        async for chunk in response:
-            if chunk.text:
-                yield chunk.text
+            response = self.client.aio.models.generate_content_stream(
+                model=self.model_name,
+                contents=prompt,
+                config=config,
+            )
+            async for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            raise GeminiError(f"Gemini streaming failed: {e}") from e

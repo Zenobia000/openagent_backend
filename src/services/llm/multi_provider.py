@@ -8,6 +8,8 @@ Integrates with ErrorClassifier from core.errors for smart retry decisions.
 import logging
 from typing import Any, AsyncGenerator, Dict, List
 
+from .errors import LLMError
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,12 +43,6 @@ class MultiProviderLLMClient:
                 result = await provider.generate(prompt, **kwargs)
                 self._last_provider = provider.provider_name
 
-                # Check for soft errors (OpenAI returns "[OpenAI Error] ..." instead of raising)
-                if isinstance(result, str) and result.startswith("[") and "Error]" in result:
-                    raise RuntimeError(result)
-                if isinstance(result, tuple) and isinstance(result[0], str) and result[0].startswith("[") and "Error]" in result[0]:
-                    raise RuntimeError(result[0])
-
                 if i > 0:
                     logger.info(
                         "Fallback succeeded: %s (after %d failed)",
@@ -63,13 +59,11 @@ class MultiProviderLLMClient:
                     if i + 1 < len(self.providers) else " -> no more providers",
                 )
 
-                # Non-retryable errors (business logic, bad input) should not fallback
-                try:
-                    from core.errors import ErrorClassifier
-                    if not ErrorClassifier.is_retryable(e):
-                        raise
-                except ImportError:
-                    pass
+                # Check retryability: use error.retryable attribute if available,
+                # otherwise fall back to ErrorClassifier
+                should_fallback = self._is_retryable(e)
+                if not should_fallback:
+                    raise
 
         raise last_error  # type: ignore[misc]
 
@@ -93,12 +87,32 @@ class MultiProviderLLMClient:
                 logger.warning(
                     "Stream provider %s failed: %s", provider.provider_name, e,
                 )
-                try:
-                    from core.errors import ErrorClassifier
-                    if not ErrorClassifier.is_retryable(e):
-                        raise
-                except ImportError:
-                    pass
+                should_fallback = self._is_retryable(e)
+                if not should_fallback:
+                    raise
 
         if last_error:
             raise last_error
+
+    def _is_retryable(self, error: Exception) -> bool:
+        """Determine if an error should trigger fallback to the next provider.
+
+        Uses the error's retryable attribute if available (from our LLMError hierarchy),
+        otherwise falls back to ErrorClassifier for compatibility.
+        """
+        # First check if error has explicit retryable attribute (our exception hierarchy)
+        if hasattr(error, "retryable"):
+            return error.retryable  # type: ignore[no-any-return]
+
+        # Fallback to ErrorClassifier for other exceptions
+        try:
+            from core.errors import ErrorClassifier
+            return ErrorClassifier.is_retryable(error)
+        except ImportError:
+            # If ErrorClassifier not available, assume retryable for LLMError,
+            # non-retryable for business logic errors
+            if isinstance(error, LLMError):
+                return True
+            if isinstance(error, (ValueError, KeyError, TypeError)):
+                return False
+            return True  # Default to retryable for unknown errors

@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from services.llm.base import LLMProvider
+from services.llm.errors import OpenAIError, AnthropicError, ValidationError
 from services.llm.multi_provider import MultiProviderLLMClient
 
 
@@ -140,13 +141,49 @@ class TestMultiProviderGenerate:
         assert result == "third time"
 
     @pytest.mark.asyncio
-    async def test_soft_error_triggers_fallback(self):
-        """OpenAI-style soft error string triggers fallback."""
-        soft = FakeProvider("openai", response="[OpenAI Error] rate limit")
-        hard = FakeProvider("anthropic", response="ok from claude")
-        client = MultiProviderLLMClient([soft, hard])
+    async def test_provider_error_triggers_fallback(self):
+        """Provider-specific exceptions trigger fallback to next provider."""
+        class FailingProvider(FakeProvider):
+            async def generate(self, prompt, **kwargs):
+                raise OpenAIError("rate limit exceeded")
+
+        client = MultiProviderLLMClient([
+            FailingProvider("openai"),
+            FakeProvider("anthropic", response="ok from claude"),
+        ])
         result = await client.generate("test")
         assert result == "ok from claude"
+
+    @pytest.mark.asyncio
+    async def test_validation_error_no_fallback(self):
+        """ValidationError should not trigger fallback (non-retryable)."""
+        class ValidationProvider(FakeProvider):
+            async def generate(self, prompt, **kwargs):
+                raise ValidationError("invalid prompt format")
+
+        client = MultiProviderLLMClient([
+            ValidationProvider("primary"),
+            FakeProvider("fallback", response="should not reach"),
+        ])
+        with pytest.raises(ValidationError, match="invalid prompt"):
+            await client.generate("test")
+
+    @pytest.mark.asyncio
+    async def test_retryable_attribute_respected(self):
+        """Exception with retryable=False attribute should not fallback."""
+        class NonRetryableError(Exception):
+            retryable = False
+
+        class NonRetryableProvider(FakeProvider):
+            async def generate(self, prompt, **kwargs):
+                raise NonRetryableError("non-retryable error")
+
+        client = MultiProviderLLMClient([
+            NonRetryableProvider("primary"),
+            FakeProvider("fallback", response="should not reach"),
+        ])
+        with pytest.raises(NonRetryableError):
+            await client.generate("test")
 
 
 class TestMultiProviderStream:

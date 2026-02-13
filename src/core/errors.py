@@ -33,6 +33,18 @@ class ErrorClassifier:
 
     @classmethod
     def classify(cls, error: Exception) -> ErrorCategory:
+        # Check for our structured LLM exceptions first
+        try:
+            from services.llm.errors import LLMError, ProviderError, ValidationError
+            if isinstance(error, ProviderError):
+                return ErrorCategory.LLM
+            if isinstance(error, ValidationError):
+                return ErrorCategory.BUSINESS
+            if isinstance(error, LLMError):
+                return ErrorCategory.LLM
+        except ImportError:
+            pass
+
         msg = str(error).lower()
         etype = type(error).__name__.lower()
 
@@ -48,6 +60,11 @@ class ErrorClassifier:
 
     @classmethod
     def is_retryable(cls, error: Exception) -> bool:
+        # Use explicit retryable attribute if available (from our exception hierarchy)
+        if hasattr(error, "retryable"):
+            return error.retryable  # type: ignore[no-any-return]
+
+        # Otherwise classify by category
         category = cls.classify(error)
         return category in (ErrorCategory.NETWORK, ErrorCategory.LLM)
 

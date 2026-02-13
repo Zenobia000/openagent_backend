@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator, Dict, Optional
 from openai import AsyncOpenAI
 
 from .base import LLMProvider
+from .errors import OpenAIError
 from .gpt5_adapter import GPT5Adapter
 
 
@@ -69,10 +70,7 @@ class OpenAILLMClient(LLMProvider):
             return content
 
         except Exception as e:
-            error_msg = f"[OpenAI Error] {e}"
-            if kwargs.get("return_token_info", False):
-                return error_msg, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-            return error_msg
+            raise OpenAIError(f"OpenAI API call failed: {e}") from e
 
     async def stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Stream response tokens via OpenAI ChatCompletion."""

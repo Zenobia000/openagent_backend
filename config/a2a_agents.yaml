@@ -1,0 +1,29 @@
+# OpenCode Platform - A2A Agent Configuration
+# Define external A2A agents that this platform can delegate tasks to.
+# Each agent exposes skills via the Agent-to-Agent protocol (Google, 2025).
+#
+# Agent types:
+#   local  - Managed subprocess (command + args, platform starts/stops it)
+#   remote - External HTTP endpoint (url, must be running independently)
+#
+# Environment variables can be referenced with ${VAR_NAME} syntax.
+
+agents: []
+
+# Available A2A Agent packages (uncomment to enable):
+#
+# agents:
+#   - name: "stock-analyst"
+#     type: "local"
+#     command: "python"
+#     args: ["packages/stock-analyst/server.py"]
+#     port: 9001
+#     env:
+#       PORT: "9001"
+#
+# External A2A Agent examples:
+#
+#   - name: "legal-advisor"
+#     type: "remote"
+#     url: "https://agents.example.com/legal"
+#     auth_token: "${LEGAL_AGENT_TOKEN}"

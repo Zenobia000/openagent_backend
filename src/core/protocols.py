@@ -3,7 +3,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import AsyncIterator, Dict, Any, List, Optional
 
 
 class MCPServiceProtocol(ABC):
@@ -111,4 +111,83 @@ class RuntimeProtocol(ABC):
     @abstractmethod
     def supports(self, mode: Any) -> bool:
         """Check if this runtime supports the given processing mode."""
+        pass
+
+
+class MCPClientProtocol(ABC):
+    """MCP Client 協議 — 管理與外部 MCP Server 的連線和工具呼叫"""
+
+    @abstractmethod
+    async def initialize(self) -> None:
+        """啟動所有設定的 MCP Server 連線"""
+        pass
+
+    @abstractmethod
+    async def list_tools(self) -> List[Dict[str, Any]]:
+        """聚合所有已連線 server 的 tools"""
+        pass
+
+    @abstractmethod
+    async def call_tool(
+        self, server_name: str, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """呼叫指定 server 的指定 tool"""
+        pass
+
+    @abstractmethod
+    async def list_resources(self) -> List[Dict[str, Any]]:
+        """聚合所有已連線 server 的 resources"""
+        pass
+
+    @abstractmethod
+    async def read_resource(self, server_name: str, uri: str) -> Any:
+        """讀取指定 server 的 resource"""
+        pass
+
+    @abstractmethod
+    async def shutdown(self) -> None:
+        """關閉所有連線"""
+        pass
+
+
+class A2AClientProtocol(ABC):
+    """A2A Client 協議 — 管理與外部 Agent 的任務委派和協作"""
+
+    @abstractmethod
+    async def initialize(self) -> None:
+        """啟動並發現所有設定的 A2A Agents"""
+        pass
+
+    @abstractmethod
+    async def list_agents(self) -> List[Dict[str, Any]]:
+        """列出所有已連線的 Agent 及其能力"""
+        pass
+
+    @abstractmethod
+    async def send_task(
+        self, agent_name: str, message: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """向外部 Agent 發送任務，等待完成"""
+        pass
+
+    @abstractmethod
+    async def send_task_streaming(
+        self, agent_name: str, message: str
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """串流接收任務結果"""
+        pass
+
+    @abstractmethod
+    async def get_task_status(self, agent_name: str, task_id: str) -> Dict[str, Any]:
+        """查詢任務狀態"""
+        pass
+
+    @abstractmethod
+    async def cancel_task(self, agent_name: str, task_id: str) -> bool:
+        """取消進行中的任務"""
+        pass
+
+    @abstractmethod
+    async def shutdown(self) -> None:
+        """關閉所有連線"""
         pass

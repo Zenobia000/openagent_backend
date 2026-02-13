@@ -94,7 +94,30 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health_check():
-        return {"status": "healthy"}
+        result = {"status": "healthy", "engine": "initialized" if (_engine and _engine.initialized) else "not_ready"}
+        if _engine:
+            # MCP status
+            if _engine._mcp_client:
+                result["mcp"] = {
+                    "connected_servers": len(_engine._mcp_client.connected_servers),
+                    "available_tools": _engine._mcp_client.total_tools,
+                }
+            # A2A status
+            if _engine._a2a_client:
+                result["a2a"] = {
+                    "connected_agents": len(_engine._a2a_client.connected_agents),
+                    "available_skills": _engine._a2a_client.total_skills,
+                }
+            # Packages status
+            if _engine._package_manager:
+                try:
+                    import asyncio
+                    packages = await _engine._package_manager.list_packages()
+                    running = sum(1 for p in packages if p["status"] == "running")
+                    result["packages"] = {"total": len(packages), "running": running}
+                except Exception:
+                    pass
+        return result
 
     @app.get("/api/status")
     async def api_status():
@@ -275,8 +298,83 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
 
     @app.get("/api/v1/metrics")
     async def get_metrics(user: TokenData = Depends(get_current_user)):
-        """Cognitive metrics summary (requires auth)."""
+        """Cognitive + extension metrics summary (requires auth)."""
         eng = _get_engine()
-        return eng.metrics
+        result = eng.metrics
+        result["extensions"] = eng._metrics.get_extension_metrics()
+        return result
+
+    # ── MCP Management ──
+
+    @app.get("/api/v1/mcp/servers")
+    async def list_mcp_servers(user: TokenData = Depends(get_current_user)):
+        """List all MCP server connections."""
+        eng = _get_engine()
+        if not eng._mcp_client:
+            return {"servers": []}
+        return {
+            "servers": [
+                {"name": name} for name in eng._mcp_client.connected_servers
+            ]
+        }
+
+    @app.get("/api/v1/mcp/tools")
+    async def list_mcp_tools(user: TokenData = Depends(get_current_user)):
+        """List all available MCP tools."""
+        eng = _get_engine()
+        if not eng._mcp_client:
+            return {"tools": []}
+        tools = await eng._mcp_client.list_tools()
+        return {"tools": tools}
+
+    # ── A2A Management ──
+
+    @app.get("/api/v1/a2a/agents")
+    async def list_a2a_agents(user: TokenData = Depends(get_current_user)):
+        """List all A2A agent connections."""
+        eng = _get_engine()
+        if not eng._a2a_client:
+            return {"agents": []}
+        agents = await eng._a2a_client.list_agents()
+        return {"agents": agents}
+
+    # ── Package Management ──
+
+    @app.get("/api/v1/packages")
+    async def list_packages(user: TokenData = Depends(get_current_user)):
+        """List all installed packages."""
+        eng = _get_engine()
+        if not eng._package_manager:
+            return {"packages": []}
+        packages = await eng._package_manager.list_packages()
+        return {"packages": packages}
+
+    @app.post("/api/v1/packages/{package_id}/start")
+    async def start_package(package_id: str, user: TokenData = Depends(get_current_user)):
+        """Start a specific package."""
+        eng = _get_engine()
+        if not eng._package_manager:
+            raise APIError(503, "PACKAGE_MANAGER_UNAVAILABLE", "PackageManager not initialized")
+        try:
+            await eng._package_manager.start_package(package_id)
+            return {"status": "started", "package_id": package_id}
+        except KeyError:
+            raise APIError(404, "PACKAGE_NOT_FOUND", f"Package '{package_id}' not found")
+        except Exception as e:
+            raise APIError(500, "PACKAGE_START_ERROR", str(e))
+
+    @app.post("/api/v1/packages/{package_id}/stop")
+    async def stop_package(package_id: str, user: TokenData = Depends(get_current_user)):
+        """Stop a specific package."""
+        eng = _get_engine()
+        if not eng._package_manager:
+            raise APIError(503, "PACKAGE_MANAGER_UNAVAILABLE", "PackageManager not initialized")
+        try:
+            await eng._package_manager.stop_package(package_id)
+            return {"status": "stopped", "package_id": package_id}
+        except KeyError:
+            raise APIError(404, "PACKAGE_NOT_FOUND", f"Package '{package_id}' not found")
+        except Exception as e:
+            raise APIError(500, "PACKAGE_STOP_ERROR", str(e))
 
     return app

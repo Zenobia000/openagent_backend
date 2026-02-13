@@ -21,9 +21,10 @@ from .error_handler import robust_processor, enhanced_error_handler
 class BaseProcessor(ABC):
     """處理器基類"""
 
-    def __init__(self, llm_client=None, services: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm_client=None, services: Optional[Dict[str, Any]] = None, mcp_client=None):
         self.llm_client = llm_client
         self.services = services or {}
+        self.mcp_client = mcp_client
         self.logger = structured_logger
         self._cognitive_level: Optional[str] = None
 
@@ -144,6 +145,37 @@ class BaseProcessor(ABC):
             confidence=confidence,
             reason=reason
         )
+
+    async def _call_mcp_tool(
+        self, server_name: str, tool_name: str, arguments: Dict[str, Any]
+    ) -> Any:
+        """呼叫 MCP Server 上的工具
+
+        Args:
+            server_name: MCP server 名稱
+            tool_name: Tool 名稱
+            arguments: Tool 參數
+
+        Returns:
+            Tool 回傳的文字內容
+
+        Raises:
+            RuntimeError: MCP client 不可用或呼叫失敗
+        """
+        if not self.mcp_client:
+            raise RuntimeError(f"MCP client not available, cannot call {server_name}/{tool_name}")
+        result = await self.mcp_client.call_tool(server_name, tool_name, arguments)
+        if result.get("is_error"):
+            raise RuntimeError(f"MCP tool error: {result.get('content')}")
+        # Extract text from content items
+        texts = [item.get("text", "") for item in result.get("content", [])]
+        return "\n".join(texts)
+
+    async def _get_mcp_tools(self) -> List[Dict[str, Any]]:
+        """取得所有可用的 MCP tools"""
+        if not self.mcp_client:
+            return []
+        return await self.mcp_client.list_tools()
 
 
 class ChatProcessor(BaseProcessor):
@@ -1063,7 +1095,8 @@ class DeepResearchProcessor(BaseProcessor):
                  llm_client=None,
                  services: Optional[Dict[str, Any]] = None,
                  search_config: Optional[SearchEngineConfig] = None,
-                 event_callback: Optional[Callable[[ResearchEvent], None]] = None):
+                 event_callback: Optional[Callable[[ResearchEvent], None]] = None,
+                 mcp_client=None):
         """
         初始化增強版處理器
 
@@ -1072,8 +1105,9 @@ class DeepResearchProcessor(BaseProcessor):
             services: 服務字典
             search_config: 搜索引擎配置
             event_callback: 事件回調函數
+            mcp_client: MCP 客戶端管理器
         """
-        super().__init__(llm_client, services)
+        super().__init__(llm_client, services, mcp_client=mcp_client)
         self.search_config = search_config or SearchEngineConfig()
         self.event_callback = event_callback
         self.event_queue: asyncio.Queue = asyncio.Queue()
@@ -2554,16 +2588,17 @@ class ProcessorFactory:
         "deep_research": "agent",
     }
 
-    def __init__(self, llm_client=None, services: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm_client=None, services: Optional[Dict[str, Any]] = None, mcp_client=None):
         self.llm_client = llm_client
         self.services = services or {}
+        self.mcp_client = mcp_client
         self._instances: Dict[ProcessingMode, BaseProcessor] = {}
 
     def get_processor(self, mode: ProcessingMode) -> BaseProcessor:
         # 獲取處理器實例
         if mode not in self._instances:
             processor_class = self._processors.get(mode, ChatProcessor)
-            instance = processor_class(self.llm_client, services=self.services)
+            instance = processor_class(self.llm_client, services=self.services, mcp_client=self.mcp_client)
             instance._cognitive_level = self.COGNITIVE_MAPPING.get(mode.value)
             self._instances[mode] = instance
 

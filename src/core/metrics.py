@@ -37,6 +37,15 @@ class CognitiveMetrics:
             CognitiveLevel.SYSTEM2: _LevelMetrics(),
             CognitiveLevel.AGENT: _LevelMetrics(),
         }
+        # MCP extension metrics
+        self._mcp_calls: int = 0
+        self._mcp_errors: int = 0
+        self._mcp_total_latency: float = 0.0
+        # A2A extension metrics
+        self._a2a_sent: int = 0
+        self._a2a_completed: int = 0
+        self._a2a_failed: int = 0
+        self._a2a_total_latency: float = 0.0
 
     def record_request(
         self,
@@ -72,6 +81,40 @@ class CognitiveMetrics:
         result["total_requests"] = total_requests
         return result
 
+    # ── MCP / A2A extension metrics ──
+
+    def record_mcp_call(self, latency_ms: float, success: bool = True) -> None:
+        """Record an MCP tool call."""
+        self._mcp_calls += 1
+        self._mcp_total_latency += latency_ms
+        if not success:
+            self._mcp_errors += 1
+
+    def record_a2a_task(self, latency_ms: float, success: bool = True) -> None:
+        """Record an A2A task delegation."""
+        self._a2a_sent += 1
+        self._a2a_total_latency += latency_ms
+        if success:
+            self._a2a_completed += 1
+        else:
+            self._a2a_failed += 1
+
+    def get_extension_metrics(self) -> Dict[str, Any]:
+        """Return MCP/A2A metrics."""
+        return {
+            "mcp": {
+                "tool_calls": self._mcp_calls,
+                "tool_errors": self._mcp_errors,
+                "avg_latency_ms": round(self._mcp_total_latency / self._mcp_calls, 2) if self._mcp_calls else 0.0,
+            },
+            "a2a": {
+                "tasks_sent": self._a2a_sent,
+                "tasks_completed": self._a2a_completed,
+                "tasks_failed": self._a2a_failed,
+                "avg_latency_ms": round(self._a2a_total_latency / self._a2a_sent, 2) if self._a2a_sent else 0.0,
+            },
+        }
+
     def reset(self) -> None:
         """Clear all metrics."""
         for m in self._levels.values():
@@ -80,3 +123,10 @@ class CognitiveMetrics:
             m.error_count = 0
             m.total_latency_ms = 0.0
             m.total_tokens = 0
+        self._mcp_calls = 0
+        self._mcp_errors = 0
+        self._mcp_total_latency = 0.0
+        self._a2a_sent = 0
+        self._a2a_completed = 0
+        self._a2a_failed = 0
+        self._a2a_total_latency = 0.0

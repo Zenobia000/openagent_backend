@@ -184,6 +184,7 @@ class RoutingDecision:
     complexity: Optional[ComplexityScore] = None
     confidence: float = 0.85
     reason: str = ""
+    delegate_to_agent: Optional[str] = None  # A2A agent name for delegation
 
 
 @dataclass

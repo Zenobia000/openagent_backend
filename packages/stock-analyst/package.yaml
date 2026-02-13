@@ -1,0 +1,22 @@
+id: stock-analyst
+name: "股票分析師"
+version: "1.0.0"
+description: "分析股票數據、提供投資建議的 A2A Agent"
+type: a2a-agent
+command: python
+args: ["server.py"]
+port: 9001
+env:
+  PORT: "9001"
+  STOCK_DEFAULT_MARKET: "${STOCK_DEFAULT_MARKET:-TW}"
+auto_start: false
+dependencies:
+  - yfinance
+  - pandas
+  - starlette
+  - sse-starlette
+  - uvicorn
+tags:
+  - finance
+  - analysis
+  - stock

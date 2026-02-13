@@ -4,6 +4,7 @@
 """
 
 import asyncio
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from .models import Request, Response, ProcessingContext, ProcessingMode, EventType, RuntimeType
@@ -42,6 +43,9 @@ class RefactoredEngine:
         self._model_runtime = ModelRuntime(llm_client, self.processor_factory)
         self._agent_runtime = AgentRuntime(llm_client, self.processor_factory)
         self._metrics = CognitiveMetrics()
+        self._mcp_client = None
+        self._a2a_client = None
+        self._package_manager = None
         self.initialized = False
 
     async def initialize(self):
@@ -79,8 +83,50 @@ class RefactoredEngine:
         except Exception as e:
             self.logger.warning(f"Sandbox service unavailable: {e}")
 
+        # Initialize MCP client (external tool servers)
+        try:
+            from .mcp_client import MCPClientManager, load_mcp_config
+            mcp_config = load_mcp_config()
+            self._mcp_client = MCPClientManager(mcp_config)
+            await self._mcp_client.initialize()
+            if self._mcp_client.connected_servers:
+                self.logger.info(
+                    f"MCP client initialized ({len(self._mcp_client.connected_servers)} servers, "
+                    f"{self._mcp_client.total_tools} tools)"
+                )
+        except Exception as e:
+            self.logger.warning(f"MCP client unavailable: {e}")
+
+        # Initialize A2A client (external agent collaboration)
+        try:
+            from .a2a_client import A2AClientManager, load_a2a_config
+            a2a_config = load_a2a_config()
+            self._a2a_client = A2AClientManager(a2a_config)
+            await self._a2a_client.initialize()
+            if self._a2a_client.connected_agents:
+                self.logger.info(
+                    f"A2A client initialized ({len(self._a2a_client.connected_agents)} agents, "
+                    f"{self._a2a_client.total_skills} skills)"
+                )
+        except Exception as e:
+            self.logger.warning(f"A2A client unavailable: {e}")
+
+        # Initialize PackageManager (dynamic package registration)
+        try:
+            from .package_manager import PackageManager
+            packages_dir = Path(__file__).parent.parent.parent / "packages"
+            if packages_dir.exists():
+                self._package_manager = PackageManager(
+                    packages_dir, self._mcp_client, self._a2a_client
+                )
+                await self._package_manager.start_all()
+        except Exception as e:
+            self.logger.warning(f"PackageManager unavailable: {e}")
+
         # Rebuild processor factory and runtimes with services
-        self.processor_factory = ProcessorFactory(self.llm_client, services=services)
+        self.processor_factory = ProcessorFactory(
+            self.llm_client, services=services, mcp_client=self._mcp_client
+        )
         self._model_runtime = ModelRuntime(self.llm_client, self.processor_factory)
         self._agent_runtime = AgentRuntime(self.llm_client, self.processor_factory)
 
@@ -203,11 +249,33 @@ class RefactoredEngine:
             self.logger.clear_context()
 
     async def _execute(self, decision, context: ProcessingContext) -> str:
-        """Dispatch to the appropriate runtime or legacy path.
+        """Dispatch to the appropriate runtime, A2A agent, or legacy path.
 
-        When feature flag is off: uses ProcessorFactory directly (legacy).
-        When feature flag is on: dispatches to ModelRuntime or AgentRuntime.
+        Priority:
+        1. A2A delegation (if decision.delegate_to_agent is set)
+        2. Runtime dispatch (if smart_routing feature flag is on)
+        3. Legacy path (direct ProcessorFactory)
         """
+        # A2A delegation path
+        if decision.delegate_to_agent and self._a2a_client:
+            try:
+                self.logger.info(
+                    f"Delegating to A2A agent: {decision.delegate_to_agent}",
+                    agent=decision.delegate_to_agent,
+                )
+                result = await self._a2a_client.send_task(
+                    decision.delegate_to_agent, context.request.query
+                )
+                if result.get("text"):
+                    return result["text"]
+                return str(result.get("artifacts", "No response from agent"))
+            except Exception as e:
+                self.logger.warning(
+                    f"A2A delegation failed, falling back to local processing: {e}",
+                    agent=decision.delegate_to_agent,
+                )
+                # Fall through to local processing
+
         use_runtime = self.feature_flags.is_enabled("routing.smart_routing")
 
         if not use_runtime:

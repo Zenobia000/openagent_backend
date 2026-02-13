@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from core.processor import DeepResearchProcessor
 from core.models import ProcessingContext, Request
@@ -156,24 +156,36 @@ async def test_citation_analysis():
         {'id': 8, 'title': 'Uncited Paper 2', 'url': 'http://example8.com'},
     ]
 
-    # 分析引用
-    cited_refs, uncited_refs = processor._analyze_citations(test_report, test_references)
+    # 分析引用（增強版）
+    cited_refs, uncited_refs, citation_stats = processor._analyze_citations(test_report, test_references)
 
-    print(f"\n📊 Analysis Results:")
+    print(f"\n📊 Basic Analysis Results:")
     print(f"  - Cited references: {len(cited_refs)}")
     print(f"  - Uncited references: {len(uncited_refs)}")
 
-    print(f"\n✅ Cited References:")
+    print(f"\n📈 Enhanced Statistics:")
+    print(f"  - Total citations: {citation_stats['total_citations']}")
+    print(f"  - Unique citations: {citation_stats['unique_citations']}")
+    print(f"  - Avg citations per source: {citation_stats['avg_citations_per_source']:.1f}")
+    print(f"  - Invalid citations: {citation_stats['invalid_citations']}")
+
+    print(f"\n🏆 Most Cited (Top 5):")
+    for ref_id, count in citation_stats['most_cited']:
+        ref_title = next((r['title'] for r in test_references if r['id'] == ref_id), 'Unknown')
+        print(f"  [{ref_id}] {ref_title} - {count} times")
+
+    print(f"\n✅ Cited References (sorted by citation count):")
     for ref in cited_refs:
-        print(f"  [{ref['id']}] {ref['title']}")
+        citation_count = ref.get('citation_count', 0)
+        print(f"  [{ref['id']}] {ref['title']} (×{citation_count})")
 
     print(f"\n📖 Uncited References:")
     for ref in uncited_refs:
         print(f"  • {ref['title']}")
 
-    # 格式化完整報告
+    # 格式化完整報告（增強版）
     formatted_report = processor._format_report_with_categorized_references(
-        test_report, cited_refs, uncited_refs
+        test_report, cited_refs, uncited_refs, citation_stats=citation_stats
     )
 
     print(f"\n📑 Formatted Report Length: {len(formatted_report)} chars")

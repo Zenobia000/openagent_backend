@@ -1873,12 +1873,12 @@ Answer (YES/NO):"""
         # 生成報告主體
         report_body = await self._call_llm(enhanced_prompt, context)
 
-        # 分析哪些參考文獻被實際引用
-        cited_refs, uncited_refs = self._analyze_citations(report_body, references_list)
+        # 分析哪些參考文獻被實際引用（增強版）
+        cited_refs, uncited_refs, citation_stats = self._analyze_citations(report_body, references_list)
 
         # 組合完整報告：主體 + 區分的參考文獻
         final_report = self._format_report_with_categorized_references(
-            report_body, cited_refs, uncited_refs, context, critical_analysis is not None
+            report_body, cited_refs, uncited_refs, context, critical_analysis is not None, citation_stats
         )
 
         # 記錄記憶體回收
@@ -2030,49 +2030,91 @@ Generate the report body (without references section):
         return f"{prompt}\n\n{output_guidelines}"
 
     def _analyze_citations(self, report_body: str, references: List[Dict]) -> tuple:
-        # 分析報告中實際引用的參考文獻
+        """
+        分析報告中實際引用的參考文獻（增強版）
+
+        Returns:
+            tuple: (cited_refs, uncited_refs, citation_stats)
+            - cited_refs: 被引用的文獻列表（包含 citation_count 字段）
+            - uncited_refs: 未被引用的文獻列表
+            - citation_stats: 詳細統計信息字典
+        """
         import re
+        from collections import Counter
 
-        # 找出所有引用的編號
+        # 找出所有引用的編號及其出現次數
         citation_pattern = r'\[(\d+)\]'
-        cited_numbers = set()
+        citation_counts = Counter()
+        invalid_citations = set()  # 無效引用（沒有對應文獻）
 
+        # 建立有效參考文獻 ID 集合
+        valid_ref_ids = {ref['id'] for ref in references}
+
+        # 掃描報告中的所有引用
         for match in re.finditer(citation_pattern, report_body):
             try:
                 ref_num = int(match.group(1))
-                cited_numbers.add(ref_num)
+                citation_counts[ref_num] += 1
+
+                # 檢測無效引用
+                if ref_num not in valid_ref_ids:
+                    invalid_citations.add(ref_num)
             except ValueError:
                 continue
 
-        # 分類參考文獻
+        # 分類參考文獻並添加引用次數信息
         cited_refs = []
         uncited_refs = []
 
         for ref in references:
-            if ref['id'] in cited_numbers:
-                cited_refs.append(ref)
+            if ref['id'] in citation_counts:
+                # 添加引用次數信息（不修改原始 ref）
+                ref_with_count = ref.copy()
+                ref_with_count['citation_count'] = citation_counts[ref['id']]
+                cited_refs.append(ref_with_count)
             else:
                 uncited_refs.append(ref)
 
-        return cited_refs, uncited_refs
+        # 按引用次數排序（從高到低）
+        cited_refs.sort(key=lambda x: x.get('citation_count', 0), reverse=True)
+
+        # 構建詳細統計信息
+        citation_stats = {
+            'total_citations': sum(citation_counts.values()),  # 總引用次數
+            'unique_citations': len(citation_counts),  # 唯一引用數
+            'invalid_citations': list(invalid_citations),  # 無效引用列表
+            'most_cited': citation_counts.most_common(5),  # 最常引用的前5個
+            'avg_citations_per_source': sum(citation_counts.values()) / max(1, len(citation_counts)),  # 平均每個來源的引用次數
+            'citation_distribution': dict(citation_counts)  # 完整的引用分佈
+        }
+
+        return cited_refs, uncited_refs, citation_stats
 
     def _format_report_with_categorized_references(self, report_body: str,
                                                    cited_refs: List[Dict],
                                                    uncited_refs: List[Dict],
                                                    context: ProcessingContext = None,
-                                                   has_critical_analysis: bool = False) -> str:
-        # 格式化報告, 區分引用和未引用的參考文獻
+                                                   has_critical_analysis: bool = False,
+                                                   citation_stats: Dict = None) -> str:
+        """
+        格式化報告，區分引用和未引用的參考文獻（增強版）
 
+        Args:
+            citation_stats: 詳細的引用統計信息（可選）
+        """
         # 構建參考文獻部分
         references_section = "\n\n---\n\n"
 
-        # 第一部分：引用的參考文獻
+        # 第一部分：引用的參考文獻（按引用次數排序）
         if cited_refs:
             references_section += "## 📚 參考文獻 (Cited References)\n\n"
-            references_section += "*以下為報告中實際引用的文獻：*\n\n"
+            references_section += "*以下為報告中實際引用的文獻（按引用次數排序）：*\n\n"
 
             for ref in cited_refs[:30]:  # 限制最多30個
-                ref_entry = f"[{ref['id']}] **{ref['title']}**\n"
+                citation_count = ref.get('citation_count', 0)
+                citation_indicator = f" `×{citation_count}`" if citation_count > 1 else ""
+
+                ref_entry = f"[{ref['id']}] **{ref['title']}**{citation_indicator}\n"
                 if ref.get('url'):
                     ref_entry += f"   📍 URL: {ref['url']}\n"
                 if ref.get('query'):
@@ -2090,19 +2132,39 @@ Generate the report body (without references section):
                     ref_entry += f"  URL: {ref['url']}\n"
                 references_section += f"{ref_entry}\n"
 
-        # 添加統計資訊
+        # 添加統計資訊（增強版）
         references_section += f"\n---\n\n## 📊 引用統計 (Citation Statistics)\n\n"
+
+        # 基本統計
+        references_section += f"### 基本指標\n"
         references_section += f"- **實際引用文獻**: {len(cited_refs)} 篇\n"
         references_section += f"- **相關未引用文獻**: {len(uncited_refs)} 篇\n"
         references_section += f"- **總查閱文獻**: {len(cited_refs) + len(uncited_refs)} 篇\n"
         references_section += f"- **引用率**: {len(cited_refs) / max(1, len(cited_refs) + len(uncited_refs)) * 100:.1f}%\n"
 
+        # 增強統計（如果有 citation_stats）
+        if citation_stats:
+            references_section += f"\n### 引用深度分析\n"
+            references_section += f"- **總引用次數**: {citation_stats['total_citations']} 次\n"
+            references_section += f"- **平均每篇文獻被引用**: {citation_stats['avg_citations_per_source']:.1f} 次\n"
+
+            # 最常引用的文獻
+            if citation_stats['most_cited']:
+                references_section += f"- **最常引用**: "
+                most_cited_strs = [f"[{ref_id}] ({count}次)" for ref_id, count in citation_stats['most_cited'][:3]]
+                references_section += ", ".join(most_cited_strs) + "\n"
+
+            # 無效引用警告
+            if citation_stats['invalid_citations']:
+                references_section += f"\n⚠️ **警告**: 檢測到 {len(citation_stats['invalid_citations'])} 個無效引用編號: {citation_stats['invalid_citations']}\n"
+
         # 如果有批判性分析，添加說明
+        references_section += f"\n### 分析模式\n"
         if has_critical_analysis:
-            references_section += f"- **分析模式**: 深度研究 + 批判性思考 🧠\n"
+            references_section += f"- **研究模式**: 深度研究 + 批判性思考 🧠\n"
             references_section += f"- **分析層次**: 多角度批判性分析\n"
         else:
-            references_section += f"- **分析模式**: 深度研究\n"
+            references_section += f"- **研究模式**: 深度研究\n"
 
         references_section += f"\n---\n"
         references_section += f"*Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n"

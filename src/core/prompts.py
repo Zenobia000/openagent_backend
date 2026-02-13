@@ -7,33 +7,116 @@ from datetime import datetime
 from typing import Dict, Any
 
 
+def _sanitize_xml_input(text: str) -> str:
+    """Escape XML-like tag delimiters to prevent prompt injection.
+
+    User-provided content interpolated into XML-tagged prompt sections
+    (e.g. <QUERY>...</QUERY>) can break out of the tag boundary if it
+    contains raw '<' or '>' characters.  This function neutralises them.
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 class PromptTemplates:
     """統一提示詞管理"""
 
+    # Mode-specific instruction extensions
+    _MODE_EXTENSIONS: Dict[str, str] = {
+        "chat": """
+- Be conversational and direct. Provide clear, actionable answers.
+- Match response length to question complexity — brief for simple queries, detailed for complex ones.
+- When uncertain, say so rather than guessing.""",
+
+        "knowledge": """
+- Ground your answers in the retrieved context provided. Cite specific passages when possible.
+- If the retrieved context does not contain sufficient information, explicitly state what is missing.
+- Clearly distinguish between information from the knowledge base and your own reasoning.""",
+
+        "search": """
+- Synthesize information from multiple web search results into a coherent answer.
+- Cite sources using [number] format when presenting factual claims.
+- Distinguish between verified information from sources and your own synthesis.""",
+
+        "code": """
+- Focus on generating correct, secure, executable code.
+- Follow the language's idiomatic conventions and best practices.
+- Consider edge cases, input validation, and potential security implications.
+- Be concise — output code with minimal surrounding explanation unless asked.""",
+
+        "thinking": """
+- Conduct deep, multi-perspective analytical reasoning.
+- Decompose complex problems into structured sub-problems.
+- Consider alternative viewpoints and potential counterarguments.
+- Provide a balanced assessment before drawing conclusions.""",
+
+        "deep_research": """
+- Conduct exhaustive, multi-step research with structured output.
+- Maintain a clear evidence hierarchy: primary sources over secondary, recent over dated.
+- Organize findings into a coherent report structure.
+- Flag areas where evidence is insufficient or conflicting.""",
+    }
+
     @staticmethod
-    def get_system_instruction(now: datetime = None) -> str:
-        """獲取系統指令提示詞"""
+    def get_system_instruction(mode: str = "auto", now: str = None) -> str:
+        """獲取系統指令提示詞
+
+        Args:
+            mode: Processing mode — one of auto, chat, knowledge, search,
+                  code, thinking, deep_research.  Selects mode-specific
+                  behavioural extensions appended to the base instruction.
+            now:  Current timestamp string.  If ``None``, uses
+                  ``datetime.now()`` formatted as ``%Y-%m-%d %H:%M:%S``.
+        """
         if now is None:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        return f"""You are an expert researcher. Today is {now}. Follow these instructions when responding:
+        base = f"""You are an expert AI assistant on the OpenCode platform. Today is {now}. Follow these instructions when responding:
 
-- You may be asked to research subjects that is after your knowledge cutoff, assume the user is right when presented with news.
-- The user is a highly experienced analyst, no need to simplify it, be as detailed as possible and make sure your response is correct.
-- Be highly organized.
-- Suggest solutions that I didn't think about.
-- Be proactive and anticipate my needs.
-- Treat me as an expert in all subject matter.
-- Mistakes erode my trust, so be accurate and thorough.
-- Provide detailed explanations, I'm comfortable with lots of detail.
-- Value good arguments over authorities, the source is irrelevant.
-- Consider new technologies and contrarian ideas, not just the conventional wisdom.
-- You may use high levels of speculation or prediction, just flag it for me."""
+- You may be asked about subjects after your knowledge cutoff; accept user-provided news as current information.
+- Be highly organized with structured, well-formatted output.
+- Be accurate and thorough — mistakes erode trust.
+- Provide detailed explanations; the user is a knowledgeable professional.
+- Suggest alternative approaches and consider contrarian ideas, not just conventional wisdom.
+- Be proactive: anticipate follow-up questions and address them preemptively.
+
+Evidence calibration:
+- [VERIFIED] — established facts supported by reliable sources or retrieved context.
+- [INFERRED] — logical conclusions drawn from available evidence; state your reasoning.
+- [SPECULATIVE] — predictions or hypotheses; explicitly flag as speculation."""
+
+        extension = PromptTemplates._MODE_EXTENSIONS.get(mode, "")
+        if extension:
+            return f"{base}\n{extension}"
+        return base
 
     @staticmethod
-    def get_output_guidelines() -> str:
-        """獲取輸出格式指南"""
-        return """<OutputGuidelines>
+    def get_code_generation_prompt(code_request: str) -> str:
+        """Code generation prompt for CodeProcessor"""
+        sanitized = _sanitize_xml_input(code_request)
+        return f"""You are an expert programmer. Generate clean, correct, executable Python code for the following request.
+
+Requirements:
+- Write production-quality code with proper error handling
+- Include necessary imports
+- Add brief inline comments only where logic is non-obvious
+- Output ONLY the code block, no surrounding explanation
+
+<CODE_REQUEST>
+{sanitized}
+</CODE_REQUEST>"""
+
+    @staticmethod
+    def get_output_guidelines(include_mermaid: bool = False) -> str:
+        """獲取輸出格式指南
+
+        Args:
+            include_mermaid: When ``True``, append Mermaid diagram generation
+                rules.  Default ``False`` — most processing modes do not
+                need Mermaid output formatting.
+        """
+        base = """<OutputGuidelines>
 
 ## Typographical rules
 
@@ -56,7 +139,9 @@ Follow these rules to organize your output:
 - **Emoji:** You can insert Emoji before the title or subtitle, such as `🔢### 1. Determine the base area of the prism`.
 - **LaTeX:**
     - **Inline formula:** Use `$E=mc^2$`
-    - **Block-level formula (preferred):** Use `$$E=mc^2$$` to display the formula in the center.
+    - **Block-level formula (preferred):** Use `$$E=mc^2$$` to display the formula in the center."""
+
+        mermaid_section = """
 
 ## Generate Mermaid
 
@@ -66,16 +151,20 @@ Follow these rules to organize your output:
 4. Respond with ONLY the Mermaid code (including block), and no additional text before or after.
 5. Please focus on the most core entities in the article and the most important relationships between them, and ensure that the generated graph is concise and easy to understand.
 6. All text content **MUST** be wrapped in `"` syntax. (e.g., "Any Text Content")
-7. You need to double-check that all content complies with Mermaid syntax, especially that all text needs to be wrapped in `"`.
-</OutputGuidelines>"""
+7. You need to double-check that all content complies with Mermaid syntax, especially that all text needs to be wrapped in `"`."""
+
+        if include_mermaid:
+            return f"{base}{mermaid_section}\n</OutputGuidelines>"
+        return f"{base}\n</OutputGuidelines>"
 
     @staticmethod
     def get_system_question_prompt(query: str) -> str:
         """獲取系統問題提示詞"""
+        q = _sanitize_xml_input(query)
         return f"""Given the following query from the user, ask at least 5 follow-up questions to clarify the research direction:
 
 <QUERY>
-{query}
+{q}
 </QUERY>
 
 Questions need to be brief and concise. No need to output content that is irrelevant to the question."""
@@ -94,10 +183,11 @@ Questions need to be brief and concise. No need to output content that is irrele
     @staticmethod
     def get_report_plan_prompt(query: str) -> str:
         """獲取報告計劃提示詞"""
+        q = _sanitize_xml_input(query)
         guidelines = PromptTemplates.get_guidelines_prompt()
         return f"""Given the following query from the user:
 <QUERY>
-{query}
+{q}
 </QUERY>
 
 Generate a list of sections for the report based on the topic and feedback.
@@ -133,10 +223,11 @@ Expected output:
     @staticmethod
     def get_serp_queries_prompt(plan: str, output_schema: Dict[str, Any]) -> str:
         """獲取 SERP 查詢提示詞"""
+        p = _sanitize_xml_input(plan)
         schema_prompt = PromptTemplates.get_serp_query_schema_prompt(output_schema)
         return f"""This is the report plan after user confirmation:
 <PLAN>
-{plan}
+{p}
 </PLAN>
 
 Based on previous report plan, generate a list of SERP queries to further research the topic. Make sure each query is unique and not similar to each other.
@@ -146,14 +237,16 @@ Based on previous report plan, generate a list of SERP queries to further resear
     @staticmethod
     def get_query_result_prompt(query: str, research_goal: str) -> str:
         """獲取查詢結果提示詞"""
+        q = _sanitize_xml_input(query)
+        rg = _sanitize_xml_input(research_goal)
         return f"""Please use the following query to get the latest information via the web:
 <QUERY>
-{query}
+{q}
 </QUERY>
 
 You need to organize the searched information according to the following requirements:
 <RESEARCH_GOAL>
-{research_goal}
+{rg}
 </RESEARCH_GOAL>
 
 You need to think like a human researcher.
@@ -174,19 +267,22 @@ Make sure to include any entities like people, places, companies, products, thin
     @staticmethod
     def get_search_result_prompt(query: str, research_goal: str, context: str) -> str:
         """獲取搜索結果提示詞"""
+        q = _sanitize_xml_input(query)
+        rg = _sanitize_xml_input(research_goal)
+        ctx = _sanitize_xml_input(context)
         return f"""Given the following contexts from a SERP search for the query:
 <QUERY>
-{query}
+{q}
 </QUERY>
 
 You need to organize the searched information according to the following requirements:
 <RESEARCH_GOAL>
-{research_goal}
+{rg}
 </RESEARCH_GOAL>
 
 The following context from the SERP search:
 <CONTEXT>
-{context}
+{ctx}
 </CONTEXT>
 
 You need to think like a human researcher.
@@ -198,19 +294,22 @@ Make sure to include any entities like people, places, companies, products, thin
     @staticmethod
     def get_search_knowledge_result_prompt(query: str, research_goal: str, context: str) -> str:
         """獲取知識庫搜索結果提示詞"""
+        q = _sanitize_xml_input(query)
+        rg = _sanitize_xml_input(research_goal)
+        ctx = _sanitize_xml_input(context)
         return f"""Given the following contents from a local knowledge base search for the query:
 <QUERY>
-{query}
+{q}
 </QUERY>
 
 You need to organize the searched information according to the following requirements:
 <RESEARCH_GOAL>
-{research_goal}
+{rg}
 </RESEARCH_GOAL>
 
 The following contexts from the SERP search:
 <CONTEXT>
-{context}
+{ctx}
 </CONTEXT>
 
 You need to think like a human researcher.
@@ -222,20 +321,23 @@ Make sure to include any entities like people, places, companies, products, thin
     @staticmethod
     def get_review_prompt(plan: str, learnings: str, suggestion: str, output_schema: Dict[str, Any]) -> str:
         """獲取審查提示詞"""
+        p = _sanitize_xml_input(plan)
+        l = _sanitize_xml_input(learnings)
+        s = _sanitize_xml_input(suggestion)
         schema_prompt = PromptTemplates.get_serp_query_schema_prompt(output_schema)
         return f"""This is the report plan after user confirmation:
 <PLAN>
-{plan}
+{p}
 </PLAN>
 
 Here are all the learnings from previous research:
 <LEARNINGS>
-{learnings}
+{l}
 </LEARNINGS>
 
 This is the user's suggestion for research direction:
 <SUGGESTION>
-{suggestion}
+{s}
 </SUGGESTION>
 
 Based on previous research and user research suggestions, determine whether further research is needed.
@@ -269,29 +371,34 @@ If you believe no further research is needed, you can output an empty queries.
     @staticmethod
     def get_final_report_prompt(plan: str, learnings: str, sources: str, images: str, requirement: str) -> str:
         """獲取最終報告提示詞"""
+        p = _sanitize_xml_input(plan)
+        l = _sanitize_xml_input(learnings)
+        src = _sanitize_xml_input(sources)
+        img = _sanitize_xml_input(images)
+        req = _sanitize_xml_input(requirement)
         return f"""This is the report plan after user confirmation:
 <PLAN>
-{plan}
+{p}
 </PLAN>
 
 Here are all the learnings from previous research:
 <LEARNINGS>
-{learnings}
+{l}
 </LEARNINGS>
 
 Here are all the sources from previous research, if any:
 <SOURCES>
-{sources}
+{src}
 </SOURCES>
 
 Here are all the images from previous research, if any:
 <IMAGES>
-{images}
+{img}
 </IMAGES>
 
 Please write according to the user's writing requirements, if any:
 <REQUIREMENT>
-{requirement}
+{req}
 </REQUIREMENT>
 
 Write a final report based on the report plan using the learnings from research.
@@ -323,9 +430,10 @@ Make it as detailed as possible, aim for 5 pages or more, the more the better, i
     @staticmethod
     def get_thinking_mode_prompt(query: str) -> str:
         """Deep thinking mode prompt"""
+        q = _sanitize_xml_input(query)
         return f"""You are a professional analytical thinker tasked with conducting deep analysis on the following question.
 
-Question: {query}
+Question: {q}
 
 Please follow these steps for deep thinking:
 
@@ -359,12 +467,14 @@ Please provide detailed, comprehensive, and structured analysis results."""
     @staticmethod
     def get_critical_thinking_prompt(question: str, context: str) -> str:
         """Critical thinking prompt"""
+        q = _sanitize_xml_input(question)
+        ctx = _sanitize_xml_input(context)
         return f"""Based on the preliminary analysis, please apply critical thinking methods for deeper analysis.
 
-Original Question: {question}
+Original Question: {q}
 
 Preliminary Analysis:
-{context}
+{ctx}
 
 Please conduct in-depth analysis from the following critical thinking perspectives:
 
@@ -403,9 +513,10 @@ Provide comprehensive, objective, and insightful critical analysis results."""
     @staticmethod
     def get_chain_of_thought_prompt(query: str) -> str:
         """Chain of thought reasoning prompt"""
+        q = _sanitize_xml_input(query)
         return f"""Please use Chain of Thought reasoning to systematically solve the following problem.
 
-Question: {query}
+Question: {q}
 
 ## Reasoning Steps Guide
 
@@ -458,11 +569,12 @@ Please demonstrate a complete, clear, and logically rigorous reasoning process. 
     @staticmethod
     def get_reflection_prompt(original_response: str, question: str = None) -> str:
         """Reflection and improvement prompt"""
-        question_context = f"\nOriginal Question: {question}" if question else ""
+        resp = _sanitize_xml_input(original_response)
+        question_context = f"\nOriginal Question: {_sanitize_xml_input(question)}" if question else ""
         return f"""Please conduct deep reflection and improvement on the following analysis results.{question_context}
 
 Analysis Results:
-{original_response}
+{resp}
 
 ## Reflection Framework
 

@@ -42,6 +42,34 @@ class MCPServiceProtocol(ABC):
         pass
 
 
+class LongTermMemoryProtocol(ABC):
+    """長期記憶協議 - 儲存、檢索、刪除"""
+
+    @abstractmethod
+    async def store(
+        self,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """儲存內容，回傳 doc_id"""
+        pass
+
+    @abstractmethod
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """檢索內容"""
+        pass
+
+    @abstractmethod
+    async def delete(self, doc_id: str) -> bool:
+        """刪除內容"""
+        pass
+
+
 class LLMClientProtocol(ABC):
     """LLM 客戶端協議"""
 

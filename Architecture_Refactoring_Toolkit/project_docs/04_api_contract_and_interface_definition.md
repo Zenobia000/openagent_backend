@@ -2,8 +2,8 @@
 
 ---
 
-**Document Version:** `v2.0`
-**Last Updated:** `2026-02-12`
+**Document Version:** `v2.1`
+**Last Updated:** `2026-02-13`
 **Status:** `Current (Implemented)`
 
 ---
@@ -74,15 +74,19 @@ Use the token in subsequent requests: `Authorization: Bearer <token>`
   "query": "Explain quantum computing",
   "mode": "thinking",
   "temperature": 0.7,
-  "max_tokens": 4096,
+  "max_tokens": 4000,
+  "stream": false,
   "metadata": {}
 }
 ```
 
 **Fields:**
-- `query` (required, min 1 char): User message.
+- `query` (required, min 1 char, max 50000): User message.
 - `mode` (optional, default `"auto"`): One of `auto`, `chat`, `knowledge`, `search`, `code`, `thinking`, `deep_research`.
-- `temperature`, `max_tokens`, `metadata`: Optional overrides.
+- `temperature` (optional, default `0.7`, range `0.0`-`2.0`): Sampling temperature.
+- `max_tokens` (optional, default `4000`, range `1`-`128000`): Max response tokens.
+- `stream` (optional, default `false`): Enable streaming mode.
+- `metadata` (optional): Arbitrary key-value pairs.
 
 **Response (200):**
 ```json
@@ -152,7 +156,7 @@ data: {"event": "end", "data": {"tokens_used": 789, "time_ms": 6995}}
 ```json
 {
   "query": "OpenCode architecture",
-  "top_k": 5
+  "max_results": 5
 }
 ```
 
@@ -175,7 +179,7 @@ data: {"event": "end", "data": {"tokens_used": 789, "time_ms": 6995}}
 {
   "code": "print('Hello')",
   "language": "python",
-  "timeout": 30,
+  "timeout": 60,
   "context": {}
 }
 ```

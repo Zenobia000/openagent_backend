@@ -2,8 +2,8 @@
 
 ---
 
-**Document Version:** `v2.0`
-**Last Updated:** `2026-02-12`
+**Document Version:** `v2.1`
+**Last Updated:** `2026-02-13`
 **Status:** `Current (Implemented)`
 
 ---
@@ -82,6 +82,7 @@ graph TB
         Cache["ResponseCache<br/>SHA-256, TTL, LRU<br/>src/core/cache.py"]
         Metrics["CognitiveMetrics<br/>Per-level tracking<br/>src/core/metrics.py"]
         Errors["ErrorClassifier<br/>5 categories, retry<br/>src/core/errors.py"]
+        ErrHandler["enhanced_error_handler<br/>Decorator-based retry<br/>src/core/error_handler.py"]
         Flags["FeatureFlags<br/>YAML-driven<br/>src/core/feature_flags.py"]
     end
 
@@ -105,14 +106,15 @@ graph TB
     Auth --> Engine
 
     Engine --> Router
-    Router --> ModelRT
-    Router --> AgentRT
+    Engine --> ModelRT
+    Engine --> AgentRT
+    Engine --> Metrics
+    Engine --> Flags
     ModelRT --> Cache
     ModelRT --> Factory
     AgentRT --> Factory
     AgentRT --> Errors
-    Engine --> Metrics
-    Engine --> Flags
+    AgentRT --> ErrHandler
 
     Factory --> LLMSvc
     Factory --> KnowledgeSvc
@@ -164,6 +166,7 @@ graph LR
             Cache[ResponseCache]
             Metrics[CognitiveMetrics]
             ErrCls[ErrorClassifier]
+            ErrDec[enhanced_error_handler]
             Flags[FeatureFlags]
         end
 
@@ -189,6 +192,7 @@ graph LR
     MRT --> Cache
     ART --> Factory
     ART --> ErrCls
+    ErrDec --> ErrCls
 
     Factory --> Chat
     Factory --> Knowledge
@@ -281,7 +285,7 @@ The project strictly follows a unidirectional dependency structure: **API → Co
 | Layer | Clean Architecture Role | Implementation | Forbidden Imports |
 |:---|:---|:---|:---|
 | **Entities** | Domain models | `core/models.py` — Request, Response, ProcessingMode, CognitiveLevel, RuntimeType, RoutingDecision | — |
-| **Use Cases** | Application logic | `core/engine.py` — RefactoredEngine orchestration; `core/processor.py` — 6 concrete processors; `core/router.py` — DefaultRouter; `core/runtime/` — Dual runtime dispatch | `src.api` |
+| **Use Cases** | Application logic | `core/engine.py` — RefactoredEngine orchestration; `core/processor.py` — 6 concrete processors; `core/router.py` — DefaultRouter; `core/runtime/` — Dual runtime dispatch; `core/error_handler.py` — decorator-based retry | `src.api` |
 | **Interface Adapters** | HTTP/CLI boundary | `src/api/routes.py` — 11 FastAPI endpoints; `src/api/streaming.py` — SSE bridge; `src/auth/` — JWT auth; `main.py` — CLI | — |
 | **Frameworks & Drivers** | Infrastructure | `src/services/` — LLM providers, Qdrant, Docker, web search, browser | `src.core`, `src.api` |
 
@@ -357,18 +361,20 @@ The project strictly follows a unidirectional dependency structure: **API → Co
   - `LLMProvider` (ABC): Abstract base with `generate()`, `stream()`, `provider_name`, `is_available`.
   - `OpenAILLMClient`: GPT-4o / GPT-4o-mini via `openai.AsyncOpenAI`.
   - `AnthropicLLMClient`: Claude via `anthropic.AsyncAnthropic`.
-  - `GeminiLLMClient`: Gemini via `google.generativeai`.
+  - `GeminiLLMClient`: Gemini via `google-genai` SDK.
   - `MultiProviderLLMClient`: Fallback chain orchestrator. Tries providers in order; on retryable error (network/LLM), falls back to next. Non-retryable errors (business/resource) propagate immediately.
   - `create_llm_client()`: Factory function. Auto-detects providers from env vars. Single provider → returns directly. Multiple → wraps in `MultiProviderLLMClient`.
 - **Soft Error Detection**: OpenAI returns `[OpenAI Error] ...` strings instead of raising. `MultiProviderLLMClient` detects these and triggers fallback.
 
-#### Module: Error Handling (`core.errors`)
+#### Module: Error Handling (`core.errors` + `core.error_handler`)
 
 - **Responsibility**: Classify errors and provide retry/fallback infrastructure.
 - **Components**:
-  - `ErrorClassifier`: 5 categories — NETWORK, LLM, RESOURCE_LIMIT, BUSINESS, UNKNOWN. Only NETWORK and LLM are retryable.
-  - `retry_with_backoff()`: Exponential backoff retry (2^n delay). Only retries retryable errors.
-  - `llm_fallback()`: Primary/secondary function fallback utility.
+  - `ErrorClassifier` (`errors.py`): 5 categories — NETWORK, LLM, RESOURCE_LIMIT, BUSINESS, UNKNOWN. Only NETWORK and LLM are retryable.
+  - `retry_with_backoff()` (`errors.py`): Exponential backoff retry (2^n delay). Only retries retryable errors.
+  - `llm_fallback()` (`errors.py`): Primary/secondary function fallback utility.
+  - `enhanced_error_handler()` (`error_handler.py`): Decorator-based retry for processor methods. Supports configurable `max_retries`, `retryable_categories`, and `base_delay`. Used directly on processor `process()` methods (e.g., `SearchProcessor`).
+  - `robust_processor` (`error_handler.py`): Alias for `enhanced_error_handler` (backward compatibility).
 
 #### Module: Knowledge Base (`services.knowledge`)
 
@@ -489,7 +495,8 @@ uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 ### Phase 5+: Future Enhancements
 
 - [ ] Redis distributed cache (replacing in-memory ResponseCache)
-- [ ] Plugin system with hot-reload
+- [x] Plugin system scaffold (3 example plugins: translator, stock-analyst, weather-tool; `PLUGIN_DEV_GUIDE.md`; plugin.json manifest spec)
+- [ ] Plugin system integration with main engine (hot-reload, plugin loader, plugin API endpoints)
 - [ ] Kubernetes deployment with auto-scaling
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Prometheus metrics + Grafana dashboards

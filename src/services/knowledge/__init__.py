@@ -1,5 +1,5 @@
 """Knowledge Service"""
 
-from .service import KnowledgeService
+from .service import KnowledgeBaseService as KnowledgeService
 
 __all__ = ["KnowledgeService"]

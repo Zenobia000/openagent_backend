@@ -2,13 +2,19 @@
 
 ---
 
-**Document Version:** `v2.1`
-**Last Updated:** `2026-02-12`
-**Status:** `Current (Enhanced with Parallel Search & Logging)`
+**Document Version:** `v2.2`
+**Last Updated:** `2026-02-13`
+**Status:** `Current (Enhanced with Decorator Error Handling & Iterative Search)`
 
 ---
 
 ## Changelog
+
+### v2.2 (2026-02-13)
+- Added `@enhanced_error_handler` decorator to SearchProcessor, ThinkingProcessor, CodeProcessor
+- SearchProcessor now uses iterative search with quality evaluation (MAX_ITERATIONS=2)
+- KnowledgeProcessor enhanced with LLM-based document reranking step
+- Verified all processor implementations against actual code
 
 ### v2.1 (2026-02-12)
 - Enhanced DeepResearchProcessor with parallel search execution
@@ -19,9 +25,9 @@
 - Added Markdown export capability
 - Improved reference formatting (cited vs uncited)
 - Added optional query clarification step
-- **NEW**: Integrated critical analysis stage with ThinkingProcessor capabilities
-- **NEW**: Intelligent detection for queries requiring multi-perspective analysis
-- **NEW**: Enhanced report quality with critical thinking insights
+- Integrated critical analysis stage with ThinkingProcessor capabilities
+- Intelligent detection for queries requiring multi-perspective analysis
+- Enhanced report quality with critical thinking insights
 
 ### v2.0 (2026-02-12)
 - Initial implementation with cognitive architecture
@@ -140,7 +146,18 @@ stateDiagram-v2
     GenerateEmbeddings: Embed user query (Cohere/OpenAI)
     GenerateEmbeddings --> SearchVectorDB: Vector similarity search
     SearchVectorDB: Query Qdrant for top-k documents
-    SearchVectorDB --> SynthesizeContext: Combine retrieved chunks + query
+
+    state SearchVectorDB <<choice>>
+    SearchVectorDB --> LLMFallback: No documents found
+    SearchVectorDB --> RerankDocuments: Documents found
+
+    RerankDocuments: LLM-based relevance reranking (score >= 5)
+    RerankDocuments --> SynthesizeContext: Top reranked documents
+
+    LLMFallback: Direct LLM answer (no RAG)
+    LLMFallback --> [*]
+
+    SynthesizeContext: Combine retrieved chunks + query + citation rules
     SynthesizeContext --> CallLLM: Generate answer with context
     CallLLM: MultiProviderLLMClient.generate()
     CallLLM --> CachePut: Store in cache
@@ -153,7 +170,9 @@ stateDiagram-v2
 
 - **GenerateEmbeddings**: Converts user query to vector using embedding provider (Cohere or OpenAI).
 - **SearchVectorDB**: Performs similarity search in Qdrant, retrieves top-k document chunks.
-- **SynthesizeContext**: Combines retrieved document fragments with the original query into an enriched prompt.
+- **LLMFallback**: If no documents are found in vector DB, falls back to direct LLM answer with a disclaimer.
+- **RerankDocuments**: Uses LLM to score documents by relevance (1-10), keeps only documents with score >= 5, and reorders by relevance.
+- **SynthesizeContext**: Combines reranked document fragments with the original query and citation rules into an enriched prompt.
 - **CallLLM**: Generates a knowledge-grounded answer via the multi-provider LLM chain.
 
 ---
@@ -163,18 +182,39 @@ stateDiagram-v2
 **Processor**: `SearchProcessor`
 **Cognitive Level**: System 2
 **Runtime**: ModelRuntime (no cache)
+**Error Handling**: `@enhanced_error_handler(max_retries=2, retryable_categories=["NETWORK", "LLM"])`
 
-Multi-step web search with query expansion and result synthesis.
+Multi-step web search with iterative query refinement and quality evaluation.
 
 ### State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> GenerateSearchQueries
-    GenerateSearchQueries: LLM generates 2-3 optimized search queries
-    GenerateSearchQueries --> ExecuteSearches: Concurrent web searches
-    ExecuteSearches: Search via Tavily / Serper / DuckDuckGo
-    ExecuteSearches --> SynthesizeResults: Aggregate all search results
+    [*] --> IterativeSearch
+
+    state IterativeSearch {
+        [*] --> GenerateSearchQueries
+
+        state GenerateSearchQueries <<choice>>
+        GenerateSearchQueries --> GenerateSERP: Iteration 1
+        GenerateSearchQueries --> RefineQueries: Iteration 2+
+
+        GenerateSERP: LLM generates 2-3 optimized SERP queries
+        RefineQueries: LLM generates 1-2 refined queries based on gaps
+
+        GenerateSERP --> ExecuteSearches
+        RefineQueries --> ExecuteSearches
+
+        ExecuteSearches: Execute each query via search service or LLM fallback
+        ExecuteSearches --> EvaluateQuality: Accumulate results
+
+        state EvaluateQuality <<choice>>
+        EvaluateQuality --> GenerateSearchQueries: Insufficient (iteration < 2)
+        EvaluateQuality --> [*]: Sufficient quality
+    }
+
+    IterativeSearch --> SynthesizeResults: All results collected
+    SynthesizeResults: Combine all search results + citation rules
     SynthesizeResults --> CallLLM: Generate comprehensive report
     CallLLM: MultiProviderLLMClient.generate()
     CallLLM --> [*]
@@ -182,9 +222,11 @@ stateDiagram-v2
 
 ### State Descriptions
 
-- **GenerateSearchQueries**: LLM converts a vague user question into 2-3 precise, search-engine-optimized queries.
-- **ExecuteSearches**: Executes each query through the multi-engine search service (Tavily > Serper > DuckDuckGo fallback).
-- **SynthesizeResults**: Consolidates all search results into a unified context.
+- **GenerateSERP**: Uses `PromptTemplates.get_serp_queries_prompt()` to generate 2-3 search-optimized queries with `{query, researchGoal}` structure.
+- **RefineQueries**: On iteration 2+, analyzes previous results to identify gaps and generates 1-2 targeted follow-up queries.
+- **ExecuteSearches**: Executes each query through the search service (Tavily > Serper > DuckDuckGo). Falls back to LLM-based answer with disclaimer if no search service is available.
+- **EvaluateQuality**: LLM-driven quality assessment. Considers content volume (>500 chars), query diversity (>=2 unique queries), and relevance. Returns YES/NO.
+- **SynthesizeResults**: Consolidates all search results into a unified context with citation rules.
 - **CallLLM**: Generates a comprehensive answer based on the aggregated context.
 
 ---
@@ -194,6 +236,7 @@ stateDiagram-v2
 **Processor**: `CodeProcessor`
 **Cognitive Level**: System 2
 **Runtime**: ModelRuntime (no cache)
+**Error Handling**: `@enhanced_error_handler(max_retries=1, retryable_categories=["LLM", "SANDBOX"])`
 
 Code generation and isolated execution in Docker sandbox.
 
@@ -230,8 +273,9 @@ stateDiagram-v2
 **Processor**: `ThinkingProcessor`
 **Cognitive Level**: System 2
 **Runtime**: ModelRuntime (no cache)
+**Error Handling**: `@enhanced_error_handler(max_retries=1, retryable_categories=["LLM"])`
 
-Multi-stage deep thinking process for complex or abstract problems.
+5-stage deep thinking process for complex or abstract problems. Each stage uses a dedicated prompt template and produces intermediate results logged for debugging.
 
 ### State Machine
 
@@ -239,28 +283,34 @@ Multi-stage deep thinking process for complex or abstract problems.
 stateDiagram-v2
     [*] --> ProblemAnalysis
 
-    ProblemAnalysis: Decompose and understand the problem
-    ProblemAnalysis --> MultiPerspective: Analyze from multiple angles
+    ProblemAnalysis: Stage 1 - Decompose and understand the problem
+    note right of ProblemAnalysis: PromptTemplates.get_thinking_mode_prompt()
+    ProblemAnalysis --> MultiPerspective: thinking_response
 
-    MultiPerspective: Critical, creative, analytical perspectives
-    MultiPerspective --> DeepReasoning: Chain-of-thought reasoning
+    MultiPerspective: Stage 2 - Critical multi-perspective analysis
+    note right of MultiPerspective: PromptTemplates.get_critical_thinking_prompt()
+    MultiPerspective --> DeepReasoning: critical_analysis
 
-    DeepReasoning: Logical inference with step-by-step thinking
-    DeepReasoning --> SynthesisAndReflection: Consolidate + self-reflect
+    DeepReasoning: Stage 3 - Chain-of-thought reasoning
+    note right of DeepReasoning: PromptTemplates.get_chain_of_thought_prompt()
+    DeepReasoning --> SynthesisAndReflection: chain_reasoning
 
-    SynthesisAndReflection: Quality check and refinement
-    SynthesisAndReflection --> FinalAnswer: Generate structured answer
+    SynthesisAndReflection: Stage 4 - Consolidate + self-reflect
+    note right of SynthesisAndReflection: PromptTemplates.get_reflection_prompt()
+    SynthesisAndReflection --> FinalAnswer: reflection
 
+    FinalAnswer: Stage 5 - Generate final comprehensive answer
+    note right of FinalAnswer: Synthesizes all 4 stages
     FinalAnswer --> [*]
 ```
 
 ### State Descriptions
 
-- **ProblemAnalysis**: Decomposes the problem into components and identifies key aspects.
-- **MultiPerspective**: Analyzes from different angles (critical, creative, analytical).
-- **DeepReasoning**: Applies chain-of-thought (CoT) methodology for logical reasoning.
-- **SynthesisAndReflection**: Consolidates all intermediate analysis, self-reflects to improve quality.
-- **FinalAnswer**: Produces a comprehensive, structured final answer based on the full thinking process.
+- **ProblemAnalysis** (Stage 1): Uses `get_thinking_mode_prompt()` to decompose the problem into components and identify key aspects. Produces `thinking_response`.
+- **MultiPerspective** (Stage 2): Uses `get_critical_thinking_prompt()` with Stage 1 output as context. Analyzes from critical, creative, and analytical perspectives. Produces `critical_analysis`.
+- **DeepReasoning** (Stage 3): Uses `get_chain_of_thought_prompt()` for step-by-step logical reasoning. Produces `chain_reasoning`.
+- **SynthesisAndReflection** (Stage 4): Uses `get_reflection_prompt()` with all previous outputs concatenated. Self-reflects to improve quality. Produces `reflection`.
+- **FinalAnswer** (Stage 5): Synthesizes all 4 intermediate results into a comprehensive, structured final answer. 5 total LLM calls per request.
 
 ---
 
@@ -453,11 +503,11 @@ Citation Statistics:
 
 ## 8. Mode-to-Infrastructure Mapping
 
-| Mode | Cognitive Level | Runtime | Cache | Retry | LLM Calls | External Services |
+| Mode | Cognitive Level | Runtime | Cache | Error Handler | LLM Calls | External Services |
 |:---|:---|:---|:---:|:---:|:---:|:---|
-| **CHAT** | System 1 | ModelRuntime | Yes | No | 1 | LLM only |
-| **KNOWLEDGE** | System 1 | ModelRuntime | Yes | No | 1 | Embedding + Qdrant + LLM |
-| **SEARCH** | System 2 | ModelRuntime | No | No | 2+ | Search engines + LLM |
-| **CODE** | System 2 | ModelRuntime | No | No | 1 | LLM + Docker |
-| **THINKING** | System 2 | ModelRuntime | No | No | 4-5 | LLM only |
-| **DEEP_RESEARCH** | Agent | AgentRuntime | No | Yes (max 2) | 3+ | Search engines + LLM |
+| **CHAT** | System 1 | ModelRuntime | Yes | None | 1 | LLM only |
+| **KNOWLEDGE** | System 1 | ModelRuntime | Yes | None | 1-2 | Embedding + Qdrant + LLM (+ rerank LLM) |
+| **SEARCH** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=2, ["NETWORK","LLM"])` | 4-8 | Search engines + LLM |
+| **CODE** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM","SANDBOX"])` | 1 | LLM + Docker |
+| **THINKING** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM"])` | 5 | LLM only |
+| **DEEP_RESEARCH** | Agent | AgentRuntime | No | `retry_with_backoff(max=2)` | 3+ | Search engines + LLM |

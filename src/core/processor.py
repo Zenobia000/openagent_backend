@@ -167,7 +167,7 @@ class ChatProcessor(BaseProcessor):
                 return cached_response
 
         # Step 2: Build Prompt (符合狀態機 BuildPrompt)
-        system_prompt = PromptTemplates.get_system_instruction()
+        system_prompt = PromptTemplates.get_system_instruction("chat")
         output_guidelines = PromptTemplates.get_output_guidelines()
         full_prompt = f"{system_prompt}\n\n{output_guidelines}\n\nUser: {context.request.query}"
 
@@ -252,7 +252,7 @@ class KnowledgeProcessor(BaseProcessor):
                 "Knowledge base unavailable — falling back to LLM direct answer",
                 "knowledge", "no_rag"
             )
-            system_prompt = PromptTemplates.get_system_instruction()
+            system_prompt = PromptTemplates.get_system_instruction("knowledge")
             fallback_prompt = (
                 f"{system_prompt}\n\n"
                 f"[NOTE: Knowledge base is currently unavailable. "
@@ -842,7 +842,7 @@ class KnowledgeGraphProcessor(BaseProcessor):
         # 如果是問題，先生成相關內容
         if "?" in context.request.query or len(context.request.query) < 100:
             # 先生成詳細內容
-            system_prompt = PromptTemplates.get_system_instruction()
+            system_prompt = PromptTemplates.get_system_instruction("knowledge")
             content_prompt = f"{system_prompt}\n\n請針對以下主題生成詳細的說明文章：{context.request.query}"
             article = await self._call_llm(content_prompt, context)
         else:

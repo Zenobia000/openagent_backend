@@ -2,8 +2,8 @@
 
 ---
 
-**Document Version:** `v2.0`
-**Last Updated:** `2026-02-12`
+**Document Version:** `v2.1`
+**Last Updated:** `2026-02-13`
 **Status:** `Current`
 
 ---
@@ -46,6 +46,7 @@ graph TD
     subgraph "Core Layer"
         Engine[core.engine<br/>RefactoredEngine]
         Router[core.router<br/>DefaultRouter]
+        BaseRT[core.runtime.base<br/>BaseRuntime]
         ModelRT[core.runtime.model_runtime<br/>ModelRuntime]
         AgentRT[core.runtime.agent_runtime<br/>AgentRuntime]
         Factory[core.processor<br/>ProcessorFactory]
@@ -54,8 +55,11 @@ graph TD
         Cache[core.cache]
         Metrics[core.metrics]
         Errors[core.errors<br/>ErrorClassifier]
+        ErrHandler[core.error_handler<br/>enhanced_error_handler]
         Protocols[core.protocols]
         Logger[core.logger]
+        Prompts[core.prompts]
+        Utils[core.utils]
     end
 
     subgraph "Service Layer"
@@ -84,16 +88,23 @@ graph TD
 
     %% Core internal
     Engine --> Router
+    Engine --> ModelRT
+    Engine --> AgentRT
     Engine --> Flags
     Engine --> Metrics
-    Router --> ModelRT
-    Router --> AgentRT
+    Engine --> Logger
+    ModelRT --> BaseRT
+    AgentRT --> BaseRT
+    BaseRT --> Protocols
     ModelRT --> Factory
     ModelRT --> Cache
     AgentRT --> Factory
     AgentRT --> Errors
     Factory --> Models
     Factory --> Protocols
+    Factory --> Prompts
+    Factory --> ErrHandler
+    ErrHandler --> Errors
 
     %% Core -> Services (via DI)
     Factory --> LLMMulti
@@ -123,7 +134,7 @@ graph TD
     classDef external fill:#FAFAFA,stroke:#424242,stroke-width:2px,color:#000
 
     class Routes,Schemas,Streaming,APIErrors,Middleware,Auth api
-    class Engine,Router,ModelRT,AgentRT,Factory,Models,Flags,Cache,Metrics,Errors,Protocols,Logger core
+    class Engine,Router,BaseRT,ModelRT,AgentRT,Factory,Models,Flags,Cache,Metrics,Errors,ErrHandler,Protocols,Logger,Prompts,Utils core
     class LLMMulti,LLMOpenAI,LLMAnthropic,LLMGemini,Knowledge,Search,Sandbox,Browser,Research,Repo service
     class User,LLM_API,VectorDB,Web,DockerD external
 ```

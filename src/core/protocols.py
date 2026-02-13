@@ -1,7 +1,26 @@
 """
 協議定義 - 服務介面規範
+
+Protocol Usage Status:
+----------------------
+✓ ACTIVE: RuntimeProtocol (2 implementations: ModelRuntime, AgentRuntime)
+✓ ACTIVE: MCPServiceProtocol (2 implementations: SandboxService, RepoService)
+⚠ CONSIDER REMOVING: RouterProtocol (1 implementation: DefaultRouter)
+⚠ CONSIDER REMOVING: MCPClientProtocol (1 implementation: MCPClientManager)
+⚠ CONSIDER REMOVING: A2AClientProtocol (1 implementation: A2AClientManager)
+✗ UNUSED: LLMClientProtocol (0 implementations)
+✗ UNUSED: LongTermMemoryProtocol (0 implementations)
+
+Design Note:
+------------
+Protocols (ABCs) are useful when you have multiple implementations and want
+polymorphism. For single implementations, protocols add unnecessary abstraction.
+
+Consider deprecating protocols with single implementations unless you plan to
+add more implementations soon.
 """
 
+import warnings
 from abc import ABC, abstractmethod
 from typing import AsyncIterator, Dict, Any, List, Optional
 
@@ -43,7 +62,25 @@ class MCPServiceProtocol(ABC):
 
 
 class LongTermMemoryProtocol(ABC):
-    """長期記憶協議 - 儲存、檢索、刪除"""
+    """長期記憶協議 - 儲存、檢索、刪除
+
+    DEPRECATION WARNING:
+    --------------------
+    This protocol is DEPRECATED and has NO implementations.
+
+    If you need long-term memory, use the KnowledgeBaseService directly
+    from services.knowledge.service instead of implementing this protocol.
+
+    This protocol will be removed in a future version.
+    """
+
+    def __init__(self):
+        warnings.warn(
+            "LongTermMemoryProtocol is deprecated and has no implementations. "
+            "Use KnowledgeBaseService directly instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
     @abstractmethod
     async def store(
@@ -71,7 +108,26 @@ class LongTermMemoryProtocol(ABC):
 
 
 class LLMClientProtocol(ABC):
-    """LLM 客戶端協議"""
+    """LLM 客戶端協議
+
+    DEPRECATION WARNING:
+    --------------------
+    This protocol is DEPRECATED and has NO implementations.
+
+    The actual LLM clients (OpenAIClient, ClaudeClient, GeminiClient, etc.)
+    in services/llm/ do not implement this protocol. They have their own
+    unified interface.
+
+    This protocol will be removed in a future version.
+    """
+
+    def __init__(self):
+        warnings.warn(
+            "LLMClientProtocol is deprecated and has no implementations. "
+            "Use the concrete LLM clients from services.llm instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
     @abstractmethod
     async def generate(self, prompt: str, streaming: bool = False) -> str:
@@ -85,7 +141,17 @@ class LLMClientProtocol(ABC):
 
 
 class RouterProtocol(ABC):
-    """Router protocol - decides how to process a request."""
+    """Router protocol - decides how to process a request.
+
+    NOTE: Single Implementation Protocol
+    -------------------------------------
+    This protocol currently has only ONE implementation (DefaultRouter).
+    Consider removing this abstraction if no additional router implementations
+    are planned.
+
+    The protocol adds a layer of indirection that may not be necessary unless
+    you need to swap routing strategies at runtime.
+    """
 
     @abstractmethod
     async def route(self, request: Any) -> Any:
@@ -115,7 +181,17 @@ class RuntimeProtocol(ABC):
 
 
 class MCPClientProtocol(ABC):
-    """MCP Client 協議 — 管理與外部 MCP Server 的連線和工具呼叫"""
+    """MCP Client 協議 — 管理與外部 MCP Server 的連線和工具呼叫
+
+    NOTE: Single Implementation Protocol
+    -------------------------------------
+    This protocol currently has only ONE implementation (MCPClientManager).
+    Consider removing this abstraction if no additional MCP client implementations
+    are planned.
+
+    The protocol is well-defined and useful for testing (mocking), so it may be
+    worth keeping even with a single implementation.
+    """
 
     @abstractmethod
     async def initialize(self) -> None:
@@ -151,7 +227,17 @@ class MCPClientProtocol(ABC):
 
 
 class A2AClientProtocol(ABC):
-    """A2A Client 協議 — 管理與外部 Agent 的任務委派和協作"""
+    """A2A Client 協議 — 管理與外部 Agent 的任務委派和協作
+
+    NOTE: Single Implementation Protocol
+    -------------------------------------
+    This protocol currently has only ONE implementation (A2AClientManager).
+    Consider removing this abstraction if no additional A2A client implementations
+    are planned.
+
+    The protocol is well-defined and useful for testing (mocking), so it may be
+    worth keeping even with a single implementation.
+    """
 
     @abstractmethod
     async def initialize(self) -> None:
@@ -167,7 +253,7 @@ class A2AClientProtocol(ABC):
     async def send_task(
         self, agent_name: str, message: str, metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """向外部 Agent 發送任務，等待完成"""
+        """向外部 Agent 發送任務,等待完成"""
         pass
 
     @abstractmethod

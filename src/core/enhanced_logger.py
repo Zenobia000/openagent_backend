@@ -1,8 +1,30 @@
 """
 Enhanced Logging System with Long Content Support and Markdown Export
 支援長內容分割記錄和 Markdown 輸出的增強日誌系統
+
+DEPRECATION WARNING:
+--------------------
+This module is DEPRECATED and will be removed in a future version.
+
+Please use src/core/logger.py (StructuredLogger) instead, which provides:
+- Unified logging interface
+- Better SSE event integration
+- Simplified API
+- Active maintenance and support
+
+Migration Guide:
+----------------
+Old: enhanced_logger.log_long_content(...)
+New: structured_logger.info(...) with automatic truncation
+
+Old: enhanced_logger.save_response_as_markdown(...)
+New: Markdown export is no longer part of core logging (use a separate service)
+
+This logger remains available for backward compatibility but will not receive
+new features or bug fixes.
 """
 
+import warnings
 import json
 import logging
 import hashlib
@@ -11,6 +33,13 @@ from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass, asdict
 import textwrap
+
+# Issue deprecation warning when this module is imported
+warnings.warn(
+    "enhanced_logger.py is deprecated. Use logger.py (StructuredLogger) instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 @dataclass

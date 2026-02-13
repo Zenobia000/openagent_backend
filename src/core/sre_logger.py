@@ -1,8 +1,38 @@
 """
 SRE-Compliant Logging System
 專業的分層日誌架構，符合 SRE 最佳實踐
+
+DEPRECATION WARNING:
+--------------------
+This module is DEPRECATED and will be removed in a future version.
+
+Please use src/core/logger.py (StructuredLogger) instead, which provides:
+- Unified logging interface for the entire application
+- Simpler API with fewer abstractions
+- Built-in SSE event support
+- Better performance with less overhead
+- Active maintenance and support
+
+Migration Guide:
+----------------
+Old: sre_logger.log_request(...) / log_response(...)
+New: structured_logger.log_request(...)
+
+Old: sre_logger.performance(operation, duration_ms)
+New: with structured_logger.measure(operation): ...
+
+Old: sre_logger.audit(action, resource, result)
+New: structured_logger.info(f"Audit: {action}", category=LogCategory.SYSTEM)
+
+Old: sre_logger.error(exception, context)
+New: structured_logger.log_error(exception, context)
+
+This logger remains available for backward compatibility but will not receive
+new features or bug fixes. The SRE-specific features (log routing, compression)
+add complexity that is not needed for most applications.
 """
 
+import warnings
 import json
 import logging
 import asyncio
@@ -15,6 +45,13 @@ import threading
 from queue import Queue
 import gzip
 import shutil
+
+# Issue deprecation warning when this module is imported
+warnings.warn(
+    "sre_logger.py is deprecated. Use logger.py (StructuredLogger) instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 class LogCategory(Enum):

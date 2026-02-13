@@ -18,6 +18,34 @@ class ComplexityAnalyzer:
 
     Produces a ComplexityScore based on surface-level heuristics.
     Gated behind feature flag `routing.complexity_analysis`.
+
+    Design Decision:
+    ----------------
+    Uses keyword-based heuristics rather than ML models because:
+    1. Simple, predictable, and debuggable
+    2. No training data or model deployment overhead
+    3. Good enough for initial routing decisions
+    4. Can be enhanced with ML later without changing the interface
+
+    Complexity Factors:
+    -------------------
+    - length: Longer queries tend to be more complex
+    - multi_step: Keywords indicating multi-step reasoning (分析, compare, explain why)
+    - tool_need: Keywords indicating tool usage (code, search, execute)
+    - questions: Multiple questions increase complexity
+
+    Scoring:
+    --------
+    Each factor contributes a weighted score (0.0-1.0):
+    - length: 20% weight
+    - multi_step: 30% weight
+    - tool_need: 30% weight
+    - questions: 20% weight
+
+    Final score maps to cognitive levels:
+    - >= 0.6: AGENT (requires tool usage and planning)
+    - >= 0.3: SYSTEM2 (requires deeper reasoning)
+    - < 0.3: SYSTEM1 (simple question-answering)
     """
 
     # Keyword groups that indicate higher complexity
@@ -124,17 +152,67 @@ class DefaultRouter(RouterProtocol):
 
     @staticmethod
     def _select_mode(query: str) -> ProcessingMode:
-        """Rule-based mode selection. Identical to the original engine logic."""
+        """Rule-based mode selection using keyword matching.
+
+        Design Decision: Keyword-Based Routing
+        ---------------------------------------
+        This router uses simple keyword matching rather than ML classification because:
+
+        1. **Predictability**: Users and developers can understand exactly why a query
+           was routed to a specific mode by inspecting the keywords.
+
+        2. **No Training Required**: No need for labeled data, model training, or
+           deployment of ML models.
+
+        3. **Low Latency**: Keyword matching is O(n*m) where n=query_length and
+           m=keywords, typically < 1ms.
+
+        4. **Easy to Tune**: Add/remove keywords based on user feedback without
+           retraining models.
+
+        5. **Good Enough**: For most queries, intent is clear from keywords. Edge
+           cases can be handled by fallback to CHAT mode.
+
+        Routing Priority:
+        -----------------
+        Keywords are checked in order of specificity:
+        1. CODE: Programming-related keywords (highest priority for developers)
+        2. SEARCH: Explicit search/lookup requests
+        3. KNOWLEDGE: Knowledge base queries (explain, define, etc.)
+        4. THINKING: Deep analysis requests
+        5. CHAT: Default fallback for everything else
+
+        Future Enhancement:
+        -------------------
+        If needed, can add ML-based routing as a feature-flagged option while
+        keeping keyword-based routing as the default. The ProcessingMode abstraction
+        makes this swap easy.
+
+        Args:
+            query: User query string (case-insensitive matching)
+
+        Returns:
+            ProcessingMode: The selected mode based on keyword matching
+        """
         query_lower = query.lower()
 
+        # Priority 1: Code-related queries
         if any(w in query_lower for w in ['代碼', 'code', '程式', 'function']):
             return ProcessingMode.CODE
+
+        # Priority 2: Search/lookup queries
         elif any(w in query_lower for w in ['搜尋', 'search', '查詢', 'find']):
             return ProcessingMode.SEARCH
+
+        # Priority 3: Knowledge base queries
         elif any(w in query_lower for w in ['知識', 'knowledge', '解釋', 'explain']):
             return ProcessingMode.KNOWLEDGE
+
+        # Priority 4: Deep thinking queries
         elif any(w in query_lower for w in ['深度', 'deep', '分析', 'analyze', '思考']):
             return ProcessingMode.THINKING
+
+        # Priority 5: Default fallback
         else:
             return ProcessingMode.CHAT
 

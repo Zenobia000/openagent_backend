@@ -14,6 +14,7 @@ from .feature_flags import feature_flags
 from .router import DefaultRouter
 from .runtime import ModelRuntime, AgentRuntime
 from .metrics import CognitiveMetrics
+from .service_initializer import ServiceInitializer
 
 
 class RefactoredEngine:
@@ -49,79 +50,42 @@ class RefactoredEngine:
         self.initialized = False
 
     async def initialize(self):
-        """初始化引擎 — 建立外部服務（graceful degradation）"""
+        """初始化引擎 — 建立外部服務（graceful degradation）
+
+        This method uses ServiceInitializer to handle all external service setup.
+        The initialization is designed with graceful degradation - each service
+        failure is logged but doesn't prevent other services from starting.
+
+        Initialization Steps:
+        ---------------------
+        1. Initialize core services (search, knowledge, sandbox)
+        2. Initialize MCP client (external tool servers)
+        3. Initialize A2A client (agent-to-agent collaboration)
+        4. Initialize PackageManager (dynamic package loading)
+        5. Rebuild processor factory and runtimes with available services
+        """
         if self.initialized:
             return
 
         self.logger.info("Initializing RefactoredEngine")
 
-        # Initialize external services (each in own try/except for graceful degradation)
-        services = {}
+        # Use ServiceInitializer for all external service setup
+        initializer = ServiceInitializer(self.logger)
 
-        try:
-            from services.search.service import get_web_search_service
-            services["search"] = get_web_search_service()
-            self.logger.info("Search service initialized")
-        except Exception as e:
-            self.logger.warning(f"Search service unavailable: {e}")
-
-        try:
-            from services.knowledge.service import KnowledgeBaseService
-            kb = KnowledgeBaseService()
-            await kb.initialize()
-            services["knowledge"] = kb
-            self.logger.info("Knowledge service initialized")
-        except Exception as e:
-            self.logger.warning(f"Knowledge service unavailable: {e}")
-
-        try:
-            from services.sandbox.service import SandboxService
-            sandbox = SandboxService()
-            await sandbox.initialize()
-            services["sandbox"] = sandbox
-            self.logger.info("Sandbox service initialized")
-        except Exception as e:
-            self.logger.warning(f"Sandbox service unavailable: {e}")
+        # Initialize core services (search, knowledge, sandbox)
+        services = await initializer.initialize_all()
 
         # Initialize MCP client (external tool servers)
-        try:
-            from .mcp_client import MCPClientManager, load_mcp_config
-            mcp_config = load_mcp_config()
-            self._mcp_client = MCPClientManager(mcp_config)
-            await self._mcp_client.initialize()
-            if self._mcp_client.connected_servers:
-                self.logger.info(
-                    f"MCP client initialized ({len(self._mcp_client.connected_servers)} servers, "
-                    f"{self._mcp_client.total_tools} tools)"
-                )
-        except Exception as e:
-            self.logger.warning(f"MCP client unavailable: {e}")
+        self._mcp_client = await initializer.initialize_mcp_client()
 
         # Initialize A2A client (external agent collaboration)
-        try:
-            from .a2a_client import A2AClientManager, load_a2a_config
-            a2a_config = load_a2a_config()
-            self._a2a_client = A2AClientManager(a2a_config)
-            await self._a2a_client.initialize()
-            if self._a2a_client.connected_agents:
-                self.logger.info(
-                    f"A2A client initialized ({len(self._a2a_client.connected_agents)} agents, "
-                    f"{self._a2a_client.total_skills} skills)"
-                )
-        except Exception as e:
-            self.logger.warning(f"A2A client unavailable: {e}")
+        self._a2a_client = await initializer.initialize_a2a_client()
 
         # Initialize PackageManager (dynamic package registration)
-        try:
-            from .package_manager import PackageManager
-            packages_dir = Path(__file__).parent.parent.parent / "packages"
-            if packages_dir.exists():
-                self._package_manager = PackageManager(
-                    packages_dir, self._mcp_client, self._a2a_client
-                )
-                await self._package_manager.start_all()
-        except Exception as e:
-            self.logger.warning(f"PackageManager unavailable: {e}")
+        packages_dir = Path(__file__).parent.parent.parent / "packages"
+        self._package_manager = await initializer.initialize_package_manager(
+            packages_dir, self._mcp_client, self._a2a_client
+        )
 
         # Rebuild processor factory and runtimes with services
         self.processor_factory = ProcessorFactory(

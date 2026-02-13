@@ -191,19 +191,35 @@ class HybridRetriever:
         """初始化 clients"""
         # 確保環境變數已載入
         load_env()
-        
+
         cohere_key = os.getenv("COHERE_API_KEY")
         openai_key = os.getenv("OPENAI_API_KEY")
-        
-        # 優先使用 Cohere
-        if cohere_key:
+
+        # 讀取用戶指定的 embedding provider (預設為 openai)
+        preferred_provider = os.getenv("EMBEDDING_PROVIDER", "openai").lower()
+
+        # 根據用戶配置初始化 provider
+        if preferred_provider == "openai" and openai_key:
+            try:
+                from openai import OpenAI
+                self.openai_client = OpenAI(api_key=openai_key)
+                self.embed_provider = "openai"
+                self.embed_model = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+                self.use_rerank = False  # OpenAI 沒有 rerank
+                logger.info(f"✅ [HybridRetriever] 使用 OpenAI embedding: {self.embed_model}")
+            except ImportError:
+                logger.warning("⚠️ [HybridRetriever] openai 套件未安裝")
+            except Exception as e:
+                logger.error(f"❌ [HybridRetriever] OpenAI 初始化失敗: {e}")
+
+        elif preferred_provider == "cohere" and cohere_key:
             try:
                 import cohere
                 self.cohere_client = cohere.Client(api_key=cohere_key)
                 self.embed_provider = "cohere"
                 self.embed_model = os.getenv("COHERE_EMBED_MODEL", "embed-multilingual-v3.0")
                 logger.info(f"✅ [HybridRetriever] 使用 Cohere embedding: {self.embed_model}")
-                
+
                 # 檢查是否有 rerank 模型
                 if self.use_rerank:
                     logger.info(f"✅ [HybridRetriever] Rerank 已啟用 (rerank-multilingual-v3.0)")
@@ -211,20 +227,30 @@ class HybridRetriever:
                 logger.warning("⚠️ [HybridRetriever] cohere 套件未安裝")
             except Exception as e:
                 logger.error(f"❌ [HybridRetriever] Cohere 初始化失敗: {e}")
-        
-        # 備用：OpenAI
-        if not self.cohere_client and openai_key:
-            try:
-                from openai import OpenAI
-                self.openai_client = OpenAI(api_key=openai_key)
-                self.embed_provider = "openai"
-                self.embed_model = "text-embedding-3-small"
-                self.use_rerank = False  # OpenAI 沒有 rerank
-                logger.info(f"✅ [HybridRetriever] 使用 OpenAI embedding: {self.embed_model}")
-            except ImportError:
-                logger.warning("⚠️ [HybridRetriever] openai 套件未安裝")
-            except Exception as e:
-                logger.error(f"❌ [HybridRetriever] OpenAI 初始化失敗: {e}")
+
+        # 備用：如果主 provider 失敗，嘗試另一個
+        if not self.cohere_client and not self.openai_client:
+            if preferred_provider == "openai" and cohere_key:
+                try:
+                    import cohere
+                    self.cohere_client = cohere.Client(api_key=cohere_key)
+                    self.embed_provider = "cohere"
+                    self.embed_model = os.getenv("COHERE_EMBED_MODEL", "embed-multilingual-v3.0")
+                    logger.warning(f"⚠️ [HybridRetriever] OpenAI 失敗，使用 Cohere 備用: {self.embed_model}")
+                except:
+                    pass
+            elif preferred_provider == "cohere" and openai_key:
+                try:
+                    from openai import OpenAI
+                    self.openai_client = OpenAI(api_key=openai_key)
+                    self.embed_provider = "openai"
+                    self.embed_model = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+                    self.use_rerank = False
+                    logger.warning(f"⚠️ [HybridRetriever] Cohere 失敗，使用 OpenAI 備用: {self.embed_model}")
+                except ImportError:
+                    logger.warning("⚠️ [HybridRetriever] openai 套件未安裝")
+                except Exception as e:
+                    logger.error(f"❌ [HybridRetriever] OpenAI 初始化失敗: {e}")
         
         if not self.cohere_client and not self.openai_client:
             logger.error("❌ [HybridRetriever] 沒有可用的 embedding provider！")

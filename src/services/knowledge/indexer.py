@@ -68,45 +68,59 @@ class Indexer:
         """初始化 clients 和設定"""
         # 確保環境變數已載入
         load_env()
-        
+
         cohere_key = os.getenv("COHERE_API_KEY")
         openai_key = os.getenv("OPENAI_API_KEY")
-        
-        # 優先使用 Cohere
-        if cohere_key:
+
+        # 讀取用戶指定的 embedding provider (預設為 openai)
+        preferred_provider = os.getenv("EMBEDDING_PROVIDER", "openai").lower()
+
+        # 根據用戶配置初始化 provider
+        if preferred_provider == "openai" and openai_key:
+            try:
+                from openai import OpenAI
+                self.openai_client = OpenAI(api_key=openai_key)
+                self.embed_provider = "openai"
+                self.embed_model = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+                # 從環境變數讀取維度，或根據模型推斷
+                self.embed_dim = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+                logger.info(f"✅ [Indexer] 使用 OpenAI embedding: {self.embed_model} ({self.embed_dim}維)")
+            except ImportError:
+                logger.warning("⚠️ [Indexer] openai 套件未安裝")
+            except Exception as e:
+                logger.error(f"❌ [Indexer] OpenAI 初始化失敗: {e}")
+
+        elif preferred_provider == "cohere" and cohere_key:
             try:
                 import cohere
                 self.cohere_client = cohere.Client(api_key=cohere_key)
                 self.embed_provider = "cohere"
                 self.embed_model = os.getenv("COHERE_EMBED_MODEL", "embed-multilingual-v3.0")
                 self.embed_dim = 1024  # Cohere v3 模型固定 1024 維
-                logger.info(f"✅ [Indexer] 使用 Cohere embedding: {self.embed_model}")
+                logger.info(f"✅ [Indexer] 使用 Cohere embedding: {self.embed_model} ({self.embed_dim}維)")
             except ImportError:
                 logger.warning("⚠️ [Indexer] cohere 套件未安裝")
             except Exception as e:
                 logger.error(f"❌ [Indexer] Cohere 初始化失敗: {e}")
-        
-        # OpenAI 作為備用或主要
-        if openai_key:
+
+        # 初始化備用 provider
+        if preferred_provider == "openai" and cohere_key and not self.cohere_client:
+            try:
+                import cohere
+                self.cohere_client = cohere.Client(api_key=cohere_key)
+                self._has_openai_fallback = True
+                logger.info(f"✅ [Indexer] Cohere 作為備用 embedding provider")
+            except:
+                pass
+
+        elif preferred_provider == "cohere" and openai_key and not self.openai_client:
             try:
                 from openai import OpenAI
                 self.openai_client = OpenAI(api_key=openai_key)
-                
-                if not self.cohere_client:
-                    # 沒有 Cohere，使用 OpenAI 作為主要
-                    self.embed_provider = "openai"
-                    self.embed_model = "text-embedding-3-small"
-                    self.embed_dim = 1536
-                    logger.info(f"✅ [Indexer] 使用 OpenAI embedding: {self.embed_model}")
-                else:
-                    # 有 Cohere，OpenAI 作為備用
-                    self._has_openai_fallback = True
-                    logger.info(f"✅ [Indexer] OpenAI 作為備用 embedding provider")
-                    
-            except ImportError:
-                logger.warning("⚠️ [Indexer] openai 套件未安裝")
-            except Exception as e:
-                logger.error(f"❌ [Indexer] OpenAI 初始化失敗: {e}")
+                self._has_openai_fallback = True
+                logger.info(f"✅ [Indexer] OpenAI 作為備用 embedding provider")
+            except:
+                pass
         
         if not self.cohere_client and not self.openai_client:
             logger.error("❌ [Indexer] 沒有可用的 embedding provider！")

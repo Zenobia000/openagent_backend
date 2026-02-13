@@ -53,3 +53,4 @@ data/
 qdrant_storage/
 backup/test_files/
 *.bak
+".env copy"

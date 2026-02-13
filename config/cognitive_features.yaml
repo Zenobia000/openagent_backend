@@ -28,3 +28,34 @@ cognitive_features:
   metrics:
     cognitive_metrics: false
     detailed_tracking: false
+
+  # ========================================
+  # Refactoring Feature Flags (Phase 0-7)
+  # ========================================
+  # These flags control the gradual rollout of the Linus-style refactoring
+  # Reference: docs/REFACTORING_WBS_V2_LINUS.md
+
+  refactor:
+    # Phase 1: Data Structure Refactoring (Week 2-5)
+    new_data_models: false          # Enable models_v2.py (ProcessingMode, Event)
+    unified_event_model: false      # Use unified Event class instead of SSEEvent
+
+    # Phase 2: Processor Modularization (Week 6-12)
+    new_processor_structure: false  # Use modular processors/ directory
+    processor_factory_v2: false     # Use new ProcessorFactory implementation
+
+    # Phase 3: Error Handling & Control Flow (Week 13-17)
+    unified_error_handling: false   # Use exception-based error handling (no string checks)
+    strategy_execution: false       # Use ExecutionStrategy pattern in Engine._execute()
+
+    # Phase 4: Routing & Logging (Week 13-16, parallel with Phase 3)
+    pattern_based_routing: false    # Use PatternBasedRouter instead of RuleBasedRouter
+    unified_logging: false          # Use single logging system (structlog)
+
+    # Phase 5: Design Cleanup (Week 18-19)
+    remove_unused_protocols: false  # Remove single-implementation Protocols
+    simplified_initialization: false # Use ServiceInitializer pattern
+
+    # Master switch for all refactoring features
+    # Set to true to enable individual refactor flags
+    enabled: false

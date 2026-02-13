@@ -30,6 +30,25 @@ _DEFAULT_CONFIG = {
             "cognitive_metrics": False,
             "detailed_tracking": False,
         },
+        # Refactoring feature flags (Phase 0-7)
+        "refactor": {
+            "enabled": False,
+            # Phase 1: Data models
+            "new_data_models": False,
+            "unified_event_model": False,
+            # Phase 2: Processors
+            "new_processor_structure": False,
+            "processor_factory_v2": False,
+            # Phase 3: Error handling
+            "unified_error_handling": False,
+            "strategy_execution": False,
+            # Phase 4: Routing & Logging
+            "pattern_based_routing": False,
+            "unified_logging": False,
+            # Phase 5: Cleanup
+            "remove_unused_protocols": False,
+            "simplified_initialization": False,
+        },
     }
 }
 

@@ -61,15 +61,11 @@ class EnhancedLogger:
         file_handler = logging.FileHandler(log_file, encoding='utf-8')
         file_handler.setFormatter(formatter)
 
-        # 控制台處理器
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-
-        # 配置根日誌器
-        self.logger = logging.getLogger('opencode')
+        # File-only logger — console output is handled by StructuredLogger
+        self.logger = logging.getLogger('opencode.enhanced')
         self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
         self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
 
     def log_long_content(self,
                         level: str,

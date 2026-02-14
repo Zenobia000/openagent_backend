@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Any, Callable, AsyncGenerator
 from collections import Counter
 
 from ..base import BaseProcessor
-from ...models import ProcessingContext
+from ...models_v2 import ProcessingContext
 from ...prompts import PromptTemplates
 from ...logger import structured_logger
 from .config import SearchEngineConfig, SearchProviderType
@@ -80,7 +80,7 @@ class DeepResearchProcessor(BaseProcessor):
             "iterations": 0,
             "errors": []
         }
-        context.intermediate_results["workflow_state"] = workflow_state
+        context.response.metadata["workflow_state"] = workflow_state
 
         # 記錄深度研究決策
         await self._log_tool_decision(
@@ -233,7 +233,7 @@ class DeepResearchProcessor(BaseProcessor):
 
         # 這裡可以實際發送給用戶並獲取回應
         # 目前先記錄供參考
-        context.intermediate_results["clarifying_questions"] = questions
+        context.response.metadata["clarifying_questions"] = questions
 
         self.logger.progress("clarification", "end")
 
@@ -312,7 +312,7 @@ class DeepResearchProcessor(BaseProcessor):
         )
 
         # 儲存到中間結果
-        context.intermediate_results["critical_analysis"] = critical_analysis
+        context.response.metadata["critical_analysis"] = critical_analysis
 
         self.logger.progress("critical-analysis", "end")
         return critical_analysis
@@ -1170,15 +1170,15 @@ Generate the report body (without references section):
                     "mode": "deep_research",
                     "model": getattr(self.llm_client, 'model', 'unknown'),
                     "timestamp": datetime.now().isoformat(),
-                    "duration_ms": context.intermediate_results.get("total_duration_ms", 0),
-                    "tokens": context.intermediate_results.get("total_tokens", {}),
+                    "duration_ms": context.response.metadata.get("total_duration_ms", 0),
+                    "tokens": context.response.metadata.get("total_tokens", {}),
                     "citations": {
                         "cited_count": len(cited_refs),
                         "uncited_count": len(uncited_refs),
                         "total_count": len(cited_refs) + len(uncited_refs),
                         "citation_rate": len(cited_refs) / max(1, len(cited_refs) + len(uncited_refs)) * 100
                     },
-                    "stages": context.intermediate_results.get("stages", [])
+                    "stages": context.response.metadata.get("stages", [])
                 }
 
                 # 保存到 Markdown

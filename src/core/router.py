@@ -5,8 +5,8 @@ Extracts routing logic from engine into a testable, independent component.
 
 from typing import Optional
 
-from .models import (
-    Request, ProcessingMode, CognitiveLevel, RuntimeType,
+from .models_v2 import (
+    Request, Modes, RuntimeType,
     RoutingDecision, ComplexityScore,
 )
 from .feature_flags import FeatureFlags, feature_flags as default_flags
@@ -93,11 +93,11 @@ class ComplexityAnalyzer:
 
         # Recommend cognitive level based on score
         if score >= 0.6:
-            recommended = CognitiveLevel.AGENT
+            recommended = "agent"
         elif score >= 0.3:
-            recommended = CognitiveLevel.SYSTEM2
+            recommended = "system2"
         else:
-            recommended = CognitiveLevel.SYSTEM1
+            recommended = "system1"
 
         return ComplexityScore(
             score=round(score, 3),
@@ -123,7 +123,7 @@ class DefaultRouter(RouterProtocol):
     async def route(self, request: Request) -> RoutingDecision:
         """Route a request to a processing decision."""
         # Step 1: Resolve mode
-        if request.mode == ProcessingMode.AUTO:
+        if request.mode == Modes.AUTO:
             mode = self._select_mode(request.query)
             reason = "auto-selected based on query analysis"
         else:
@@ -134,7 +134,7 @@ class DefaultRouter(RouterProtocol):
         cognitive_level = mode.cognitive_level
 
         # Step 3: Runtime dispatch
-        runtime_type = self._select_runtime(cognitive_level)
+        runtime_type = mode.runtime_type
 
         # Step 4: Optional complexity analysis
         complexity = None
@@ -151,7 +151,7 @@ class DefaultRouter(RouterProtocol):
         )
 
     @staticmethod
-    def _select_mode(query: str) -> ProcessingMode:
+    def _select_mode(query: str):
         """Rule-based mode selection using keyword matching.
 
         Design Decision: Keyword-Based Routing
@@ -198,27 +198,20 @@ class DefaultRouter(RouterProtocol):
 
         # Priority 1: Code-related queries
         if any(w in query_lower for w in ['代碼', 'code', '程式', 'function']):
-            return ProcessingMode.CODE
+            return Modes.CODE
 
         # Priority 2: Search/lookup queries
         elif any(w in query_lower for w in ['搜尋', 'search', '查詢', 'find']):
-            return ProcessingMode.SEARCH
+            return Modes.SEARCH
 
         # Priority 3: Knowledge base queries
         elif any(w in query_lower for w in ['知識', 'knowledge', '解釋', 'explain']):
-            return ProcessingMode.KNOWLEDGE
+            return Modes.KNOWLEDGE
 
         # Priority 4: Deep thinking queries
         elif any(w in query_lower for w in ['深度', 'deep', '分析', 'analyze', '思考']):
-            return ProcessingMode.THINKING
+            return Modes.THINKING
 
         # Priority 5: Default fallback
         else:
-            return ProcessingMode.CHAT
-
-    @staticmethod
-    def _select_runtime(cognitive_level: str) -> RuntimeType:
-        """Map cognitive level to runtime type."""
-        if cognitive_level == CognitiveLevel.AGENT:
-            return RuntimeType.AGENT_RUNTIME
-        return RuntimeType.MODEL_RUNTIME
+            return Modes.CHAT

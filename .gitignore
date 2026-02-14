@@ -54,3 +54,8 @@ qdrant_storage/
 backup/test_files/
 *.bak
 ".env copy"
+
+# Test coverage
+.coverage
+coverage.xml
+htmlcov/

@@ -5,9 +5,12 @@
 - **Engine**: RefactoredEngine with Router + Dual Runtime dispatch
 - **API**: FastAPI with JWT auth, SSE streaming, 11 endpoints
 - **Architecture**: Cognitive 3-tier (System 1 / System 2 / Agent)
-- **LLM**: Multi-Provider fallback chain (OpenAI -> Anthropic -> Gemini)
+- **LLM**: Multi-Provider fallback chain (OpenAI → Anthropic → Gemini)
+- **Data Models**: `models_v2.py` - frozen dataclasses, data self-containment
+- **Exception Hierarchy**: Structured LLM errors (retryable/non-retryable)
 - **Feature Flags**: YAML-driven, all flags default OFF for backward compatibility
-- **Tests**: 182+ passing (unit / integration / e2e)
+- **Tests**: 272/278 passing (97.8%), 52% coverage
+- **Code Quality**: Linus-style refactoring complete (9/10 rating)
 
 ## Project Structure
 
@@ -20,8 +23,18 @@ openagent_backend/
 │   ├── core/                      # Core engine layer
 │   │   ├── engine.py              # RefactoredEngine (router + runtime dispatch)
 │   │   ├── router.py              # DefaultRouter + ComplexityAnalyzer
-│   │   ├── processor.py           # ProcessorFactory + 6 processors
-│   │   ├── models.py              # Request, Response, ProcessingContext, EventType
+│   │   ├── models.py              # Legacy models (backward compatibility)
+│   │   ├── models_v2.py           # NEW: Frozen dataclasses, ProcessingMode registry
+│   │   ├── processors/            # NEW: Modular processor architecture
+│   │   │   ├── base.py            # BaseProcessor (173 lines)
+│   │   │   ├── chat.py            # ChatProcessor (52 lines)
+│   │   │   ├── knowledge.py       # KnowledgeProcessor (200 lines)
+│   │   │   ├── search.py          # SearchProcessor (276 lines)
+│   │   │   ├── thinking.py        # ThinkingProcessor (198 lines)
+│   │   │   ├── code.py            # CodeProcessor (76 lines)
+│   │   │   ├── factory.py         # ProcessorFactory (70 lines)
+│   │   │   └── research/          # DeepResearchProcessor + config
+│   │   ├── processor.py           # Backward compatibility shim
 │   │   ├── feature_flags.py       # FeatureFlags (YAML-driven)
 │   │   ├── cache.py               # ResponseCache (TTL, eviction, stats)
 │   │   ├── metrics.py             # CognitiveMetrics (per-level tracking)
@@ -45,10 +58,11 @@ openagent_backend/
 │   └── services/                  # Service layer
 │       ├── llm/                   # Multi-Provider LLM
 │       │   ├── base.py            # LLMProvider ABC
+│       │   ├── errors.py          # NEW: Exception hierarchy (LLMError, ProviderError, etc.)
 │       │   ├── openai_client.py   # OpenAI (GPT-4o)
 │       │   ├── anthropic_client.py # Anthropic (Claude)
 │       │   ├── gemini_client.py   # Gemini
-│       │   └── multi_provider.py  # Fallback chain orchestrator
+│       │   └── multi_provider.py  # Fallback chain (no string error detection)
 │       ├── knowledge/             # RAG knowledge base
 │       ├── search/                # Web search (multi-engine)
 │       ├── sandbox/               # Docker code execution
@@ -56,11 +70,20 @@ openagent_backend/
 │       ├── browser/               # Web browsing service
 │       └── repo/                  # Git operations
 ├── tests/
-│   ├── unit/                      # Unit tests (feature_flags, router, cache, metrics, errors, auth, multi_provider)
+│   ├── unit/                      # Unit tests
+│   │   ├── test_models_v2.py      # NEW: 34 tests (ProcessingMode, Event, Request/Response)
+│   │   ├── test_llm_errors.py     # NEW: 18 tests (exception hierarchy)
+│   │   ├── test_processors.py     # NEW: ProcessorFactory tests
+│   │   └── test_multi_provider.py # NEW: 19 tests (fallback chain)
 │   ├── integration/               # Integration tests (runtimes, API, SSE)
 │   └── e2e/                       # End-to-end tests (all modes)
 ├── docs/
-│   ├── REFACTORING_CHECKLIST.md   # Phase tracking (P0-P4 complete)
+│   ├── refactoring_v2/            # NEW: Linus-style refactoring docs
+│   │   ├── REFACTORING_COMPLETE.md # Refactoring summary
+│   │   ├── VERIFICATION_REPORT.md  # Verification checklist (11/11 passed)
+│   │   ├── api_baseline.md         # API baseline
+│   │   └── behavior_baseline.md    # Behavior baseline
+│   ├── REFACTORING_WBS_V2_LINUS.md # WBS plan (7 phases complete)
 │   └── CODE_AUDIT_REPORT.md       # Code audit results
 └── .env                           # Environment variables
 ```

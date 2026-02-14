@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from core.engine import RefactoredEngine
-from core.models import Request, ProcessingMode
+from core.models_v2 import Request, Modes
 from auth import get_current_user, get_optional_user, TokenData
 from auth.jwt import encode_token, UserRole, ACCESS_TOKEN_EXPIRE_MINUTES
 from api.schemas import (
@@ -248,7 +248,7 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
     ):
         """Semantic search endpoint using the engine's SEARCH mode."""
         eng = _get_engine()
-        core_request = Request(query=req.query, mode=ProcessingMode.SEARCH)
+        core_request = Request(query=req.query, mode=Modes.SEARCH)
         response = await eng.process(core_request)
         return SearchResponse(
             query=req.query,

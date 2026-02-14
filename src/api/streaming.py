@@ -4,7 +4,7 @@ import asyncio
 import json
 from typing import AsyncGenerator
 
-from core.models import EventType, SSEEvent
+from core.models_v2 import EventType, Event
 
 
 async def engine_event_generator(

@@ -4,7 +4,7 @@ Base runtime - shared infrastructure for all runtimes.
 
 from abc import abstractmethod
 from ..protocols import RuntimeProtocol
-from ..models import ProcessingContext, ProcessingMode
+from ..models_v2 import ProcessingContext
 
 
 class BaseRuntime(RuntimeProtocol):
@@ -18,5 +18,5 @@ class BaseRuntime(RuntimeProtocol):
         pass
 
     @abstractmethod
-    def supports(self, mode: ProcessingMode) -> bool:
+    def supports(self, mode) -> bool:
         pass

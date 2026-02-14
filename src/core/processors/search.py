@@ -7,10 +7,10 @@ Extracted from monolithic processor.py
 
 import json
 import re
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from .base import BaseProcessor
-from ..models import ProcessingContext
+from ..models_v2 import ProcessingContext
 from ..prompts import PromptTemplates
 from ..error_handler import enhanced_error_handler
 
@@ -33,6 +33,7 @@ class SearchProcessor(BaseProcessor):
         # 迭代搜索機制
         MAX_ITERATIONS = 2
         all_search_results = []
+        all_sources = []  # raw SearchResult objects
         iteration = 0
 
         while iteration < MAX_ITERATIONS:
@@ -72,11 +73,12 @@ class SearchProcessor(BaseProcessor):
                     "search",
                     "performing_search"
                 )
-                results = await self._perform_search(query_obj.get('query', ''))
+                processed_text, sources = await self._perform_search(query_obj.get('query', ''))
+                all_sources.extend(sources)
                 iteration_results.append({
                     'query': query_obj.get('query'),
                     'goal': query_obj.get('researchGoal'),
-                    'results': results,
+                    'results': processed_text,
                     'iteration': iteration
                 })
             self.logger.progress("searching", "end", {"total_results": len(iteration_results)})
@@ -92,6 +94,9 @@ class SearchProcessor(BaseProcessor):
 
             self.logger.info("📊 Search needs refinement, continuing...", "search", "refine")
 
+        # Build deduplicated reference list
+        references = self._build_references(all_sources)
+
         # Step 4: 合成最終結果
         combined_context = "\n\n".join([
             f"Query: {r['query']}\nGoal: {r['goal']}\nResults: {r['results']}"
@@ -99,7 +104,7 @@ class SearchProcessor(BaseProcessor):
         ])
 
         self.logger.info(
-            f"🔄 Synthesizing {len(all_search_results)} search results...",
+            f"🔄 Synthesizing {len(all_search_results)} search results with {len(references)} references...",
             "search",
             "synthesis"
         )
@@ -110,16 +115,72 @@ class SearchProcessor(BaseProcessor):
             context=combined_context
         )
 
+        # Provide reference mapping so LLM can cite correctly
+        ref_mapping = "\n".join(
+            f"[{ref['id']}] {ref['title']} - {ref['url']}"
+            for ref in references
+        )
         citation_rules = PromptTemplates.get_citation_rules()
-        full_prompt = f"{prompt}\n\n{citation_rules}"
+        full_prompt = f"{prompt}\n\nAvailable References:\n{ref_mapping}\n\n{citation_rules}"
 
         response = await self._call_llm(full_prompt, context)
+
+        # Append reference list
+        if references:
+            response = self._append_references(response, references)
 
         self.logger.message(response)
         context.mark_step_complete("web-search")
         self.logger.progress("web-search", "end")
 
         return response
+
+    def _build_references(self, sources: list) -> List[Dict]:
+        """Build deduplicated reference list from raw SearchResult objects."""
+        seen_urls = set()
+        references = []
+        ref_id = 1
+
+        for source in sources:
+            url = source.url if hasattr(source, 'url') else source.get('url', '')
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            title = source.title if hasattr(source, 'title') else source.get('title', 'Untitled')
+            references.append({
+                'id': ref_id,
+                'title': title,
+                'url': url,
+            })
+            ref_id += 1
+
+        return references
+
+    def _append_references(self, response: str, references: List[Dict]) -> str:
+        """Append formatted reference list to the response."""
+        # Scan which references were actually cited
+        cited_ids = set()
+        for match in re.finditer(r'\[(\d+)\]', response):
+            cited_ids.add(int(match.group(1)))
+
+        # Separate cited vs uncited
+        cited = [r for r in references if r['id'] in cited_ids]
+        uncited = [r for r in references if r['id'] not in cited_ids]
+
+        parts = [response, "\n\n---\n"]
+
+        if cited:
+            parts.append("\n**References:**\n")
+            for ref in cited:
+                parts.append(f"[{ref['id']}] [{ref['title']}]({ref['url']})\n")
+
+        if uncited:
+            parts.append("\n**Related Sources:**\n")
+            for ref in uncited:
+                parts.append(f"- [{ref['title']}]({ref['url']})\n")
+
+        return "".join(parts)
 
     async def _generate_serp_queries(self, user_query: str) -> List[Dict[str, str]]:
         """生成優化的 SERP 查詢 - 使用專業 prompt"""
@@ -157,9 +218,8 @@ class SearchProcessor(BaseProcessor):
             # 如果解析失敗，返回預設查詢
             return [{"query": user_query, "researchGoal": "獲取相關資訊"}]
 
-    async def _perform_search(self, query: str) -> str:
-        """執行網路搜索 - 使用真實搜索服務或 LLM fallback"""
-        # 記錄搜索查詢
+    async def _perform_search(self, query: str) -> Tuple[str, list]:
+        """執行網路搜索 - 回傳 (processed_text, raw_sources)"""
         search_service = self.services.get("search")
         provider = getattr(search_service, 'primary_provider', 'none') if search_service else 'none'
         self.logger.info(
@@ -172,10 +232,12 @@ class SearchProcessor(BaseProcessor):
 
         # Use real search service if available
         raw_results = ""
+        sources = []
         if search_service:
             try:
                 results = await search_service.search(query, max_results=5)
                 if results:
+                    sources = list(results)
                     raw_results = "\n\n".join(
                         f"[{r.title}]\n{r.snippet}\nURL: {r.url}"
                         for r in results
@@ -187,7 +249,7 @@ class SearchProcessor(BaseProcessor):
             except Exception as e:
                 self.logger.warning(f"Search service error, falling back to LLM: {e}", "search", "fallback")
 
-        # Fallback: no search results → LLM answers with disclaimer
+        # Fallback: no search results
         if not raw_results:
             self.logger.warning("No search results available — LLM will answer from training data", "search", "no_results")
             raw_results = (
@@ -202,9 +264,9 @@ class SearchProcessor(BaseProcessor):
             )
             full_prompt = f"{result_prompt}\n\n搜索結果：{raw_results}"
             processed_results = await self._call_llm(full_prompt, None)
-            return processed_results
+            return processed_results, sources
 
-        return raw_results
+        return raw_results, sources
 
     async def _evaluate_search_quality(self, results: List[Dict], original_query: str) -> bool:
         """評估搜索結果質量是否充分"""

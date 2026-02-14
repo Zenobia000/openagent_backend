@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from core.runtime.agent_runtime import AgentRuntime
-from core.processor import ProcessorFactory
-from core.models import (
-    ProcessingContext, ProcessingMode, Request, Response,
+from core.processors.factory import ProcessorFactory
+from core.models_v2 import (
+    ProcessingContext, Modes, Request, Response,
 )
 from core.logger import structured_logger
 
@@ -38,8 +38,8 @@ def agent_runtime(mock_llm):
 
 
 def _make_context(query: str = "research topic") -> ProcessingContext:
-    req = Request(query=query, mode=ProcessingMode.DEEP_RESEARCH)
-    resp = Response(result="", mode=ProcessingMode.DEEP_RESEARCH, trace_id=req.trace_id)
+    req = Request(query=query, mode=Modes.DEEP_RESEARCH)
+    resp = Response(result="", mode=Modes.DEEP_RESEARCH, trace_id=req.trace_id)
     return ProcessingContext(request=req, response=resp)
 
 
@@ -47,13 +47,13 @@ class TestAgentRuntimeSupports:
     """Test mode support."""
 
     def test_supports_deep_research(self, agent_runtime):
-        assert agent_runtime.supports(ProcessingMode.DEEP_RESEARCH) is True
+        assert agent_runtime.supports(Modes.DEEP_RESEARCH) is True
 
     def test_does_not_support_chat(self, agent_runtime):
-        assert agent_runtime.supports(ProcessingMode.CHAT) is False
+        assert agent_runtime.supports(Modes.CHAT) is False
 
     def test_does_not_support_thinking(self, agent_runtime):
-        assert agent_runtime.supports(ProcessingMode.THINKING) is False
+        assert agent_runtime.supports(Modes.THINKING) is False
 
 
 class TestAgentRuntimeExecution:

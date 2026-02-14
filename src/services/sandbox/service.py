@@ -253,7 +253,7 @@ class SandboxService(MCPServiceProtocol):
                     logger.info(f"✅ Sandbox image '{self.SANDBOX_IMAGE}' ready")
                 except docker.errors.ImageNotFound:
                     logger.warning(f"⚠️ Sandbox image '{self.SANDBOX_IMAGE}' not found")
-                    logger.warning("   Run: cd services/sandbox/docker && ./build.sh")
+                    logger.warning("   Run: cd docker/sandbox && ./build.sh")
                     self._image_ready = False
                 
                 logger.info("✅ Docker client initialized")

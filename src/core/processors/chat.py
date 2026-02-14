@@ -6,7 +6,7 @@ Extracted from monolithic processor.py
 """
 
 from .base import BaseProcessor
-from ..models import ProcessingContext
+from ..models_v2 import ProcessingContext
 from ..prompts import PromptTemplates
 
 

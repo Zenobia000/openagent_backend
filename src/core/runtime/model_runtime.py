@@ -6,26 +6,26 @@ Wraps ProcessorFactory, adds cognitive-level awareness and optional cache.
 from typing import Optional, Set
 
 from .base import BaseRuntime
-from ..models import ProcessingContext, ProcessingMode, CognitiveLevel
-from ..processor import ProcessorFactory
+from ..models_v2 import ProcessingContext, Modes
+from ..processors.factory import ProcessorFactory
 from ..logger import structured_logger
 from ..cache import ResponseCache
 from ..feature_flags import feature_flags
 
 
 # Modes handled by ModelRuntime (everything except AGENT-level)
-_MODEL_MODES: Set[ProcessingMode] = {
-    ProcessingMode.CHAT,
-    ProcessingMode.KNOWLEDGE,
-    ProcessingMode.SEARCH,
-    ProcessingMode.CODE,
-    ProcessingMode.THINKING,
+_MODEL_MODES = {
+    Modes.CHAT,
+    Modes.KNOWLEDGE,
+    Modes.SEARCH,
+    Modes.CODE,
+    Modes.THINKING,
 }
 
 # System 1 modes eligible for caching
-_CACHEABLE_MODES: Set[ProcessingMode] = {
-    ProcessingMode.CHAT,
-    ProcessingMode.KNOWLEDGE,
+_CACHEABLE_MODES = {
+    Modes.CHAT,
+    Modes.KNOWLEDGE,
 }
 
 
@@ -44,7 +44,7 @@ class ModelRuntime(BaseRuntime):
         max_size = feature_flags.get_value("system1.cache_max_size", 1000)
         self._cache = ResponseCache(ttl=ttl, max_size=max_size)
 
-    def supports(self, mode: ProcessingMode) -> bool:
+    def supports(self, mode) -> bool:
         return mode in _MODEL_MODES
 
     async def execute(self, context: ProcessingContext) -> str:
@@ -54,7 +54,7 @@ class ModelRuntime(BaseRuntime):
         query = context.request.query
 
         self._logger.info(
-            f"ModelRuntime executing: {mode.value} (cognitive={cognitive})",
+            f"ModelRuntime executing: {mode} (cognitive={cognitive})",
         )
 
         # Cache check (System 1 only, when flag is on)
@@ -64,16 +64,16 @@ class ModelRuntime(BaseRuntime):
         )
 
         if use_cache:
-            cached = self._cache.get(query, mode.value)
+            cached = self._cache.get(query, str(mode))
             if cached is not None:
-                self._logger.info(f"Cache HIT for {mode.value}")
+                self._logger.info(f"Cache HIT for {mode}")
                 return cached
 
         processor = self._factory.get_processor(mode)
         result = await processor.process(context)
 
         if use_cache:
-            self._cache.put(query, mode.value, result)
+            self._cache.put(query, str(mode), result)
 
         return result
 

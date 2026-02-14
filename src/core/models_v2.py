@@ -480,13 +480,8 @@ class WorkflowState:
 class ProcessingModeEnum(Enum):
     """
     向後兼容層 - 模擬舊的 ProcessingMode Enum
-    
+
     用法:
-        # Old code (still works)
-        from core.models import ProcessingMode
-        mode = ProcessingMode.CHAT
-        
-        # New code (preferred)
         from core.models_v2 import Modes
         mode = Modes.CHAT
     """
@@ -497,7 +492,7 @@ class ProcessingModeEnum(Enum):
     CODE = "code"
     THINKING = "thinking"
     DEEP_RESEARCH = "deep_research"
-    
+
     def to_v2(self) -> ProcessingMode:
         """Convert to V2 ProcessingMode"""
         return Modes.from_name(self.value)

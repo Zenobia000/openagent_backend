@@ -6,15 +6,15 @@ Wraps DeepResearchProcessor with workflow orchestration and smart retry.
 from typing import Set
 
 from .base import BaseRuntime
-from ..models import ProcessingContext, ProcessingMode, WorkflowState
-from ..processor import ProcessorFactory
+from ..models_v2 import ProcessingContext, Modes, WorkflowState
+from ..processors.factory import ProcessorFactory
 from ..logger import structured_logger
 from ..errors import ErrorClassifier, retry_with_backoff
 
 
 # Modes handled by AgentRuntime
-_AGENT_MODES: Set[ProcessingMode] = {
-    ProcessingMode.DEEP_RESEARCH,
+_AGENT_MODES = {
+    Modes.DEEP_RESEARCH,
 }
 
 
@@ -30,13 +30,13 @@ class AgentRuntime(BaseRuntime):
         self._factory = processor_factory or ProcessorFactory(llm_client)
         self._logger = structured_logger
 
-    def supports(self, mode: ProcessingMode) -> bool:
+    def supports(self, mode) -> bool:
         return mode in _AGENT_MODES
 
     async def execute(self, context: ProcessingContext) -> str:
         """Execute agent workflow with state tracking and retry."""
         mode = context.request.mode
-        self._logger.info(f"AgentRuntime executing: {mode.value}")
+        self._logger.info(f"AgentRuntime executing: {mode}")
 
         state = WorkflowState(
             steps=["plan", "search", "synthesize"],
@@ -54,7 +54,7 @@ class AgentRuntime(BaseRuntime):
             )
         except Exception as e:
             state.status = "failed"
-            context.intermediate_results["workflow_state"] = {
+            context.response.metadata["workflow_state"] = {
                 "status": state.status,
                 "error": str(e),
                 "error_category": ErrorClassifier.classify(e).value,
@@ -63,7 +63,7 @@ class AgentRuntime(BaseRuntime):
 
         state.complete()
 
-        context.intermediate_results["workflow_state"] = {
+        context.response.metadata["workflow_state"] = {
             "status": state.status,
             "completed_steps": state.completed_steps,
         }

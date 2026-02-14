@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Optional, Any, List
 import time
 
-from ..models import ProcessingContext
+from ..models_v2 import ProcessingContext
 from ..logger import structured_logger
 
 

@@ -7,7 +7,7 @@ Extracted from monolithic processor.py
 """
 
 from .base import BaseProcessor
-from ..models import ProcessingContext
+from ..models_v2 import ProcessingContext
 from ..prompts import PromptTemplates
 from ..logger import LogCategory
 from ..error_handler import enhanced_error_handler

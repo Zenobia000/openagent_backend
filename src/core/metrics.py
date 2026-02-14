@@ -8,9 +8,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .models import CognitiveLevel
-
-
 @dataclass
 class _LevelMetrics:
     request_count: int = 0
@@ -33,9 +30,9 @@ class CognitiveMetrics:
 
     def __init__(self):
         self._levels: Dict[str, _LevelMetrics] = {
-            CognitiveLevel.SYSTEM1: _LevelMetrics(),
-            CognitiveLevel.SYSTEM2: _LevelMetrics(),
-            CognitiveLevel.AGENT: _LevelMetrics(),
+            "system1": _LevelMetrics(),
+            "system2": _LevelMetrics(),
+            "agent": _LevelMetrics(),
         }
         # MCP extension metrics
         self._mcp_calls: int = 0

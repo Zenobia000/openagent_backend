@@ -12,16 +12,14 @@ from pathlib import Path
 # 添加 src 到路徑
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from core.processor import (
-    ChatProcessor,
-    ThinkingProcessor,
-    KnowledgeProcessor,
-    SearchProcessor,
-    CodeProcessor,
-    DeepResearchProcessor,
-    ProcessorFactory
-)
-from core.models import ProcessingContext, ProcessingMode, Request
+from core.processors.chat import ChatProcessor
+from core.processors.thinking import ThinkingProcessor
+from core.processors.knowledge import KnowledgeProcessor
+from core.processors.search import SearchProcessor
+from core.processors.code import CodeProcessor
+from core.processors.research import DeepResearchProcessor
+from core.processors.factory import ProcessorFactory
+from core.models_v2 import ProcessingContext, Modes, Request
 from core.logger import structured_logger
 
 
@@ -37,18 +35,18 @@ def mock_llm_client():
 @pytest.fixture
 def processing_context():
     """創建測試用的處理上下文"""
-    from core.models import Response
+    from core.models_v2 import Response
 
     request = Request(
         query="Test query",
-        mode=ProcessingMode.CHAT
+        mode=Modes.CHAT
     )
     response = Response(
         result="",
-        mode=ProcessingMode.CHAT,
+        mode=Modes.CHAT,
         trace_id=request.trace_id
     )
-    return ProcessingContext(request, response)
+    return ProcessingContext(request=request, response=response)
 
 
 @pytest.fixture
@@ -130,7 +128,7 @@ class TestKnowledgeProcessor:
     async def test_knowledge_rag_flow(self, mock_llm_client, processing_context, mock_logger):
         """測試 RAG 檢索流程 — 無知識服務時走 LLM 直答 fallback"""
         processor = KnowledgeProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.KNOWLEDGE
+        processing_context.request.mode = Modes.KNOWLEDGE
 
         result = await processor.process(processing_context)
 
@@ -147,7 +145,7 @@ class TestKnowledgeProcessor:
     async def test_knowledge_tool_decision(self, mock_llm_client, processing_context, mock_logger):
         """測試 RAG 工具決策"""
         processor = KnowledgeProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.KNOWLEDGE
+        processing_context.request.mode = Modes.KNOWLEDGE
 
         await processor.process(processing_context)
 
@@ -169,7 +167,7 @@ class TestKnowledgeProcessor:
         services = {"knowledge": mock_kb}
 
         processor = KnowledgeProcessor(mock_llm_client, services=services)
-        processing_context.request.mode = ProcessingMode.KNOWLEDGE
+        processing_context.request.mode = Modes.KNOWLEDGE
         processing_context.request.query = "What is machine learning?"
 
         result = await processor.process(processing_context)
@@ -190,7 +188,7 @@ class TestSearchProcessor:
     async def test_search_serp_generation(self, mock_llm_client, processing_context, mock_logger):
         """測試 SERP 查詢生成"""
         processor = SearchProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.SEARCH
+        processing_context.request.mode = Modes.SEARCH
 
         # 模擬 SERP 生成
         mock_llm_client.generate.side_effect = [
@@ -209,7 +207,7 @@ class TestSearchProcessor:
     async def test_search_web_query_logging(self, mock_llm_client, processing_context, mock_logger):
         """測試網路查詢日誌"""
         processor = SearchProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.SEARCH
+        processing_context.request.mode = Modes.SEARCH
         processing_context.request.query = "Latest AI news"
 
         await processor.process(processing_context)
@@ -224,7 +222,7 @@ class TestSearchProcessor:
     async def test_search_multiple_queries(self, mock_llm_client, processing_context, mock_logger):
         """測試多個搜索查詢"""
         processor = SearchProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.SEARCH
+        processing_context.request.mode = Modes.SEARCH
 
         # 模擬多個查詢
         queries_json = '''```json
@@ -255,7 +253,7 @@ class TestCodeProcessor:
     async def test_code_generation_without_sandbox(self, mock_llm_client, processing_context, mock_logger):
         """測試無沙箱時 — 代碼生成但不執行"""
         processor = CodeProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.CODE
+        processing_context.request.mode = Modes.CODE
         processing_context.request.query = "Write hello world"
 
         mock_llm_client.generate.return_value = "print('Hello World')"
@@ -282,7 +280,7 @@ class TestCodeProcessor:
         services = {"sandbox": mock_sandbox}
 
         processor = CodeProcessor(mock_llm_client, services=services)
-        processing_context.request.mode = ProcessingMode.CODE
+        processing_context.request.mode = Modes.CODE
         processing_context.request.query = "Write hello world"
 
         mock_llm_client.generate.return_value = "print('Hello World')"
@@ -297,7 +295,7 @@ class TestCodeProcessor:
     async def test_code_sandbox_execution_status(self, mock_llm_client, processing_context, mock_logger):
         """測試沙箱執行狀態記錄"""
         processor = CodeProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.CODE
+        processing_context.request.mode = Modes.CODE
 
         result = await processor.process(processing_context)
 
@@ -320,7 +318,7 @@ class TestDeepResearchProcessor:
     async def test_research_complete_pipeline(self, mock_llm_client, processing_context, mock_logger):
         """測試完整的研究流程"""
         processor = DeepResearchProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.DEEP_RESEARCH
+        processing_context.request.mode = Modes.DEEP_RESEARCH
         processing_context.request.query = "Explain quantum computing"
 
         # 模擬各個階段的響應
@@ -353,7 +351,7 @@ class TestDeepResearchProcessor:
     async def test_research_tool_decision(self, mock_llm_client, processing_context, mock_logger):
         """測試深度研究工具決策"""
         processor = DeepResearchProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.DEEP_RESEARCH
+        processing_context.request.mode = Modes.DEEP_RESEARCH
 
         # 簡化響應以快速測試
         mock_llm_client.generate.side_effect = [
@@ -375,7 +373,7 @@ class TestDeepResearchProcessor:
     async def test_research_memory_operations(self, mock_llm_client, processing_context, mock_logger):
         """測試記憶體操作日誌"""
         processor = DeepResearchProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.DEEP_RESEARCH
+        processing_context.request.mode = Modes.DEEP_RESEARCH
 
         mock_llm_client.generate.side_effect = [
             "Plan",
@@ -403,7 +401,7 @@ class TestDeepResearchProcessor:
     async def test_research_error_handling(self, mock_llm_client, processing_context, mock_logger):
         """測試錯誤處理"""
         processor = DeepResearchProcessor(mock_llm_client)
-        processing_context.request.mode = ProcessingMode.DEEP_RESEARCH
+        processing_context.request.mode = Modes.DEEP_RESEARCH
 
         # 模擬 SERP 解析錯誤
         mock_llm_client.generate.side_effect = [
@@ -430,12 +428,12 @@ class TestProcessorFactory:
 
         # 測試所有模式
         modes = [
-            ProcessingMode.CHAT,
-            ProcessingMode.THINKING,
-            ProcessingMode.KNOWLEDGE,
-            ProcessingMode.SEARCH,
-            ProcessingMode.CODE,
-            ProcessingMode.DEEP_RESEARCH
+            Modes.CHAT,
+            Modes.THINKING,
+            Modes.KNOWLEDGE,
+            Modes.SEARCH,
+            Modes.CODE,
+            Modes.DEEP_RESEARCH
         ]
 
         for mode in modes:
@@ -448,8 +446,8 @@ class TestProcessorFactory:
         factory = ProcessorFactory(mock_llm_client)
 
         # 獲取兩次相同的處理器
-        processor1 = factory.get_processor(ProcessingMode.CHAT)
-        processor2 = factory.get_processor(ProcessingMode.CHAT)
+        processor1 = factory.get_processor(Modes.CHAT)
+        processor2 = factory.get_processor(Modes.CHAT)
 
         # 應該是同一個實例
         assert processor1 is processor2
@@ -463,30 +461,30 @@ class TestProcessorFactory:
             pass
 
         # 註冊
-        factory.register_processor(ProcessingMode.CHAT, CustomProcessor)
+        factory.register_processor(Modes.CHAT, CustomProcessor)
 
         # 獲取應該是新類型
-        processor = factory.get_processor(ProcessingMode.CHAT)
+        processor = factory.get_processor(Modes.CHAT)
         assert isinstance(processor, CustomProcessor)
 
     def test_cognitive_level_system1(self, mock_llm_client):
         """Test System 1 processors get correct cognitive level."""
         factory = ProcessorFactory(mock_llm_client)
-        for mode in [ProcessingMode.CHAT, ProcessingMode.KNOWLEDGE]:
+        for mode in [Modes.CHAT, Modes.KNOWLEDGE]:
             processor = factory.get_processor(mode)
             assert processor._cognitive_level == "system1", f"{mode.value} should be system1"
 
     def test_cognitive_level_system2(self, mock_llm_client):
         """Test System 2 processors get correct cognitive level."""
         factory = ProcessorFactory(mock_llm_client)
-        for mode in [ProcessingMode.SEARCH, ProcessingMode.CODE, ProcessingMode.THINKING]:
+        for mode in [Modes.SEARCH, Modes.CODE, Modes.THINKING]:
             processor = factory.get_processor(mode)
             assert processor._cognitive_level == "system2", f"{mode.value} should be system2"
 
     def test_cognitive_level_agent(self, mock_llm_client):
         """Test Agent-level processors get correct cognitive level."""
         factory = ProcessorFactory(mock_llm_client)
-        processor = factory.get_processor(ProcessingMode.DEEP_RESEARCH)
+        processor = factory.get_processor(Modes.DEEP_RESEARCH)
         assert processor._cognitive_level == "agent"
 
     def test_cognitive_mapping_completeness(self, mock_llm_client):
@@ -511,12 +509,12 @@ class TestProcessorIntegration:
 
         # 測試不同模式的請求
         modes_and_queries = [
-            (ProcessingMode.CHAT, "Hello"),
-            (ProcessingMode.THINKING, "What is 2+2?"),
-            (ProcessingMode.KNOWLEDGE, "What is AI?"),
-            (ProcessingMode.SEARCH, "Latest news"),
-            (ProcessingMode.CODE, "Print hello"),
-            (ProcessingMode.DEEP_RESEARCH, "Climate change")
+            (Modes.CHAT, "Hello"),
+            (Modes.THINKING, "What is 2+2?"),
+            (Modes.KNOWLEDGE, "What is AI?"),
+            (Modes.SEARCH, "Latest news"),
+            (Modes.CODE, "Print hello"),
+            (Modes.DEEP_RESEARCH, "Climate change")
         ]
 
         for mode, query in modes_and_queries:
@@ -525,14 +523,14 @@ class TestProcessorIntegration:
             request = Request(query=query, mode=mode)
             response = Response(
                 result="",
-                mode=ProcessingMode.CHAT,
+                mode=Modes.CHAT,
                 trace_id=request.trace_id
             )
             context = ProcessingContext(request, response)
             processor = factory.get_processor(mode)
 
             # 簡化 LLM 響應
-            if mode == ProcessingMode.DEEP_RESEARCH:
+            if mode == Modes.DEEP_RESEARCH:
                 mock_llm_client.generate.side_effect = [
                     "Plan",
                     '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',
@@ -560,12 +558,12 @@ class TestProcessorIntegration:
 
             request = Request(
                 query=f"Query {i}",
-                mode=ProcessingMode.CHAT,
+                mode=Modes.CHAT,
                 trace_id=trace_id
             )
             response = Response(
                 result="",
-                mode=ProcessingMode.CHAT,
+                mode=Modes.CHAT,
                 trace_id=request.trace_id
             )
             context = ProcessingContext(request, response)
@@ -590,11 +588,11 @@ class TestProcessorPerformance:
 
         tasks = []
         for i in range(10):
-            mode = ProcessingMode.CHAT
+            mode = Modes.CHAT
             request = Request(query=f"Concurrent query {i}", mode=mode)
             response = Response(
                 result="",
-                mode=ProcessingMode.CHAT,
+                mode=Modes.CHAT,
                 trace_id=request.trace_id
             )
             context = ProcessingContext(request, response)

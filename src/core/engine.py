@@ -7,8 +7,8 @@ import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from .models import Request, Response, ProcessingContext, ProcessingMode, EventType, RuntimeType
-from .processor import ProcessorFactory
+from .models_v2 import Request, Response, ProcessingContext, Modes, EventType, RuntimeType, Event
+from .processors.factory import ProcessorFactory
 from .logger import structured_logger
 from .feature_flags import feature_flags
 from .router import DefaultRouter
@@ -115,7 +115,7 @@ class RefactoredEngine:
         self.logger.set_trace(request.trace_id)
         self.logger.set_context(
             context_id=request.context_id,
-            mode=request.mode.value
+            mode=str(request.mode)
         )
 
         # 創建處理上下文
@@ -130,14 +130,14 @@ class RefactoredEngine:
             # 記錄開始
             self.logger.info(
                 f"Processing request: {request.query[:50]}...",
-                request_mode=request.mode.value
+                request_mode=str(request.mode)
             )
 
             # SSE: 連接建立
-            from .models import SSEEvent
-            self.logger.emit_sse(SSEEvent(
-                signal=EventType.INFO.value,
-                data={"name": "opencode", "version": "2.0"}
+            self.logger.emit_sse(Event(
+                type=EventType.INFO,
+                data={"name": "opencode", "version": "2.0"},
+                trace_id=request.trace_id
             ))
 
             # Route the request
@@ -146,13 +146,13 @@ class RefactoredEngine:
             response.mode = decision.mode
 
             self.logger.log_tool_decision(
-                tool=decision.mode.value,
+                tool=str(decision.mode),
                 confidence=decision.confidence,
                 reason=decision.reason,
             )
 
             # Execute via runtime dispatch or legacy path
-            with self.logger.measure(f"process_{request.mode.value}"):
+            with self.logger.measure(f"process_{request.mode}"):
                 result = await self._execute(decision, context)
 
             # 更新響應
@@ -193,14 +193,14 @@ class RefactoredEngine:
             # 錯誤處理
             self.logger.log_error(e, {
                 "query": request.query,
-                "mode": request.mode.value
+                "mode": str(request.mode)
             })
 
             # SSE: 錯誤事件
-            from .models import SSEEvent
-            self.logger.emit_sse(SSEEvent(
-                signal=EventType.ERROR.value,
-                data={"message": str(e)}
+            self.logger.emit_sse(Event(
+                type=EventType.ERROR,
+                data={"message": str(e)},
+                trace_id=request.trace_id
             ))
 
             # 返回錯誤響應
@@ -248,7 +248,7 @@ class RefactoredEngine:
             return await processor.process(context)
 
         # Runtime dispatch path
-        if decision.runtime_type == RuntimeType.AGENT_RUNTIME:
+        if decision.runtime_type == RuntimeType.AGENT:
             return await self._agent_runtime.execute(context)
         return await self._model_runtime.execute(context)
 
@@ -302,16 +302,16 @@ class RefactoredEngine:
         """Return cognitive metrics summary."""
         return self._metrics.get_summary()
 
-    def register_processor(self, mode: ProcessingMode, processor_class):
+    def register_processor(self, mode, processor_class):
         """
         註冊自定義處理器
 
         Args:
-            mode: 處理模式
+            mode: 處理模式 (ProcessingMode instance)
             processor_class: 處理器類
         """
         self.processor_factory.register_processor(mode, processor_class)
-        self.logger.info(f"Registered processor for mode: {mode.value}")
+        self.logger.info(f"Registered processor for mode: {mode}")
 
 
 # ========================================
@@ -338,7 +338,7 @@ async def quick_process(query: str, mode: str = "auto") -> str:
 
     Args:
         query: 查詢字符串
-        mode: 處理模式
+        mode: 處理模式 (e.g., "auto", "chat", "search")
 
     Returns:
         str: 處理結果
@@ -348,7 +348,7 @@ async def quick_process(query: str, mode: str = "auto") -> str:
 
     request = Request(
         query=query,
-        mode=ProcessingMode(mode)
+        mode=Modes.from_name(mode)
     )
 
     response = await engine.process(request)

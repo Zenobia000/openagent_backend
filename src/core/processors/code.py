@@ -8,7 +8,7 @@ Extracted from monolithic processor.py
 from typing import Dict, Any
 
 from .base import BaseProcessor
-from ..models import ProcessingContext
+from ..models_v2 import ProcessingContext
 from ..prompts import PromptTemplates
 from ..error_handler import enhanced_error_handler
 

@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from enum import Enum
 
-from .models import EventType, SSEEvent
+from .models_v2 import EventType, Event
 
 
 # ANSI 顏色碼
@@ -264,22 +264,22 @@ class StructuredLogger:
         self._log(LogLevel.ERROR, message, category, module, function, **kwargs)
 
     # SSE 事件方法 - 只寫入檔案，不輸出到控制台
-    def emit_sse(self, event: SSEEvent):
+    def emit_sse(self, event: Event):
         """發送 SSE 事件"""
         if self._sse_callback:
-            self._sse_callback(event.signal, event.to_dict())
+            self._sse_callback(event.type.value, event.to_dict())
 
         # 只記錄到檔案，不輸出控制台
-        self._log(LogLevel.DEBUG, f"SSE Event: {event.signal}", LogCategory.SSE,
+        self._log(LogLevel.DEBUG, f"SSE Event: {event.type.value}", LogCategory.SSE,
                   sse_event=event.to_dict())
 
     def progress(self, step: str, status: str, data: Any = None):
         """發送進度事件"""
-        event = SSEEvent(
-            signal="progress",
+        event = Event(
+            type=EventType.PROGRESS,
+            data={"step": step, "status": status, "data": data},
             step=step,
-            status=status,
-            data=data
+            trace_id=self.trace_id
         )
         self.emit_sse(event)
 
@@ -321,17 +321,19 @@ class StructuredLogger:
 
     def message(self, text: str, streaming: bool = False):
         """發送消息事件"""
-        event = SSEEvent(
-            signal="message",
-            data={"type": "text", "text": text, "streaming": streaming}
+        event = Event(
+            type=EventType.MESSAGE,
+            data={"type": "text", "text": text, "streaming": streaming},
+            trace_id=self.trace_id
         )
         self.emit_sse(event)
 
     def reasoning(self, text: str, streaming: bool = False):
         """發送推理事件"""
-        event = SSEEvent(
-            signal="reasoning",
-            data={"type": "text", "text": text, "streaming": streaming}
+        event = Event(
+            type=EventType.REASONING,
+            data={"type": "text", "text": text, "streaming": streaming},
+            trace_id=self.trace_id
         )
         self.emit_sse(event)
 

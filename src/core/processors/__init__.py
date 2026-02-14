@@ -4,9 +4,8 @@ Modular Processor System - Linus Style Refactoring
 每個處理器一個文件，最大 500 行。
 消除 2611 行的 processor.py 怪獸。
 
-Backward compatibility:
-    from core.processor import ChatProcessor  # Still works
-    from core.processors import ChatProcessor  # New way
+Usage:
+    from core.processors import ChatProcessor, ProcessorFactory
 """
 
 from .base import BaseProcessor

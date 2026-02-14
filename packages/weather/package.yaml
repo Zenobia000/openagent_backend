@@ -1,0 +1,18 @@
+id: weather
+name: "天氣查詢工具"
+version: "1.0.0"
+description: "查詢全球城市即時天氣與預報的 MCP Server"
+type: mcp-server
+transport: stdio
+command: python
+args: ["server.py"]
+env:
+  OPENWEATHERMAP_API_KEY: "${OPENWEATHERMAP_API_KEY}"
+auto_start: false
+dependencies:
+  - httpx
+  - mcp
+tags:
+  - weather
+  - utility
+  - api

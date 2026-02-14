@@ -1,181 +1,210 @@
-# 專案結構指南 (Project Structure Guide) - OpenCode Platform
+# Project Structure Guide - OpenCode Platform
 
 ---
 
-**文件版本 (Document Version):** `v1.1`
-**最後更新 (Last Updated):** `2026-02-10`
-**主要作者 (Lead Author):** `Gemini AI Architect`
-**狀態 (Status):** `修訂中 (Revising)`
+**Document Version:** `v2.1`
+**Last Updated:** `2026-02-13`
+**Status:** `Current`
 
 ---
 
-## 目錄 (Table of Contents)
+## 1. Purpose
 
-- [1. 指南目的 (Purpose of This Guide)](#1-指南目的-purpose-of-this-guide)
-- [2. 核心設計原則 (Core Design Principles)](#2-核心設計原則-core-design-principles)
-- [3. 頂層目錄結構 (Top-Level Directory Structure)](#3-頂層目錄結構-top-level-directory-structure)
-- [4. `src` 目錄詳解 (Detailed `src` Breakdown)](#4-src-目錄詳解-detailed-src-breakdown)
-  - [4.1 `src/api/` - API 層](#41-srcapi---api-層)
-  - [4.2 `src/core/` - 核心模組](#42-srccore---核心模組)
-  - [4.3 `src/services/` - 服務層](#43-srcservices---服務層)
-- [5. 其他關鍵目錄 (Other Key Directories)](#5-其他關鍵目錄-other-key-directories)
-- [6. 文件命名約定 (File Naming Conventions)](#6-文件命名約定-file-naming-conventions)
+Provide a standardized, accurate map of the project's directory and file structure to help developers locate code quickly and understand architectural boundaries.
 
----
+## 2. Core Design Principles
 
-## 1. 指南目的 (Purpose of This Guide)
+- **Layered Architecture**: Strict separation of API -> Core -> Services.
+- **Cognitive 3-Tier**: System 1 (fast/cached) / System 2 (analytical) / Agent (stateful workflows).
+- **Protocol-Driven**: Components depend on abstractions (`protocols.py`), not concrete implementations.
+- **Feature Flags**: All cognitive features gated by `config/cognitive_features.yaml`, default OFF.
 
-*   為 OpenCode Platform 提供一個標準化、可擴展且易於理解的目錄和文件結構。
-*   確保團隊成員能夠快速定位代碼、配置文件和文檔，降低新成員的上手成本。
-*   促進代碼的模塊化和關注點分離，提高可維護性。
-
-## 2. 核心設計原則 (Core Design Principles)
-
-*   **分層架構 (Layered Architecture):** 嚴格區分 API 層、核心業務邏輯層和服務層。
-*   **關注點分離 (Separation of Concerns):** 每個模組只做一件事並把它做好。例如，`core` 處理業務流程，`services` 處理外部交互。
-*   **配置優於硬編碼 (Configuration over Hardcoding):** 系統行為應由配置文件（如 `logging_config.yaml`）和環境變數驅動。
-*   **協議驅動 (Protocol-Driven):** 組件間的依賴應基於抽象接口（`protocols.py`），而非具體實現。
-
-## 3. 頂層目錄結構 (Top-Level Directory Structure)
+## 3. Top-Level Directory Structure
 
 ```plaintext
-opencode_backend/
-├── docker/                     # Docker 相關配置 (Dockerfile, docker-compose.yml)
-├── docs/                       # 專案級文檔 (如架構、日誌設計)
-├── logs/                       # (如果啟用文件日誌) 應用程式日誌
-├── plugins/                    # 插件目錄
-├── src/                        # 主要原始碼目錄
-│   ├── api/                    # API 層
-│   ├── core/                   # 核心業務邏輯
-│   └── services/               # 外部服務和具體功能實現
-├── tests/                      # 測試套件
-├── .env.example                # 環境變數範本
-├── .gitignore                  # Git 忽略配置
-├── main.py                     # 主應用程式入口 (FastAPI app)
-├── pyproject.toml              # Python 專案配置 (PEP 621)
-└── requirements.txt            # Python 依賴清單
+openagent_backend/
+├── config/                     # Feature flag configuration
+│   └── cognitive_features.yaml
+├── docker/                     # Docker configs (Dockerfile, compose)
+├── docs/                       # Project-level documentation
+├── logs/                       # Application logs (auto-created)
+├── plugins/                    # Plugin system (3 example plugins)
+│   ├── PLUGIN_DEV_GUIDE.md     # Plugin development guide
+│   ├── example-translator/     # Example: translation plugin
+│   ├── stock-analyst/          # Example: stock analysis plugin
+│   └── weather-tool/           # Example: weather tool plugin
+├── src/                        # Main source code
+│   ├── api/                    # API layer (HTTP boundary)
+│   ├── auth/                   # Authentication (JWT)
+│   ├── core/                   # Core business logic + engine
+│   └── services/               # External service integrations
+├── tests/                      # Test suite
+│   ├── conftest.py             # Shared test fixtures
+│   ├── unit/                   # Unit tests
+│   ├── integration/            # Integration tests
+│   └── e2e/                    # End-to-end tests
+├── .env.example                # Environment variable template
+├── main.py                     # CLI entry point
+├── pyproject.toml              # Python project config
+└── requirements.txt            # Python dependencies
 ```
 
-## 4. `src` 目錄詳解 (Detailed `src` Breakdown)
+## 4. `src` Directory Breakdown
 
-這是專案的核心，實現了 OpenCode Platform 的所有功能。
+### 4.1 `src/api/` - API Layer
 
-### 4.1 `src/api/` - API 層
-
-**職責**: 處理 HTTP 請求，驗證輸入，並調用核心業務邏輯。這是系統的入口點。
+**Responsibility**: HTTP boundary. Receives requests, validates input, delegates to core engine, formats responses.
 
 ```plaintext
 src/api/
 ├── __init__.py
-├── middleware.py           # API 中介軟體 (例如，日誌、認證)
-└── routes.py               # API 路由定義，將端點映射到核心功能
+├── errors.py              # APIError exception + register_error_handlers()
+├── middleware.py           # RequestLoggingMiddleware (method, path, status, duration)
+├── routes.py              # FastAPI app + 11 endpoints (create_app with lifespan)
+├── schemas.py             # Pydantic request/response models (ChatRequest, etc.)
+└── streaming.py           # SSE async generator bridge (engine_event_generator)
 ```
 
-### 4.2 `src/core/` - 核心模組
+### 4.2 `src/auth/` - Authentication
 
-**職責**: 實現平台的核心業務邏輯和處理流程。此層不應直接與外部服務（如資料庫、LLM API）交互，而是通過 `services` 層的抽象來完成。
+**Responsibility**: JWT token encoding/decoding and FastAPI dependency injection.
+
+```plaintext
+src/auth/
+├── __init__.py            # Exports: encode_token, decode_token, get_current_user
+├── jwt.py                 # JWT encode/decode, UserRole enum, TokenData model
+└── dependencies.py        # get_current_user, get_optional_user (FastAPI Depends)
+```
+
+### 4.3 `src/core/` - Core Engine
+
+**Responsibility**: Business logic orchestration. Router, dual runtime dispatch, processors, caching, metrics, error classification. Does not call external APIs directly -- delegates to `services` layer.
 
 ```plaintext
 src/core/
 ├── __init__.py
-├── engine.py              # 核心引擎，協調處理流程
-├── logger.py              # 應用程式日誌的配置和初始化
-├── logging_config.yaml    # `structlog` 的配置文件
-├── models.py              # 核心數據模型 (Pydantic models)
-├── processor.py           # 處理器基類和工廠，實現策略模式
-├── prompts.py             # Prompt 模板管理
-├── protocols.py           # 服務層的抽象接口定義 (Protocol)
-├── sre_logger.py          # SRE 相關的日誌功能
-└── utils.py               # 核心層級的共用工具函數
+├── engine.py              # RefactoredEngine (router + runtime dispatch + metrics)
+├── router.py              # DefaultRouter + ComplexityAnalyzer
+├── processor.py           # ProcessorFactory + BaseProcessor + 6 concrete processors
+├── models.py              # Request, Response, ProcessingContext, ProcessingMode, EventType, CognitiveLevel
+├── feature_flags.py       # FeatureFlags (YAML-driven, all default OFF)
+├── cache.py               # ResponseCache (SHA-256 key, TTL, LRU eviction, stats)
+├── metrics.py             # CognitiveMetrics (per-level latency, success rate, tokens)
+├── errors.py              # ErrorClassifier, ErrorCategory, retry_with_backoff, llm_fallback
+├── error_handler.py       # Decorator-based error handling (enhanced_error_handler, robust_processor)
+├── protocols.py           # LLMClientProtocol, RouterProtocol, RuntimeProtocol
+├── runtime/
+│   ├── __init__.py        # Exports ModelRuntime, AgentRuntime
+│   ├── base.py            # BaseRuntime (abstract base for all runtimes)
+│   ├── model_runtime.py   # ModelRuntime (System 1+2, stateless, cached)
+│   ├── agent_runtime.py   # AgentRuntime (Agent level, stateful, retry)
+│   └── workflow.py        # WorkflowOrchestrator
+├── prompts.py             # Prompt templates (system instruction, output guidelines, etc.)
+├── logger.py              # StructuredLogger (console + file, SSE callback, surrogate-safe)
+├── sre_logger.py          # SRE-compliant logging (structured JSON, log categories, rotation)
+└── utils.py               # Utilities (get_project_root, load_env)
 ```
 
-### 4.3 `src/services/` - 服務層
+### 4.4 `src/services/` - Service Layer
 
-**職責**: 封裝所有與外部世界的交互，提供具體的工具或功能實現。每個子目錄代表一個獨立的服務。
+**Responsibility**: Encapsulates all external interactions. Each subdirectory is a self-contained service. Services do NOT import from `core` or `api`.
 
 ```plaintext
 src/services/
 ├── __init__.py
-├── llm_service.py          # LLM 服務的抽象或高層協調
+├── llm_service.py             # Legacy LLM service wrapper
+├── llm/                       # Multi-provider LLM client
+│   ├── __init__.py            # create_llm_client() factory
+│   ├── base.py                # LLMProvider ABC (generate, stream, provider_name, is_available)
+│   ├── openai_client.py       # OpenAILLMClient (GPT-4o, GPT-4o-mini)
+│   ├── anthropic_client.py    # AnthropicLLMClient (Claude)
+│   ├── gemini_client.py       # GeminiLLMClient (Gemini, google-genai SDK)
+│   └── multi_provider.py      # MultiProviderLLMClient (fallback chain orchestrator)
 │
-├── browser/                # 瀏覽器自動化服務 (網頁抓取)
-│   └── service.py
+├── knowledge/                 # RAG knowledge base service
+│   ├── __init__.py
+│   ├── indexer.py             # Document chunking + embedding + Qdrant indexing
+│   ├── multimodal_parser.py   # PDF/DOCX/image parsing
+│   ├── parser.py              # Base document parser
+│   ├── retriever.py           # Vector similarity search
+│   └── service.py             # KnowledgeBaseService entry point
 │
-├── knowledge/              # 知識庫/RAG 服務
-│   ├── indexer.py          # 建立索引
-│   ├── multimodal_parser.py# 多模態文件解析
-│   ├── parser.py           # 文件解析基類
-│   ├── retriever.py        # 從向量資料庫檢索
-│   ├── service.py          # 知識庫服務主入口
-│   └── service_old.py      # 舊版服務 (待移除)
+├── search/                    # Web search (multi-engine)
+│   ├── __init__.py
+│   └── service.py             # Tavily > Serper > DuckDuckGo fallback
 │
-├── llm/                    # 具體的 LLM API 客戶端實現
-│   └── openai_client.py    # OpenAI API 客戶端
+├── sandbox/                   # Docker code execution
+│   ├── __init__.py
+│   ├── routes.py              # Sandbox-specific API routes
+│   └── service.py             # Docker container management + CodeSecurityFilter
 │
-├── repo/                   # Git 倉庫操作服務
-│   └── service.py
+├── research/                  # Deep research service
+│   ├── __init__.py
+│   └── service.py             # Multi-step research pipeline
 │
-├── research/               # 研究/分析服務
-│   └── service.py
+├── browser/                   # Web content extraction
+│   ├── __init__.py
+│   └── service.py             # Page fetching and parsing
 │
-├── sandbox/                # 安全程式碼執行沙箱服務
-│   ├── routes.py           # 沙箱服務專屬的 API 路由
-│   └── service.py          # 通過 Docker 實現沙箱
-│
-└── search/                 # 網路搜尋服務
+└── repo/                      # Git operations
+    ├── __init__.py
     └── service.py
 ```
 
-## 5. 其他關鍵目錄 (Other Key Directories)
+## 5. Plugin Structure
 
-### `tests/` - 測試代碼
+**Responsibility**: Extensible plugin system for custom agents, tools, services, and hooks. Not yet integrated into the main `src/` codebase (planned feature).
 
-測試結構應與 `src/` 目錄對應，以保持清晰。
+```plaintext
+plugins/
+├── PLUGIN_DEV_GUIDE.md            # Plugin development guide (Chinese)
+├── example-translator/            # Example: translation agent plugin
+│   ├── plugin.json                # Plugin metadata (id, type, config_schema, permissions)
+│   └── main.py                    # PluginImpl class
+├── stock-analyst/                 # Example: stock analysis agent plugin
+│   ├── plugin.json
+│   ├── main.py                    # StockAnalystPlugin class
+│   └── requirements.txt           # yfinance, pandas
+└── weather-tool/                  # Example: weather tool plugin
+    ├── plugin.json
+    └── main.py
+```
+
+**Plugin Types**: `agent` (dispatcher-assigned tasks), `tool` (new tools for agents), `service` (background service), `hook` (event listener).
+
+**Plugin Manifest** (`plugin.json`): `id`, `name`, `version`, `description`, `author`, `type`, `entry_point`, `class_name`, `config_schema`, `permissions`, `dependencies`, `tags`.
+
+## 6. Test Structure
 
 ```plaintext
 tests/
-├── conftest.py                # Pytest 全局配置和 fixtures
-├── requirements-test.txt      # 測試專用的依賴
+├── conftest.py                    # Shared test fixtures
+├── unit/                          # Unit tests (isolated, no external deps)
+│   ├── test_feature_flags.py      # Feature flag loading/defaults
+│   ├── test_router.py             # Router + ComplexityAnalyzer
+│   ├── test_processors.py         # Processor creation and mock execution
+│   ├── test_cache.py              # ResponseCache TTL/eviction/stats
+│   ├── test_metrics.py            # CognitiveMetrics per-level tracking
+│   ├── test_error_handling.py     # ErrorClassifier, retry, fallback
+│   ├── test_auth.py               # JWT encode/decode/expiry
+│   └── test_multi_provider.py     # Multi-provider LLM fallback chain
 │
-├── unit/                      # 單元測試 (針對單個函數或類)
-│   ├── test_engine.py
-│   └── test_processors.py
+├── integration/                   # Integration tests (module interactions)
+│   ├── test_api.py                # All API endpoints via httpx AsyncClient
+│   ├── test_sse.py                # SSE streaming tests
+│   ├── test_model_runtime.py      # ModelRuntime dispatch tests
+│   └── test_agent_runtime.py      # AgentRuntime workflow tests
 │
-├── integration/               # 整合測試 (測試模組間的交互)
-│   └── test_api.py
-│
-└── e2e/                       # 端到端測試 (模擬真實用戶場景)
-    ├── test_main.py
-    └── test_with_api.py
+└── e2e/                           # End-to-end tests (all modes)
+    └── test_all_modes.py          # Full pipeline tests for all processing modes
 ```
 
-### `docker/` - 容器化配置
+## 7. File Naming Conventions
 
-```plaintext
-docker/
-├── docker-compose.yml       # (備用) Docker Compose 配置
-├── Dockerfile               # (備用) 通用 Dockerfile
-│
-├── backend/
-│   └── Dockerfile            # 後端服務映像
-│
-├── frontend/
-│   ├── Dockerfile           # 前端服務映像
-│   └── nginx.conf          # Nginx 配置
-│
-└── sandbox/
-    ├── Dockerfile          # 沙箱環境映像
-    ├── build.sh            # 沙箱建置腳本
-    └── runner.py           # 在沙箱內執行程式碼的腳本
-```
-
-## 6. 文件命名約定 (File Naming Conventions)
-
-| 文件類型 | 命名規則 | 範例 |
-| :--- | :--- | :--- |
-| **Python 模組** | `snake_case.py` | `llm_service.py`, `openai_client.py` |
-| **Python 類別** | `PascalCase` | `class KnowledgeService`, `class OpenAiClient` |
-| **測試文件** | `test_*.py` | `test_engine.py`, `test_api.py` |
-| **配置文件** | `kebab-case.yml` 或 `snake_case.yaml` | `docker-compose.yml`, `logging_config.yaml`|
-| **Markdown 文檔** | `UPPER_CASE.md` 或 `PascalCase.md` | `README.md`, `QuickStart.md` |
-| **環境變數** | `UPPER_SNAKE_CASE` | `OPENAI_API_KEY`, `QDRANT_HOST` |
+| Type | Rule | Example |
+|:---|:---|:---|
+| **Python module** | `snake_case.py` | `openai_client.py`, `multi_provider.py` |
+| **Python class** | `PascalCase` | `MultiProviderLLMClient`, `ResponseCache` |
+| **Test file** | `test_*.py` | `test_multi_provider.py` |
+| **Config file** | `snake_case.yaml` | `cognitive_features.yaml` |
+| **Environment var** | `UPPER_SNAKE_CASE` | `ANTHROPIC_API_KEY` |

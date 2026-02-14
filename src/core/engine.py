@@ -4,11 +4,17 @@
 """
 
 import asyncio
+from pathlib import Path
 from typing import Optional, Dict, Any
 
-from .models import Request, Response, ProcessingContext, ProcessingMode, EventType
-from .processor import ProcessorFactory
+from .models_v2 import Request, Response, ProcessingContext, Modes, EventType, RuntimeType, Event
+from .processors.factory import ProcessorFactory
 from .logger import structured_logger
+from .feature_flags import feature_flags
+from .router import DefaultRouter
+from .runtime import ModelRuntime, AgentRuntime
+from .metrics import CognitiveMetrics
+from .service_initializer import ServiceInitializer
 
 
 class RefactoredEngine:
@@ -33,20 +39,63 @@ class RefactoredEngine:
         self.config = config or {}
         self.processor_factory = ProcessorFactory(llm_client)
         self.logger = structured_logger
+        self.feature_flags = feature_flags
+        self.router = DefaultRouter(feature_flags)
+        self._model_runtime = ModelRuntime(llm_client, self.processor_factory)
+        self._agent_runtime = AgentRuntime(llm_client, self.processor_factory)
+        self._metrics = CognitiveMetrics()
+        self._mcp_client = None
+        self._a2a_client = None
+        self._package_manager = None
         self.initialized = False
 
     async def initialize(self):
-        """初始化引擎"""
+        """初始化引擎 — 建立外部服務（graceful degradation）
+
+        This method uses ServiceInitializer to handle all external service setup.
+        The initialization is designed with graceful degradation - each service
+        failure is logged but doesn't prevent other services from starting.
+
+        Initialization Steps:
+        ---------------------
+        1. Initialize core services (search, knowledge, sandbox)
+        2. Initialize MCP client (external tool servers)
+        3. Initialize A2A client (agent-to-agent collaboration)
+        4. Initialize PackageManager (dynamic package loading)
+        5. Rebuild processor factory and runtimes with available services
+        """
         if self.initialized:
             return
 
         self.logger.info("Initializing RefactoredEngine")
 
-        # 初始化各個組件
-        # 這裡可以加載服務、連接數據庫等
+        # Use ServiceInitializer for all external service setup
+        initializer = ServiceInitializer(self.logger)
+
+        # Initialize core services (search, knowledge, sandbox)
+        services = await initializer.initialize_all()
+
+        # Initialize MCP client (external tool servers)
+        self._mcp_client = await initializer.initialize_mcp_client()
+
+        # Initialize A2A client (external agent collaboration)
+        self._a2a_client = await initializer.initialize_a2a_client()
+
+        # Initialize PackageManager (dynamic package registration)
+        packages_dir = Path(__file__).parent.parent.parent / "packages"
+        self._package_manager = await initializer.initialize_package_manager(
+            packages_dir, self._mcp_client, self._a2a_client
+        )
+
+        # Rebuild processor factory and runtimes with services
+        self.processor_factory = ProcessorFactory(
+            self.llm_client, services=services, mcp_client=self._mcp_client
+        )
+        self._model_runtime = ModelRuntime(self.llm_client, self.processor_factory)
+        self._agent_runtime = AgentRuntime(self.llm_client, self.processor_factory)
 
         self.initialized = True
-        self.logger.info("AI Engine initialized successfully")
+        self.logger.info(f"AI Engine initialized (services: {list(services.keys()) or 'none'})")
 
     async def process(self, request: Request) -> Response:
         """
@@ -66,7 +115,7 @@ class RefactoredEngine:
         self.logger.set_trace(request.trace_id)
         self.logger.set_context(
             context_id=request.context_id,
-            mode=request.mode.value
+            mode=str(request.mode)
         )
 
         # 創建處理上下文
@@ -81,31 +130,30 @@ class RefactoredEngine:
             # 記錄開始
             self.logger.info(
                 f"Processing request: {request.query[:50]}...",
-                request_mode=request.mode.value
+                request_mode=str(request.mode)
             )
 
             # SSE: 連接建立
-            from .models import SSEEvent
-            self.logger.emit_sse(SSEEvent(
-                signal=EventType.INFO.value,
-                data={"name": "opencode", "version": "2.0"}
+            self.logger.emit_sse(Event(
+                type=EventType.INFO,
+                data={"name": "opencode", "version": "2.0"},
+                trace_id=request.trace_id
             ))
 
-            # 自動選擇模式
-            if request.mode == ProcessingMode.AUTO:
-                request.mode = await self._select_mode(request.query)
-                self.logger.log_tool_decision(
-                    tool=request.mode.value,
-                    confidence=0.85,
-                    reason="Auto-selected based on query analysis"
-                )
+            # Route the request
+            decision = await self.router.route(request)
+            request.mode = decision.mode
+            response.mode = decision.mode
 
-            # 獲取處理器
-            processor = self.processor_factory.get_processor(request.mode)
+            self.logger.log_tool_decision(
+                tool=str(decision.mode),
+                confidence=decision.confidence,
+                reason=decision.reason,
+            )
 
-            # 執行處理
-            with self.logger.measure(f"process_{request.mode.value}"):
-                result = await processor.process(context)
+            # Execute via runtime dispatch or legacy path
+            with self.logger.measure(f"process_{request.mode}"):
+                result = await self._execute(decision, context)
 
             # 更新響應
             response.result = result
@@ -122,20 +170,37 @@ class RefactoredEngine:
             # SSE: 最終結果
             response.add_event(EventType.RESULT, result)
 
+            # Record cognitive metrics (when enabled)
+            if self.feature_flags.is_enabled("metrics.cognitive_metrics"):
+                self._metrics.record_request(
+                    cognitive_level=request.mode.cognitive_level,
+                    latency_ms=response.time_ms,
+                    tokens=response.tokens_used,
+                    success=True,
+                )
+
             return response
 
         except Exception as e:
+            # Record failure metric
+            if self.feature_flags.is_enabled("metrics.cognitive_metrics"):
+                self._metrics.record_request(
+                    cognitive_level=request.mode.cognitive_level,
+                    latency_ms=context.get_elapsed_time(),
+                    success=False,
+                )
+
             # 錯誤處理
             self.logger.log_error(e, {
                 "query": request.query,
-                "mode": request.mode.value
+                "mode": str(request.mode)
             })
 
             # SSE: 錯誤事件
-            from .models import SSEEvent
-            self.logger.emit_sse(SSEEvent(
-                signal=EventType.ERROR.value,
-                data={"message": str(e)}
+            self.logger.emit_sse(Event(
+                type=EventType.ERROR,
+                data={"message": str(e)},
+                trace_id=request.trace_id
             ))
 
             # 返回錯誤響應
@@ -147,74 +212,106 @@ class RefactoredEngine:
             # 清理上下文
             self.logger.clear_context()
 
-    async def _select_mode(self, query: str) -> ProcessingMode:
+    async def _execute(self, decision, context: ProcessingContext) -> str:
+        """Dispatch to the appropriate runtime, A2A agent, or legacy path.
+
+        Priority:
+        1. A2A delegation (if decision.delegate_to_agent is set)
+        2. Runtime dispatch (if smart_routing feature flag is on)
+        3. Legacy path (direct ProcessorFactory)
         """
-        自動選擇處理模式
+        # A2A delegation path
+        if decision.delegate_to_agent and self._a2a_client:
+            try:
+                self.logger.info(
+                    f"Delegating to A2A agent: {decision.delegate_to_agent}",
+                    agent=decision.delegate_to_agent,
+                )
+                result = await self._a2a_client.send_task(
+                    decision.delegate_to_agent, context.request.query
+                )
+                if result.get("text"):
+                    return result["text"]
+                return str(result.get("artifacts", "No response from agent"))
+            except Exception as e:
+                self.logger.warning(
+                    f"A2A delegation failed, falling back to local processing: {e}",
+                    agent=decision.delegate_to_agent,
+                )
+                # Fall through to local processing
 
-        Args:
-            query: 用戶查詢
+        use_runtime = self.feature_flags.is_enabled("routing.smart_routing")
 
-        Returns:
-            ProcessingMode: 選擇的處理模式
-        """
-        query_lower = query.lower()
+        if not use_runtime:
+            # Legacy path - direct ProcessorFactory (backward compatible)
+            processor = self.processor_factory.get_processor(context.request.mode)
+            return await processor.process(context)
 
-        # 簡單的規則匹配
-        if any(word in query_lower for word in ['代碼', 'code', '程式', 'function']):
-            return ProcessingMode.CODE
-        elif any(word in query_lower for word in ['搜尋', 'search', '查詢', 'find']):
-            return ProcessingMode.SEARCH
-        elif any(word in query_lower for word in ['知識', 'knowledge', '解釋', 'explain']):
-            return ProcessingMode.KNOWLEDGE
-        elif any(word in query_lower for word in ['深度', 'deep', '分析', 'analyze', '思考']):
-            return ProcessingMode.THINKING
-        else:
-            return ProcessingMode.CHAT
+        # Runtime dispatch path
+        if decision.runtime_type == RuntimeType.AGENT:
+            return await self._agent_runtime.execute(context)
+        return await self._model_runtime.execute(context)
 
     async def process_stream(self, request: Request):
-        """
-        流式處理 - 支持 SSE
+        """Async generator that yields SSE events during processing.
 
-        Args:
-            request: 請求對象
-
-        Yields:
-            SSE 事件
+        Uses an asyncio.Queue to bridge the callback-based logger SSE
+        system into a true async generator.
         """
-        # 設置流式標記
+        import json
         request.stream = True
 
-        # 設置 SSE 回調
-        events = []
+        event_queue: asyncio.Queue = asyncio.Queue()
+        done = asyncio.Event()
 
         def sse_callback(signal, data):
-            events.append({"event": signal, "data": data})
+            event_queue.put_nowait({"event": signal, "data": data})
 
         self.logger.set_sse_callback(sse_callback)
 
-        # 處理請求
-        response = await self.process(request)
+        async def _run():
+            try:
+                resp = await self.process(request)
+                event_queue.put_nowait({
+                    "event": EventType.RESULT.value,
+                    "data": {"response": resp.result, "trace_id": resp.trace_id},
+                })
+            except Exception as e:
+                event_queue.put_nowait({
+                    "event": EventType.ERROR.value,
+                    "data": {"message": str(e)},
+                })
+            finally:
+                done.set()
 
-        # 返回所有事件
-        for event in events:
-            yield event
+        task = asyncio.create_task(_run())
 
-        # 最終響應
-        yield {
-            "event": "result",
-            "data": {"response": response.result}
-        }
+        try:
+            while not done.is_set() or not event_queue.empty():
+                try:
+                    evt = await asyncio.wait_for(event_queue.get(), timeout=0.1)
+                    yield evt
+                except asyncio.TimeoutError:
+                    continue
+        finally:
+            if not task.done():
+                task.cancel()
 
-    def register_processor(self, mode: ProcessingMode, processor_class):
+    @property
+    def metrics(self):
+        """Return cognitive metrics summary."""
+        return self._metrics.get_summary()
+
+    def register_processor(self, mode, processor_class):
         """
         註冊自定義處理器
 
         Args:
-            mode: 處理模式
+            mode: 處理模式 (ProcessingMode instance)
             processor_class: 處理器類
         """
         self.processor_factory.register_processor(mode, processor_class)
-        self.logger.info(f"Registered processor for mode: {mode.value}")
+        self.logger.info(f"Registered processor for mode: {mode}")
 
 
 # ========================================
@@ -241,7 +338,7 @@ async def quick_process(query: str, mode: str = "auto") -> str:
 
     Args:
         query: 查詢字符串
-        mode: 處理模式
+        mode: 處理模式 (e.g., "auto", "chat", "search")
 
     Returns:
         str: 處理結果
@@ -251,7 +348,7 @@ async def quick_process(query: str, mode: str = "auto") -> str:
 
     request = Request(
         query=query,
-        mode=ProcessingMode(mode)
+        mode=Modes.from_name(mode)
     )
 
     response = await engine.process(request)

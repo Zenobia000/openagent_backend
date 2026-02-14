@@ -1,14 +1,17 @@
-"""
-OpenAI LLM Client - 簡化版本
-"""
+"""OpenAI LLM provider."""
+
+import os
+from typing import Any, AsyncGenerator, Dict, Optional
 
 from openai import AsyncOpenAI
-import os
-from typing import Optional, Dict, Any
+
+from .base import LLMProvider
+from .errors import OpenAIError
+from .gpt5_adapter import GPT5Adapter
 
 
-class OpenAILLMClient:
-    """OpenAI LLM 客戶端"""
+class OpenAILLMClient(LLMProvider):
+    """OpenAI LLM client (GPT-4o, GPT-4o-mini, etc.)."""
 
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4o-mini"):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
@@ -21,45 +24,56 @@ class OpenAILLMClient:
 
         self.client = AsyncOpenAI(api_key=self.api_key)
 
-    async def generate(self, prompt: str, **kwargs) -> tuple[str, Dict[str, Any]]:
-        """生成回應，返回 (content, token_info)"""
+    @property
+    def provider_name(self) -> str:
+        return "openai"
+
+    @property
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    async def generate(self, prompt: str, **kwargs) -> str | tuple[str, Dict[str, Any]]:
+        """Generate a response via OpenAI ChatCompletion."""
         try:
             params = {
                 "model": self.model,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": kwargs.get("temperature", self.temperature),
+                "temperature": kwargs.get("temperature", self.temperature)
             }
 
-            # 根據模型選擇正確的參數
-            if self.model in ["gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"]:
-                params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
-            else:
-                params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)
+            # 只有當明確指定 max_tokens 時才添加此參數
+            max_tokens = kwargs.get("max_tokens")
+            if max_tokens is not None and max_tokens > 0:
+                params["max_tokens"] = max_tokens
+
+            # 使用 GPT5Adapter 適配參數
+            params = GPT5Adapter.adapt_parameters(self.model, params)
 
             response = await self.client.chat.completions.create(**params)
 
-            # 提取 token 使用資訊
             token_info = {
                 "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
                 "completion_tokens": response.usage.completion_tokens if response.usage else 0,
-                "total_tokens": response.usage.total_tokens if response.usage else 0
+                "total_tokens": response.usage.total_tokens if response.usage else 0,
             }
 
-            # 為了向後兼容，如果 kwargs 中有 return_token_info=True，返回元組
-            if kwargs.get("return_token_info", False):
-                return response.choices[0].message.content, token_info
+            # 檢查響應內容是否為空
+            content = response.choices[0].message.content
+            if not content:
+                content = "[Empty response from OpenAI API]"
+                import logging
+                logging.warning(f"OpenAI API returned empty content for model {self.model}")
 
-            # 默認只返回內容（向後兼容）
-            return response.choices[0].message.content
+            if kwargs.get("return_token_info", False):
+                return content, token_info
+
+            return content
 
         except Exception as e:
-            print(f"Error calling OpenAI: {e}")
-            if kwargs.get("return_token_info", False):
-                return f"[Error] {str(e)}", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-            return f"[Error] {str(e)}"
+            raise OpenAIError(f"OpenAI API call failed: {e}") from e
 
-    async def stream(self, prompt: str, **kwargs):
-        """串流生成"""
+    async def stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Stream response tokens via OpenAI ChatCompletion."""
         params = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -67,11 +81,13 @@ class OpenAILLMClient:
             "stream": True,
         }
 
-        # 根據模型選擇正確的參數
-        if self.model in ["gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-5"]:
-            params["max_completion_tokens"] = kwargs.get("max_tokens", self.max_tokens)
-        else:
-            params["max_tokens"] = kwargs.get("max_tokens", self.max_tokens)
+        # 只有當明確指定 max_tokens 時才添加此參數
+        max_tokens = kwargs.get("max_tokens")
+        if max_tokens is not None and max_tokens > 0:
+            params["max_tokens"] = max_tokens
+
+        # 使用 GPT5Adapter 適配參數
+        params = GPT5Adapter.adapt_parameters(self.model, params)
 
         async for chunk in await self.client.chat.completions.create(**params):
             if chunk.choices[0].delta.content:

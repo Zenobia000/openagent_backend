@@ -1,0 +1,41 @@
+# OpenCode Platform - MCP Server Configuration
+# Define external MCP servers that the platform can connect to as a client.
+# Each server exposes tools and/or resources via the Model Context Protocol.
+#
+# Supported transports:
+#   stdio - Local subprocess (command + args)
+#   sse   - Remote HTTP + SSE (url + headers)
+#
+# Environment variables can be referenced with ${VAR_NAME} syntax.
+
+servers: []
+
+# Available MCP Server packages (uncomment to enable):
+#
+# servers:
+#   - name: "weather"
+#     transport: "stdio"
+#     command: "python"
+#     args: ["packages/weather/server.py"]
+#     env:
+#       OPENWEATHERMAP_API_KEY: "${OPENWEATHERMAP_API_KEY}"
+#
+#   - name: "translator"
+#     transport: "stdio"
+#     command: "python"
+#     args: ["packages/translator/server.py"]
+#     env:
+#       OPENAI_API_KEY: "${OPENAI_API_KEY}"
+#
+# External MCP Server examples:
+#
+#   - name: "filesystem"
+#     transport: "stdio"
+#     command: "npx"
+#     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp/safe"]
+#
+#   - name: "remote-db"
+#     transport: "sse"
+#     url: "https://mcp.example.com/database"
+#     headers:
+#       Authorization: "Bearer ${MCP_DB_TOKEN}"

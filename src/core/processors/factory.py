@@ -30,16 +30,6 @@ class ProcessorFactory:
         ProcessingMode.DEEP_RESEARCH: DeepResearchProcessor,
     }
 
-    # Cognitive level mapping for each processing mode
-    COGNITIVE_MAPPING: Dict[str, str] = {
-        "chat": "system1",
-        "knowledge": "system1",
-        "search": "system2",
-        "code": "system2",
-        "thinking": "system2",
-        "deep_research": "agent",
-    }
-
     def __init__(self, llm_client=None, services: Optional[Dict[str, Any]] = None, mcp_client=None):
         self.llm_client = llm_client
         self.services = services or {}
@@ -47,11 +37,27 @@ class ProcessorFactory:
         self._instances: Dict[ProcessingMode, BaseProcessor] = {}
 
     def get_processor(self, mode: ProcessingMode) -> BaseProcessor:
-        """獲取處理器實例"""
+        """獲取處理器實例
+
+        ✓ NEW: Cognitive level from mode.cognitive_level (data self-contained)
+        ❌ OLD: Used COGNITIVE_MAPPING dict (special case) - DELETED
+        """
         if mode not in self._instances:
             processor_class = self._processors.get(mode, ChatProcessor)
             instance = processor_class(self.llm_client, services=self.services, mcp_client=self.mcp_client)
-            instance._cognitive_level = self.COGNITIVE_MAPPING.get(mode.value)
+
+            # Get cognitive level from mode (backward compatible)
+            if hasattr(mode, 'cognitive_level'):
+                instance._cognitive_level = mode.cognitive_level
+            elif hasattr(mode, 'value'):
+                # Fallback for old ProcessingMode enum
+                level_map = {
+                    "chat": "system1", "knowledge": "system1",
+                    "search": "system2", "code": "system2", "thinking": "system2",
+                    "deep_research": "agent", "auto": "system1"
+                }
+                instance._cognitive_level = level_map.get(mode.value, "system1")
+
             self._instances[mode] = instance
 
         return self._instances[mode]

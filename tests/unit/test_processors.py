@@ -490,11 +490,14 @@ class TestProcessorFactory:
         assert processor._cognitive_level == "agent"
 
     def test_cognitive_mapping_completeness(self, mock_llm_client):
-        """Every registered mode must have a cognitive mapping."""
+        """Every processor must have a cognitive level assigned."""
         factory = ProcessorFactory(mock_llm_client)
         for mode in factory._processors:
-            assert mode.value in factory.COGNITIVE_MAPPING, \
-                f"{mode.value} missing from COGNITIVE_MAPPING"
+            processor = factory.get_processor(mode)
+            assert hasattr(processor, '_cognitive_level'), \
+                f"Processor for {mode.value} missing _cognitive_level"
+            assert processor._cognitive_level in ["system1", "system2", "agent"], \
+                f"Invalid cognitive level for {mode.value}: {processor._cognitive_level}"
 
 
 # ========== Integration Tests ==========

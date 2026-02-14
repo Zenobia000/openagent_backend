@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from core.engine import RefactoredEngine
-from core.models_v2 import Request, Modes
+from core.models_v2 import Request, Modes, ProcessingMode
 from auth import get_current_user, get_optional_user, TokenData
 from auth.jwt import encode_token, UserRole, ACCESS_TOKEN_EXPIRE_MINUTES
 from api.schemas import (

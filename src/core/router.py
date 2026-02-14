@@ -143,8 +143,6 @@ class DefaultRouter(RouterProtocol):
 
         return RoutingDecision(
             mode=mode,
-            cognitive_level=cognitive_level,
-            runtime_type=runtime_type,
             complexity=complexity,
             confidence=0.85,
             reason=reason,

@@ -24,7 +24,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from core.engine import RefactoredEngine
-from core.models import Request
+from core.models_v2 import Request
 from services.llm.openai_client import OpenAILLMClient
 
 

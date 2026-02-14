@@ -10,8 +10,8 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from core.router import DefaultRouter, ComplexityAnalyzer
-from core.models import (
-    Request, ProcessingMode, CognitiveLevel, RuntimeType,
+from core.models_v2 import (
+    Request, Modes, RuntimeType,
     RoutingDecision, ComplexityScore,
 )
 from core.feature_flags import FeatureFlags
@@ -54,45 +54,45 @@ class TestRouterModeSelection:
 
     @pytest.mark.asyncio
     async def test_auto_resolves_to_chat(self, router):
-        req = Request(query="你好，今天天氣如何？", mode=ProcessingMode.AUTO)
+        req = Request(query="你好，今天天氣如何？", mode=Modes.AUTO)
         decision = await router.route(req)
-        assert decision.mode == ProcessingMode.CHAT
+        assert decision.mode == Modes.CHAT
 
     @pytest.mark.asyncio
     async def test_auto_resolves_to_code(self, router):
-        req = Request(query="幫我寫一段 code", mode=ProcessingMode.AUTO)
+        req = Request(query="幫我寫一段 code", mode=Modes.AUTO)
         decision = await router.route(req)
-        assert decision.mode == ProcessingMode.CODE
+        assert decision.mode == Modes.CODE
 
     @pytest.mark.asyncio
     async def test_auto_resolves_to_search(self, router):
-        req = Request(query="搜尋最新 AI 新聞", mode=ProcessingMode.AUTO)
+        req = Request(query="搜尋最新 AI 新聞", mode=Modes.AUTO)
         decision = await router.route(req)
-        assert decision.mode == ProcessingMode.SEARCH
+        assert decision.mode == Modes.SEARCH
 
     @pytest.mark.asyncio
     async def test_auto_resolves_to_knowledge(self, router):
-        req = Request(query="解釋量子計算", mode=ProcessingMode.AUTO)
+        req = Request(query="解釋量子計算", mode=Modes.AUTO)
         decision = await router.route(req)
-        assert decision.mode == ProcessingMode.KNOWLEDGE
+        assert decision.mode == Modes.KNOWLEDGE
 
     @pytest.mark.asyncio
     async def test_auto_resolves_to_thinking(self, router):
-        req = Request(query="深度分析氣候變化", mode=ProcessingMode.AUTO)
+        req = Request(query="深度分析氣候變化", mode=Modes.AUTO)
         decision = await router.route(req)
-        assert decision.mode == ProcessingMode.THINKING
+        assert decision.mode == Modes.THINKING
 
     @pytest.mark.asyncio
     async def test_explicit_mode_preserved(self, router):
         """Explicit mode should not be overridden."""
-        req = Request(query="hello", mode=ProcessingMode.THINKING)
+        req = Request(query="hello", mode=Modes.THINKING)
         decision = await router.route(req)
-        assert decision.mode == ProcessingMode.THINKING
+        assert decision.mode == Modes.THINKING
         assert decision.reason == "explicitly specified"
 
     @pytest.mark.asyncio
     async def test_auto_mode_sets_reason(self, router):
-        req = Request(query="hello", mode=ProcessingMode.AUTO)
+        req = Request(query="hello", mode=Modes.AUTO)
         decision = await router.route(req)
         assert "auto-selected" in decision.reason
 
@@ -104,21 +104,21 @@ class TestRouterCognitiveLevel:
 
     @pytest.mark.asyncio
     async def test_chat_is_system1(self, router):
-        req = Request(query="hi", mode=ProcessingMode.CHAT)
+        req = Request(query="hi", mode=Modes.CHAT)
         decision = await router.route(req)
-        assert decision.cognitive_level == CognitiveLevel.SYSTEM1
+        assert decision.cognitive_level == "system1"
 
     @pytest.mark.asyncio
     async def test_thinking_is_system2(self, router):
-        req = Request(query="think", mode=ProcessingMode.THINKING)
+        req = Request(query="think", mode=Modes.THINKING)
         decision = await router.route(req)
-        assert decision.cognitive_level == CognitiveLevel.SYSTEM2
+        assert decision.cognitive_level == "system2"
 
     @pytest.mark.asyncio
     async def test_deep_research_is_agent(self, router):
-        req = Request(query="research", mode=ProcessingMode.DEEP_RESEARCH)
+        req = Request(query="research", mode=Modes.DEEP_RESEARCH)
         decision = await router.route(req)
-        assert decision.cognitive_level == CognitiveLevel.AGENT
+        assert decision.cognitive_level == "agent"
 
 
 # ========== DefaultRouter: Runtime Dispatch ==========
@@ -128,21 +128,21 @@ class TestRouterRuntimeDispatch:
 
     @pytest.mark.asyncio
     async def test_system1_gets_model_runtime(self, router):
-        req = Request(query="hi", mode=ProcessingMode.CHAT)
+        req = Request(query="hi", mode=Modes.CHAT)
         decision = await router.route(req)
-        assert decision.runtime_type == RuntimeType.MODEL_RUNTIME
+        assert decision.runtime_type == RuntimeType.MODEL
 
     @pytest.mark.asyncio
     async def test_system2_gets_model_runtime(self, router):
-        req = Request(query="think", mode=ProcessingMode.THINKING)
+        req = Request(query="think", mode=Modes.THINKING)
         decision = await router.route(req)
-        assert decision.runtime_type == RuntimeType.MODEL_RUNTIME
+        assert decision.runtime_type == RuntimeType.MODEL
 
     @pytest.mark.asyncio
     async def test_agent_gets_agent_runtime(self, router):
-        req = Request(query="research", mode=ProcessingMode.DEEP_RESEARCH)
+        req = Request(query="research", mode=Modes.DEEP_RESEARCH)
         decision = await router.route(req)
-        assert decision.runtime_type == RuntimeType.AGENT_RUNTIME
+        assert decision.runtime_type == RuntimeType.AGENT
 
 
 # ========== DefaultRouter: Complexity Integration ==========
@@ -152,13 +152,13 @@ class TestRouterComplexityIntegration:
 
     @pytest.mark.asyncio
     async def test_no_complexity_when_flag_off(self, router):
-        req = Request(query="analyze this deeply", mode=ProcessingMode.AUTO)
+        req = Request(query="analyze this deeply", mode=Modes.AUTO)
         decision = await router.route(req)
         assert decision.complexity is None
 
     @pytest.mark.asyncio
     async def test_complexity_present_when_flag_on(self, router_with_complexity):
-        req = Request(query="analyze this deeply", mode=ProcessingMode.AUTO)
+        req = Request(query="analyze this deeply", mode=Modes.AUTO)
         decision = await router_with_complexity.route(req)
         assert decision.complexity is not None
         assert isinstance(decision.complexity, ComplexityScore)
@@ -173,7 +173,7 @@ class TestComplexityAnalyzer:
     def test_simple_query_low_score(self, analyzer):
         score = analyzer.analyze("hi")
         assert score.score < 0.3
-        assert score.recommended_level == CognitiveLevel.SYSTEM1
+        assert score.recommended_level == "system1"
 
     def test_complex_query_higher_score(self, analyzer):
         query = "請逐步分析並比較 Python 和 Go 的並發模型，為什麼 Go 更適合微服務？"
@@ -209,23 +209,22 @@ class TestRoutingDecisionModel:
 
     def test_default_values(self):
         d = RoutingDecision(
-            mode=ProcessingMode.CHAT,
-            cognitive_level=CognitiveLevel.SYSTEM1,
+            mode=Modes.CHAT,
         )
-        assert d.runtime_type == RuntimeType.MODEL_RUNTIME
+        assert d.cognitive_level == "system1"
+        assert d.runtime_type == RuntimeType.MODEL
         assert d.complexity is None
         assert d.confidence == 0.85
         assert d.reason == ""
 
     def test_full_construction(self):
         d = RoutingDecision(
-            mode=ProcessingMode.DEEP_RESEARCH,
-            cognitive_level=CognitiveLevel.AGENT,
-            runtime_type=RuntimeType.AGENT_RUNTIME,
-            complexity=ComplexityScore(score=0.8, recommended_level=CognitiveLevel.AGENT),
+            mode=Modes.DEEP_RESEARCH,
+            complexity=ComplexityScore(score=0.8, recommended_level="agent"),
             confidence=0.95,
             reason="complex research task",
         )
-        assert d.mode == ProcessingMode.DEEP_RESEARCH
-        assert d.runtime_type == RuntimeType.AGENT_RUNTIME
+        assert d.mode == Modes.DEEP_RESEARCH
+        assert d.cognitive_level == "agent"
+        assert d.runtime_type == RuntimeType.AGENT
         assert d.complexity.score == 0.8

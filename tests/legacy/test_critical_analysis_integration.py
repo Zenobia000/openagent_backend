@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from core.processor import DeepResearchProcessor
-from core.models import ProcessingContext, ProcessingRequest, ProcessingMode
+from core.models_v2 import ProcessingContext, Request, Modes
 
 
 class MockLLMClient:
@@ -162,9 +162,9 @@ async def test_enhanced_workflow():
     test_query = "分析人工智能技術對經濟和社會的多層面影響，評估其優缺點和未來趨勢"
 
     # Create processing context
-    request = ProcessingRequest(
+    request = Request(
         query=test_query,
-        mode=ProcessingMode.DEEP_RESEARCH
+        mode=Modes.DEEP_RESEARCH
     )
 
     context = ProcessingContext(request=request)

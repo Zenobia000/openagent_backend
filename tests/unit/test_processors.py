@@ -518,7 +518,7 @@ class TestProcessorIntegration:
         ]
 
         for mode, query in modes_and_queries:
-            from core.models import Response
+            from core.models_v2 import Response
 
             request = Request(query=query, mode=mode)
             response = Response(
@@ -554,7 +554,7 @@ class TestProcessorIntegration:
         trace_id = "test-trace-123"
 
         for i in range(3):
-            from core.models import Response
+            from core.models_v2 import Response
 
             request = Request(
                 query=f"Query {i}",
@@ -584,7 +584,7 @@ class TestProcessorPerformance:
         factory = ProcessorFactory(mock_llm_client)
 
         # 創建多個並發任務
-        from core.models import Response
+        from core.models_v2 import Response
 
         tasks = []
         for i in range(10):

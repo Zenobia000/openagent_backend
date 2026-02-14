@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from core.engine import RefactoredEngine
-from core.models import Request, ProcessingMode
+from core.models_v2 import Request, Modes
 from core.feature_flags import FeatureFlags
 from core.logger import structured_logger
 
@@ -80,12 +80,12 @@ def quiet_logger():
 
 
 _ALL_EXPLICIT_MODES = [
-    ProcessingMode.CHAT,
-    ProcessingMode.KNOWLEDGE,
-    ProcessingMode.SEARCH,
-    ProcessingMode.CODE,
-    ProcessingMode.THINKING,
-    ProcessingMode.DEEP_RESEARCH,
+    Modes.CHAT,
+    Modes.KNOWLEDGE,
+    Modes.SEARCH,
+    Modes.CODE,
+    Modes.THINKING,
+    Modes.DEEP_RESEARCH,
 ]
 
 
@@ -103,10 +103,10 @@ class TestAllModesLegacy:
 
     @pytest.mark.asyncio
     async def test_auto_mode(self, engine_legacy):
-        req = Request(query="hello there", mode=ProcessingMode.AUTO)
+        req = Request(query="hello there", mode=Modes.AUTO)
         resp = await engine_legacy.process(req)
         assert resp.result is not None
-        assert resp.mode != ProcessingMode.AUTO  # Should be resolved
+        assert resp.mode != Modes.AUTO  # Should be resolved
 
 
 class TestAllModesRuntime:
@@ -122,7 +122,7 @@ class TestAllModesRuntime:
 
     @pytest.mark.asyncio
     async def test_auto_mode(self, engine_runtime):
-        req = Request(query="hello there", mode=ProcessingMode.AUTO)
+        req = Request(query="hello there", mode=Modes.AUTO)
         resp = await engine_runtime.process(req)
         assert resp.result is not None
 
@@ -133,8 +133,8 @@ class TestRuntimeConsistency:
     @pytest.mark.asyncio
     async def test_chat_same_result(self, engine_legacy, engine_runtime, mock_llm):
         """Same LLM mock should produce same result regardless of path."""
-        req_legacy = Request(query="hello", mode=ProcessingMode.CHAT)
-        req_runtime = Request(query="hello", mode=ProcessingMode.CHAT)
+        req_legacy = Request(query="hello", mode=Modes.CHAT)
+        req_runtime = Request(query="hello", mode=Modes.CHAT)
 
         resp_legacy = await engine_legacy.process(req_legacy)
         # Reset the mock side_effect for second call

@@ -18,7 +18,7 @@ from core.enhanced_deep_research import (
     SearchProviderType,
     ResearchEvent
 )
-from core.models import ProcessingContext, Request, Response, ProcessingMode
+from core.models_v2 import ProcessingContext, Request, Response, Modes
 
 
 class ResearchEventHandler:
@@ -99,7 +99,7 @@ async def test_streaming_research():
         request=Request(query=test_query),
         response=Response(
             result="",
-            mode=ProcessingMode.DEEP_RESEARCH,
+            mode=Modes.DEEP_RESEARCH,
             trace_id="test-001"
         )
     )
@@ -213,7 +213,7 @@ async def test_parallel_search_execution():
         request=Request(query="test"),
         response=Response(
             result="",
-            mode=ProcessingMode.DEEP_RESEARCH,
+            mode=Modes.DEEP_RESEARCH,
             trace_id="test-002"
         )
     )

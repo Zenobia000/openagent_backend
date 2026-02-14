@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from core.processor import CodeProcessor
-from core.models import ProcessingContext, Request, ProcessingMode
+from core.models_v2 import ProcessingContext, Request, Modes
 
 async def test_code_extraction():
     """Test the code extraction from LLM response"""

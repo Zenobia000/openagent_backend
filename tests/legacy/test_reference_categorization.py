@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from core.processor import DeepResearchProcessor
-from core.models import ProcessingContext, Request
+from core.models_v2 import ProcessingContext, Request
 from core.errors import ErrorClassifier
 
 

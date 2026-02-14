@@ -105,7 +105,7 @@ async def chat_mode():
 
             elif user_input.lower().startswith('/mode'):
                 parts = user_input.split()
-                if len(parts) > 1 and parts[1] in modes:
+                if len(parts) > 1 and parts[1] in mode_map:
                     old_mode = current_mode.name
                     current_mode = mode_map[parts[1]]
                     logger.info(
@@ -118,7 +118,7 @@ async def chat_mode():
                         f"Invalid mode: {parts[1] if len(parts) > 1 else 'none'}",
                         "main", "mode_switch"
                     )
-                    print(f"❌ 無效模式。可用: {', '.join(modes.keys())}\n")
+                    print(f"❌ 無效模式。可用: {', '.join(mode_map.keys())}\n")
                 continue
 
             elif user_input:

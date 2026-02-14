@@ -19,7 +19,7 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from core.engine import RefactoredEngine
-from core.models import Request, ProcessingMode
+from core.models_v2 import Request, Modes
 from core.logger import structured_logger as logger
 from services.llm import create_llm_client
 
@@ -45,17 +45,17 @@ async def chat_mode():
     logger.info("✅ AI Engine initialized successfully", "main", "initialize")
 
     # 模式映射
-    modes = {
-        "auto": ProcessingMode.AUTO,
-        "chat": ProcessingMode.CHAT,
-        "think": ProcessingMode.THINKING,
-        "thinking": ProcessingMode.THINKING,
-        "knowledge": ProcessingMode.KNOWLEDGE,
-        "search": ProcessingMode.SEARCH,
-        "code": ProcessingMode.CODE,
-        "research": ProcessingMode.DEEP_RESEARCH,
-        "deep": ProcessingMode.DEEP_RESEARCH,
-        "deep_research": ProcessingMode.DEEP_RESEARCH,
+    mode_map = {
+        "auto": Modes.AUTO,
+        "chat": Modes.CHAT,
+        "think": Modes.THINKING,
+        "thinking": Modes.THINKING,
+        "knowledge": Modes.KNOWLEDGE,
+        "search": Modes.SEARCH,
+        "code": Modes.CODE,
+        "research": Modes.DEEP_RESEARCH,
+        "deep": Modes.DEEP_RESEARCH,
+        "deep_research": Modes.DEEP_RESEARCH,
     }
 
     print("\n" + "="*50)
@@ -67,14 +67,14 @@ async def chat_mode():
     print("  /exit       - 退出")
     print("-"*50)
 
-    current_mode = ProcessingMode.AUTO
+    current_mode = Modes.AUTO
     session_start = datetime.now()
     query_count = 0
 
     while True:
         try:
             # 顯示提示符
-            prompt = f"[{current_mode.value}]> "
+            prompt = f"[{current_mode.name}]> "
             raw_input = input(prompt).strip()
             # Sanitize surrogate characters from WSL2 terminal
             user_input = raw_input.encode('utf-8', errors='replace').decode('utf-8')
@@ -106,13 +106,13 @@ async def chat_mode():
             elif user_input.lower().startswith('/mode'):
                 parts = user_input.split()
                 if len(parts) > 1 and parts[1] in modes:
-                    old_mode = current_mode.value
-                    current_mode = modes[parts[1]]
+                    old_mode = current_mode.name
+                    current_mode = mode_map[parts[1]]
                     logger.info(
-                        f"🔄 Mode switched: {old_mode} -> {current_mode.value}",
+                        f"🔄 Mode switched: {old_mode} -> {current_mode.name}",
                         "main", "mode_switch"
                     )
-                    print(f"✅ 切換到 {current_mode.value} 模式\n")
+                    print(f"✅ 切換到 {current_mode.name} 模式\n")
                 else:
                     logger.warning(
                         f"Invalid mode: {parts[1] if len(parts) > 1 else 'none'}",
@@ -131,23 +131,23 @@ async def chat_mode():
 
                 # 記錄接收請求
                 logger.info(
-                    f"📥 Received request: mode={current_mode.value}, query='{user_input[:50]}...'",
+                    f"📥 Received request: mode={current_mode.name}, query='{user_input[:50]}...'",
                     "main", "process"
                 )
 
                 # 顯示處理狀態
-                logger.info(f"🌐 Processing with mode: {current_mode.value}", "main", "process")
+                logger.info(f"🌐 Processing with mode: {current_mode.name}", "main", "process")
 
                 # 根據模式顯示不同的處理資訊
-                if current_mode == ProcessingMode.THINKING:
+                if current_mode == Modes.THINKING:
                     logger.info("🧠 Starting deep thinking process...", "main", "thinking")
-                elif current_mode == ProcessingMode.KNOWLEDGE:
+                elif current_mode == Modes.KNOWLEDGE:
                     logger.info("📚 Retrieving from knowledge base...", "main", "knowledge")
-                elif current_mode == ProcessingMode.SEARCH:
+                elif current_mode == Modes.SEARCH:
                     logger.info("🔍 Searching web...", "main", "search")
-                elif current_mode == ProcessingMode.CODE:
+                elif current_mode == Modes.CODE:
                     logger.info("💻 Preparing code execution...", "main", "code")
-                elif current_mode == ProcessingMode.DEEP_RESEARCH:
+                elif current_mode == Modes.DEEP_RESEARCH:
                     logger.info("🔬 Starting deep research process...", "main", "deep_research")
 
                 # 使用 logger 的性能測量
@@ -174,8 +174,8 @@ async def chat_mode():
                 resolved_mode = response.mode
                 cognitive = resolved_mode.cognitive_level
                 print(f"\n📈 處理資訊:")
-                print(f"  🧠 認知層級: {cognitive} | 模式: {resolved_mode.value}" +
-                      (f" (auto -> {resolved_mode.value})" if current_mode == ProcessingMode.AUTO else ""))
+                print(f"  🧠 認知層級: {cognitive} | 模式: {resolved_mode.name}" +
+                      (f" (auto -> {resolved_mode.name})" if current_mode == Modes.AUTO else ""))
                 print(f"  ⏱️  處理時間: {elapsed_time:.0f}ms")
                 print(f"  📊 Token 使用: {response.tokens_used if response.tokens_used > 0 else 'N/A'}")
                 print(f"  🔗 LLM 提供者: {llm_client.provider_name}")
@@ -209,15 +209,15 @@ async def test_mode():
     await engine.initialize()
 
     tests = [
-        ("Hello", ProcessingMode.CHAT),
-        ("1+1=?", ProcessingMode.THINKING),
-        ("What is RAG?", ProcessingMode.KNOWLEDGE),
-        ("Explain quantum computing", ProcessingMode.DEEP_RESEARCH),
+        ("Hello", Modes.CHAT),
+        ("1+1=?", Modes.THINKING),
+        ("What is RAG?", Modes.KNOWLEDGE),
+        ("Explain quantum computing", Modes.DEEP_RESEARCH),
     ]
 
     for i, (query, mode) in enumerate(tests, 1):
         logger.info(
-            f"Running test {i}/{len(tests)}: query='{query}', mode={mode.value}",
+            f"Running test {i}/{len(tests)}: query='{query}', mode={mode.name}",
             "main", "test"
         )
         request = Request(query=query, mode=mode)

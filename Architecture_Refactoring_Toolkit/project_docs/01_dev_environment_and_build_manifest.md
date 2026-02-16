@@ -2,15 +2,15 @@
 
 ---
 
-**Document Version:** `v2.1`
-**Last Updated:** `2026-02-13`
-**Status:** `Current`
+**Document Version:** `v2.2`
+**Last Updated:** `2026-02-16`
+**Status:** `Current (v3.0 + Context Engineering)`
 
 ---
 
 ## 1. Overview
 
-This document ensures all developers can set up a consistent development environment within 15 minutes. OpenCode Platform is a cognitive AI engine with a 3-tier architecture (System 1 / System 2 / Agent), dual runtime dispatch, and multi-provider LLM fallback chain.
+This document ensures all developers can set up a consistent development environment within 15 minutes. OpenCode Platform is a cognitive AI engine with a 3-tier architecture (System 1 / System 2 / Agent), dual runtime dispatch, multi-provider LLM fallback chain, and Manus-aligned Context Engineering (v3.1).
 
 ---
 
@@ -142,6 +142,12 @@ python3 -m pytest tests/ -o "addopts="
 python3 -m pytest tests/unit/ -o "addopts="
 python3 -m pytest tests/integration/ -o "addopts="
 python3 -m pytest tests/e2e/ -o "addopts="
+
+# Context Engineering tests
+python3 -m pytest tests/core/context/ -o "addopts="     # CE unit tests
+python3 -m pytest tests/core/routing/ -o "addopts="     # Tool mask tests
+python3 -m pytest tests/performance/ -o "addopts="       # Performance benchmarks
+python3 -m pytest tests/integration/test_context_engineering.py -o "addopts="
 ```
 
 ---
@@ -154,6 +160,7 @@ python3 -m pytest tests/e2e/ -o "addopts="
 | `ModuleNotFoundError` | Run from project root; `main.py` adds `src/` to path automatically |
 | `pytest-cov` not installed | Use `-o "addopts="` to override pyproject.toml coverage flags |
 | Unicode crash in WSL2 | Fixed in `core/logger.py` (surrogate sanitization) |
+| Context Engineering not active | All CE flags default OFF in `config/cognitive_features.yaml`. Enable `context_engineering.enabled` master switch first, then individual flags |
 
 ---
 

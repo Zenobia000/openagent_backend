@@ -110,8 +110,8 @@ class TestChatProcessor:
 
         await processor.process(processing_context)
 
-        # 驗證步驟被正確標記
-        assert processing_context.current_step == "chat"
+        # 驗證步驟被正確標記（mark_step_complete resets current_step to ""）
+        assert "chat" in processing_context.steps_completed
 
 
 # ========== ThinkingProcessor Tests ==========
@@ -190,10 +190,11 @@ class TestSearchProcessor:
         processor = SearchProcessor(mock_llm_client)
         processing_context.request.mode = Modes.SEARCH
 
-        # 模擬 SERP 生成
+        # 模擬 SERP 生成 (generate queries → perform search → evaluate quality → synthesis)
         mock_llm_client.generate.side_effect = [
             '```json\n[{"query": "test search", "researchGoal": "find info"}]\n```',
             "Search result 1",
+            "YES",
             "Final compiled result"
         ]
 
@@ -236,6 +237,7 @@ class TestSearchProcessor:
         mock_llm_client.generate.side_effect = [
             queries_json,
             "Result 1", "Result 2", "Result 3",
+            "YES",
             "Final compiled result"
         ]
 
@@ -353,12 +355,13 @@ class TestDeepResearchProcessor:
         processor = DeepResearchProcessor(mock_llm_client)
         processing_context.request.mode = Modes.DEEP_RESEARCH
 
-        # 簡化響應以快速測試
+        # plan → SERP queries → model_based_search → review(YES) → final report
         mock_llm_client.generate.side_effect = [
             "Plan",
             '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',
-            "Result", "Processed",
-            "Final"
+            "Search result from model",
+            "YES sufficient",
+            "Final research report"
         ]
 
         await processor.process(processing_context)
@@ -375,11 +378,13 @@ class TestDeepResearchProcessor:
         processor = DeepResearchProcessor(mock_llm_client)
         processing_context.request.mode = Modes.DEEP_RESEARCH
 
+        # plan → SERP queries → model_based_search → review(YES) → final report
         mock_llm_client.generate.side_effect = [
             "Plan",
             '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',
-            "Result", "Processed",
-            "Final"
+            "Search result from model",
+            "YES sufficient",
+            "Final research report"
         ]
 
         await processor.process(processing_context)
@@ -403,12 +408,13 @@ class TestDeepResearchProcessor:
         processor = DeepResearchProcessor(mock_llm_client)
         processing_context.request.mode = Modes.DEEP_RESEARCH
 
-        # 模擬 SERP 解析錯誤
+        # plan → invalid SERP (fallback to 1 default task) → model search → review(YES) → final
         mock_llm_client.generate.side_effect = [
             "Plan",
-            "Invalid JSON",  # 這將導致解析失敗
-            "Fallback result",
-            "Final"
+            "Invalid JSON",  # 這將導致解析失敗，fallback to default query
+            "Model search result",
+            "YES sufficient",
+            "Final report"
         ]
 
         result = await processor.process(processing_context)
@@ -534,8 +540,9 @@ class TestProcessorIntegration:
                 mock_llm_client.generate.side_effect = [
                     "Plan",
                     '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',
-                    "Result", "Processed",
-                    "Final"
+                    "Search result from model",
+                    "YES sufficient",
+                    "Final research report"
                 ]
             else:
                 mock_llm_client.generate.return_value = f"Response for {query}"

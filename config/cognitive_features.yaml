@@ -59,3 +59,21 @@ cognitive_features:
     # Master switch for all refactoring features
     # Set to true to enable individual refactor flags
     enabled: false
+
+  # ========================================
+  # Context Engineering (Manus-aligned)
+  # ========================================
+  # Reference: Architecture_Refactoring_Toolkit/project_docs/類人類思維架構設計/IMPLEMENTATION_PLAN_V2.md
+  context_engineering:
+    enabled: false                  # Master switch for context engineering
+
+    append_only_context: false      # ContextManager: append-only context (KV-Cache friendly)
+    todo_recitation: false          # TodoRecitation: todo.md recitation pattern
+    error_preservation: false       # ErrorPreservation: keep failed attempts in context
+    tool_masking: false             # ToolAvailabilityMask: logit masking for tool selection
+    template_randomizer: false      # TemplateRandomizer: structural noise injection
+    file_based_memory: false        # FileBasedMemory: file system as agent memory
+
+    # Configuration values
+    file_memory_workspace: ".agent_workspace"
+    compress_keep_last: 10          # Number of entries to keep after compression

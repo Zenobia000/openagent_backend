@@ -21,11 +21,12 @@ from core.logger import structured_logger
 @pytest.fixture
 def mock_llm():
     client = AsyncMock()
+    # plan → SERP queries → model_based_search → review(YES) → final report
     client.generate = AsyncMock(side_effect=[
         "Research plan",
         '```json\n[{"query": "test q", "researchGoal": "goal", "priority": 1}]\n```',
-        "Search result",
-        "Processed result",
+        "Search result from model",
+        "YES sufficient",
         "Final research report",
     ])
     return client
@@ -84,7 +85,7 @@ class TestAgentRuntimeExecution:
              patch.object(structured_logger, 'log_llm_call'):
             await agent_runtime.execute(ctx)
 
-        # Verify workflow metadata was stored
-        assert "workflow_state" in ctx.intermediate_results
-        ws = ctx.intermediate_results["workflow_state"]
+        # Verify workflow metadata was stored (in response.metadata, not intermediate_results)
+        assert "workflow_state" in ctx.response.metadata
+        ws = ctx.response.metadata["workflow_state"]
         assert ws["status"] == "completed"

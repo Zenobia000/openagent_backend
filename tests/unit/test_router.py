@@ -1,5 +1,7 @@
 """
-Unit tests for Router, ComplexityAnalyzer, and RuntimeDispatcher.
+Unit tests for Router, ComplexityAnalyzer, and ToolAvailabilityMask.
+
+Migrated from core.models (old Enum-based) to core.models_v2 (frozen dataclass).
 """
 
 import pytest
@@ -15,6 +17,7 @@ from core.models_v2 import (
     RoutingDecision, ComplexityScore,
 )
 from core.feature_flags import FeatureFlags
+from core.routing.tool_mask import ToolAvailabilityMask
 
 
 # ========== Fixtures ==========
@@ -208,11 +211,9 @@ class TestRoutingDecisionModel:
     """Test the RoutingDecision dataclass."""
 
     def test_default_values(self):
-        d = RoutingDecision(
-            mode=Modes.CHAT,
-        )
-        assert d.cognitive_level == "system1"
-        assert d.runtime_type == RuntimeType.MODEL
+        d = RoutingDecision(mode=Modes.CHAT)
+        assert d.cognitive_level == "system1"  # @property from mode
+        assert d.runtime_type == RuntimeType.MODEL  # @property from mode
         assert d.complexity is None
         assert d.confidence == 0.85
         assert d.reason == ""
@@ -225,6 +226,22 @@ class TestRoutingDecisionModel:
             reason="complex research task",
         )
         assert d.mode == Modes.DEEP_RESEARCH
-        assert d.cognitive_level == "agent"
-        assert d.runtime_type == RuntimeType.AGENT
+        assert d.cognitive_level == "agent"  # @property
+        assert d.runtime_type == RuntimeType.AGENT  # @property
         assert d.complexity.score == 0.8
+
+
+# ========== ToolAvailabilityMask ==========
+
+class TestToolMaskIntegration:
+    """Test ToolAvailabilityMask integration with Router."""
+
+    def test_router_exposes_tool_mask(self, router):
+        """Router should expose tool_mask property."""
+        assert isinstance(router.tool_mask, ToolAvailabilityMask)
+
+    def test_tool_mask_all_modes_have_respond(self, router):
+        """All modes should at least allow 'respond' tool."""
+        for mode in Modes.all():
+            allowed = router.tool_mask.get_allowed_tools(mode.name)
+            assert "respond" in allowed, f"{mode.name} missing respond"

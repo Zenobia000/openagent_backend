@@ -15,6 +15,7 @@ from .router import DefaultRouter
 from .runtime import ModelRuntime, AgentRuntime
 from .metrics import CognitiveMetrics
 from .service_initializer import ServiceInitializer
+from .context import ContextManager, TodoRecitation, ErrorPreservation, TemplateRandomizer, FileBasedMemory
 
 
 class RefactoredEngine:
@@ -48,6 +49,36 @@ class RefactoredEngine:
         self._a2a_client = None
         self._package_manager = None
         self.initialized = False
+
+        # Context Engineering (Manus-aligned, feature-flag controlled)
+        self._ce_enabled = self.feature_flags.is_enabled("context_engineering.enabled")
+        if self._ce_enabled and self.feature_flags.is_enabled("context_engineering.append_only_context"):
+            self.context_manager = ContextManager(self.feature_flags)
+        else:
+            self.context_manager = None
+
+        if self._ce_enabled and self.feature_flags.is_enabled("context_engineering.todo_recitation"):
+            self._todo_recitation = TodoRecitation(self.feature_flags)
+        else:
+            self._todo_recitation = None
+
+        self._error_preservation = (
+            self._ce_enabled
+            and self.feature_flags.is_enabled("context_engineering.error_preservation")
+        )
+
+        if self._ce_enabled and self.feature_flags.is_enabled("context_engineering.template_randomizer"):
+            self._template_randomizer = TemplateRandomizer(self.feature_flags)
+        else:
+            self._template_randomizer = None
+
+        if self._ce_enabled and self.feature_flags.is_enabled("context_engineering.file_based_memory"):
+            workspace = self.feature_flags.get_value(
+                "context_engineering.file_memory_workspace", ".agent_workspace"
+            )
+            self._file_memory = FileBasedMemory(workspace_dir=workspace, feature_flags=self.feature_flags)
+        else:
+            self._file_memory = None
 
     async def initialize(self):
         """初始化引擎 — 建立外部服務（graceful degradation）
@@ -126,6 +157,14 @@ class RefactoredEngine:
         )
         context = ProcessingContext(request=request, response=response)
 
+        # Context Engineering: reset and append user query
+        if self.context_manager:
+            self.context_manager.reset()
+            self.context_manager.append_user(request.query)
+        if self._todo_recitation:
+            self._todo_recitation.reset()
+            self._todo_recitation.create_initial_plan(request.query, str(request.mode))
+
         try:
             # 記錄開始
             self.logger.info(
@@ -154,6 +193,12 @@ class RefactoredEngine:
             # Execute via runtime dispatch or legacy path
             with self.logger.measure(f"process_{request.mode}"):
                 result = await self._execute(decision, context)
+
+            # Context Engineering: append assistant result
+            if self.context_manager:
+                self.context_manager.append_assistant(result)
+            if self._todo_recitation:
+                self._todo_recitation.update_from_output(result)
 
             # 更新響應
             response.result = result
@@ -245,12 +290,36 @@ class RefactoredEngine:
         if not use_runtime:
             # Legacy path - direct ProcessorFactory (backward compatible)
             processor = self.processor_factory.get_processor(context.request.mode)
-            return await processor.process(context)
+            result = await processor.process(context)
+        elif decision.runtime_type == RuntimeType.AGENT:
+            result = await self._agent_runtime.execute(context)
+        else:
+            result = await self._model_runtime.execute(context)
 
-        # Runtime dispatch path
-        if decision.runtime_type == RuntimeType.AGENT:
-            return await self._agent_runtime.execute(context)
-        return await self._model_runtime.execute(context)
+        # Context Engineering: error preservation with retry
+        if (
+            self._error_preservation
+            and ErrorPreservation.should_retry(result, current_retry=0)
+        ):
+            # Append the failed result (never hide it)
+            if self.context_manager:
+                self.context_manager.append_error(result, context.request.query)
+
+            retry_prompt = ErrorPreservation.build_retry_prompt(
+                original_query=context.request.query,
+                failed_result=result,
+            )
+            retry_request = Request(query=retry_prompt, mode=context.request.mode)
+            retry_context = ProcessingContext(request=retry_request, response=context.response)
+
+            if not use_runtime:
+                result = await processor.process(retry_context)
+            elif decision.runtime_type == RuntimeType.AGENT:
+                result = await self._agent_runtime.execute(retry_context)
+            else:
+                result = await self._model_runtime.execute(retry_context)
+
+        return result
 
     async def process_stream(self, request: Request):
         """Async generator that yields SSE events during processing.

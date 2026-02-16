@@ -2,15 +2,27 @@
 
 ---
 
-**文件版本:** `v1.0`
-**最後更新:** `2026-02-09`
-**狀態:** `已批准 (Approved)`
+**文件版本:** `v1.1`
+**最後更新:** `2026-02-16`
+**狀態:** `已批准 (Updated for v3.0 + Context Engineering)`
 
 ---
 
 ## 執行摘要 (Executive Summary)
 
 Deep Research 是一個 AI 驅動的研究助手，採用**五階段串行處理模式**，通過智能協調多個 AI 和搜索服務提供者來完成深度研究任務。
+
+### 架構定位 (v3.0+)
+
+在當前 v3.0 架構中，Deep Research 是唯一使用 `AgentRuntime` 的模式：
+- **ProcessingMode**: `Modes.DEEP_RESEARCH` (frozen dataclass, `cognitive_level="agent"`)
+- **Runtime**: `AgentRuntime` — 提供 WorkflowState 追蹤、smart retry (`retry_with_backoff(max=2)`)、ErrorClassifier 分類
+- **Processor**: `DeepResearchProcessor` (`src/core/processors/research/processor.py`)
+- **Context Engineering** (feature-flag controlled):
+  - `ContextManager`: Append-only context 管理，保護 KV-Cache 前綴穩定性
+  - `TodoRecitation`: 在長時研究過程中維持注意力聚焦
+  - `ErrorPreservation`: 失敗的搜索步驟保留在 context 中，模型從錯誤隱式學習
+  - `ToolAvailabilityMask`: Deep Research 模式允許 `["respond", "web_search", "web_fetch", "code_execute"]`
 
 ## 核心流程序列圖 (Core Sequential Flow)
 
@@ -311,9 +323,10 @@ try {
 ```
 
 ### 降級策略
-1. **AI Provider 失敗**: 自動切換備用模型
-2. **搜索引擎失敗**: 跳過該引擎繼續
+1. **AI Provider 失敗**: 自動切換備用模型 (MultiProviderLLMClient fallback chain)
+2. **搜索引擎失敗**: 跳過該引擎繼續 (Tavily -> Serper -> DuckDuckGo)
 3. **部分失敗**: 使用成功的結果生成報告
+4. **Context Engineering**: 失敗的搜索步驟通過 ErrorPreservation 保留在 context 中，後續步驟可從錯誤中學習 (feature-flag controlled)
 
 ## 配置與擴展 (Configuration & Extension)
 
@@ -371,7 +384,8 @@ interface DeepResearchOptions {
 
 Deep Research 採用**五階段串行架構**，通過智能協調 AI 和搜索服務，實現高質量的自動化研究。關鍵優勢：
 
-✅ **模組化設計** - 各階段獨立，易於維護
-✅ **容錯機制** - 單點失敗不影響整體
-✅ **實時反饋** - Streaming 提升用戶體驗
-✅ **可擴展性** - 輕鬆添加新的提供者
+- **模組化設計** - 各階段獨立，易於維護
+- **容錯機制** - 單點失敗不影響整體 (AgentRuntime retry + ErrorClassifier)
+- **實時反饋** - Streaming 提升用戶體驗
+- **可擴展性** - 輕鬆添加新的提供者
+- **Context Engineering** - Append-only context 保護 KV-Cache，錯誤保留實現隱式學習 (v3.1)

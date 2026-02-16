@@ -158,7 +158,7 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
         eng = _get_engine()
         core_request = Request(
             query=req.query,
-            mode=ProcessingMode(req.mode),
+            mode=Modes.from_name(req.mode),
             temperature=req.temperature,
             max_tokens=req.max_tokens,
             metadata=req.metadata,
@@ -166,11 +166,11 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
         response = await eng.process(core_request)
         return ChatResponse(
             result=response.result,
-            mode=response.mode.value,
+            mode=response.mode.name,
             trace_id=response.trace_id,
             tokens_used=response.tokens_used,
             time_ms=response.time_ms,
-            events=response.events,
+            events=[e.to_dict() for e in response.events],
         )
 
     # ── Chat Stream (SSE) ──
@@ -184,7 +184,7 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
         eng = _get_engine()
         core_request = Request(
             query=req.query,
-            mode=ProcessingMode(req.mode),
+            mode=Modes.from_name(req.mode),
             temperature=req.temperature,
             max_tokens=req.max_tokens,
             stream=True,

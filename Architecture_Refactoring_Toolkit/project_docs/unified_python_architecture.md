@@ -1,8 +1,8 @@
 # OpenCode Platform 架構設計文檔
 
-**版本:** `v2.2`
-**更新日期:** `2026-02-10`
-**狀態:** `Production Ready (v1.x) | Vision (v2.0)`
+**版本:** `v3.1`
+**更新日期:** `2026-02-16`
+**狀態:** `Production Ready (v3.0 Linus Refactored + v3.1 Context Engineering)`
 
 ---
 
@@ -12,22 +12,26 @@
 
 | 版本 | 狀態 | 核心設計 | 特徵 |
 |------|------|---------|------|
-| **v1.x** | 🟢 生產環境 | 策略模式 + 分層架構 | 穩定、可擴展、明確職責 |
-| **v2.0** | 🔵 規劃願景 | 智能路由 + 深度思考鏈 | 自主決策、多步推理、自我反思 |
+| **v1.x** | 已完成 | 策略模式 + 分層架構 | 穩定、可擴展、明確職責 |
+| **v3.0** | 已完成 | Linus 風格重構 + 雙 Runtime | 數據自包含、無字典映射、模組化處理器 |
+| **v3.1** | 已完成 | Manus Context Engineering | Append-only context、KV-Cache 友好、Feature Flag 控制 |
+| **v4.0+** | 條件觸發 | 增強路由 + 信心估計 | 數據驅動，僅在 v3.1 指標不足時實施 |
 
 ---
 
-## Part 1: 當前架構 (v1.x) - 生產環境
+## Part 1: 當前架構 (v3.0 + v3.1) - 生產環境
 
 ### 1.1 核心架構原則
 
 ```
 ┌─────────────────────────────────────────┐
-│ 設計原則：                               │
-│ • 單一職責 (Single Responsibility)       │
+│ 設計原則 (Linus 風格)：                   │
+│ • 數據自包含 (Data Self-Containment)     │
 │ • 策略模式 (Strategy Pattern)            │
 │ • 依賴注入 (Dependency Injection)        │
-│ • 明確邊界 (Clear Boundaries)            │
+│ • 無特殊情況 (No Special Cases)          │
+│ • Append-Only Context (KV-Cache 友好)    │
+│ • Feature Flag 控制一切新功能            │
 └─────────────────────────────────────────┘
 ```
 
@@ -36,112 +40,170 @@
 ```mermaid
 graph TB
     subgraph "入口層 Entry Layer"
-        API[FastAPI Server]
+        API[FastAPI Server<br/>JWT Auth + SSE]
         CLI[CLI Interface]
     end
 
     subgraph "核心引擎 Core Engine"
-        Engine[RefactoredEngine<br/>中央協調器]
+        Engine[RefactoredEngine<br/>中央協調器 + CE 整合]
+        Router[DefaultRouter<br/>關鍵字路由 + 複雜度分析]
+        MRT[ModelRuntime<br/>System 1+2]
+        ART[AgentRuntime<br/>Agent 工作流]
         Factory[ProcessorFactory<br/>策略工廠]
-        Context[ProcessingContext<br/>狀態管理]
+    end
+
+    subgraph "Context Engineering (Manus-aligned)"
+        CtxMgr[ContextManager<br/>Append-only Context]
+        TodoRec[TodoRecitation<br/>todo.md 覆誦]
+        ErrPres[ErrorPreservation<br/>錯誤保留]
+        TplRand[TemplateRandomizer<br/>結構性雜訊]
+        FileMem[FileBasedMemory<br/>檔案系統記憶]
+        ToolMask[ToolAvailabilityMask<br/>Logit Masking]
     end
 
     subgraph "處理器層 Processor Layer"
-        P1[ChatProcessor<br/>對話處理]
-        P2[KnowledgeProcessor<br/>RAG處理]
-        P3[SearchProcessor<br/>搜索處理]
-        P4[CodeProcessor<br/>代碼執行]
+        P1[ChatProcessor<br/>System 1]
+        P2[KnowledgeProcessor<br/>System 1 RAG]
+        P3[SearchProcessor<br/>System 2]
+        P4[CodeProcessor<br/>System 2]
+        P5[ThinkingProcessor<br/>System 2]
+        P6[DeepResearchProcessor<br/>Agent]
     end
 
     subgraph "服務層 Service Layer"
-        LLM[LLMClient<br/>模型調用]
+        LLM[MultiProviderLLMClient<br/>OpenAI → Anthropic → Gemini]
         KB[KnowledgeService<br/>向量檢索]
         SB[SandboxService<br/>代碼沙盒]
-    end
-
-    subgraph "外部系統 External"
-        OpenAI[OpenAI API]
-        Qdrant[Qdrant Vector DB]
-        Docker[Docker Runtime]
+        Search[SearchService<br/>多引擎搜索]
     end
 
     API --> Engine
     CLI --> Engine
-    Engine --> Factory
-    Engine --> Context
+    Engine --> Router
+    Engine --> MRT
+    Engine --> ART
+    Engine --> CtxMgr
+    Engine --> TodoRec
+    Engine --> ErrPres
+    Engine --> TplRand
+    Engine --> FileMem
+    Router --> ToolMask
+
+    MRT --> Factory
+    ART --> Factory
 
     Factory -.->|creates| P1
     Factory -.->|creates| P2
     Factory -.->|creates| P3
     Factory -.->|creates| P4
+    Factory -.->|creates| P5
+    Factory -.->|creates| P6
 
     P1 --> LLM
     P2 --> KB
     P2 --> LLM
+    P3 --> Search
     P3 --> LLM
     P4 --> SB
     P4 --> LLM
-
-    LLM --> OpenAI
-    KB --> Qdrant
-    SB --> Docker
+    P5 --> LLM
+    P6 --> Search
+    P6 --> LLM
 
     style Engine fill:#FFE082
-    style Factory fill:#FFCCBC
-    style Context fill:#C5E1A5
+    style Router fill:#FFE082
+    style CtxMgr fill:#E1F5FE
+    style TodoRec fill:#E1F5FE
+    style ErrPres fill:#E1F5FE
+    style TplRand fill:#E1F5FE
+    style FileMem fill:#E1F5FE
+    style ToolMask fill:#E1F5FE
 ```
 
 ### 1.3 核心組件詳解
 
-#### 🎯 RefactoredEngine (`src/core/engine.py`)
+#### RefactoredEngine (`src/core/engine.py`)
 
 ```python
 class RefactoredEngine:
-    """系統的中央協調器"""
+    """系統的中央協調器 + Context Engineering 整合"""
 
-    def process(self, request: Request) -> Response:
-        # 1. 創建處理上下文
-        context = ProcessingContext(request)
+    def __init__(self, llm_client=None, config=None):
+        self.router = DefaultRouter(feature_flags)
+        self._model_runtime = ModelRuntime(llm_client, self.processor_factory)
+        self._agent_runtime = AgentRuntime(llm_client, self.processor_factory)
 
-        # 2. 獲取對應處理器
-        processor = self.factory.get_processor(request.mode)
+        # Context Engineering (feature-flag controlled)
+        if flags.is_enabled("context_engineering.append_only_context"):
+            self.context_manager = ContextManager(flags)
+        if flags.is_enabled("context_engineering.todo_recitation"):
+            self._todo_recitation = TodoRecitation(flags)
+        # ... (6 CE components, all feature-flag gated)
 
-        # 3. 執行處理邏輯
-        result = processor.process(context)
+    async def process(self, request: Request) -> Response:
+        # 1. CE: Reset context + append user query
+        if self.context_manager:
+            self.context_manager.reset()
+            self.context_manager.append_user(request.query)
 
-        # 4. 返回處理結果
-        return Response(result=result, context=context)
+        # 2. Route (keyword-based, no ML)
+        decision = await self.router.route(request)
+
+        # 3. Execute via Runtime dispatch
+        result = await self._execute(decision, context)
+
+        # 4. CE: Append result + update plan
+        if self.context_manager:
+            self.context_manager.append_assistant(result)
+
+        # 5. CE: Error preservation retry if needed
+        return Response(result=result, ...)
 ```
 
 **職責邊界:**
-- ✅ 請求路由與分發
-- ✅ 上下文生命週期管理
-- ✅ 錯誤處理與日誌記錄
-- ❌ 業務邏輯實現
-- ❌ 外部服務調用
+- 請求路由與分發 (DefaultRouter)
+- 上下文生命週期管理 (ContextManager)
+- Runtime 調度 (ModelRuntime / AgentRuntime)
+- Context Engineering 整合 (6 Manus-aligned components)
+- 錯誤處理與日誌記錄
+- NOT: 業務邏輯實現
+- NOT: 外部服務調用
 
-#### 🏭 ProcessorFactory & BaseProcessor
+#### ProcessorFactory & BaseProcessor (`src/core/processors/`)
 
 ```python
+# src/core/processors/base.py
 class BaseProcessor(ABC):
     """處理器基類 - 策略模式的抽象策略"""
 
     @abstractmethod
-    async def process(self, context: ProcessingContext) -> Any:
+    async def process(self, context: ProcessingContext) -> str:
         """每個處理器必須實現的核心方法"""
         pass
 
+# src/core/processors/factory.py
 class ProcessorFactory:
-    """策略工廠 - 根據模式創建處理器"""
+    """策略工廠 - 使用 Modes 數據直接映射，無字典查找"""
+
+    _processors = {
+        Modes.CHAT: ChatProcessor,
+        Modes.KNOWLEDGE: KnowledgeProcessor,
+        Modes.SEARCH: SearchProcessor,
+        Modes.THINKING: ThinkingProcessor,
+        Modes.CODE: CodeProcessor,
+        Modes.DEEP_RESEARCH: DeepResearchProcessor,
+    }
 
     def get_processor(self, mode: ProcessingMode) -> BaseProcessor:
-        return self._processors[mode]()
+        # cognitive_level 直接從 mode.cognitive_level 讀取
+        # 無 COGNITIVE_MAPPING dict — 數據自包含
+        return self._processors[mode](self.llm_client)
 ```
 
 **設計優勢:**
-- 🔧 新增處理模式無需修改核心代碼
-- 🔄 處理器可獨立測試與部署
-- 📦 明確的接口契約
+- 新增處理模式無需修改核心代碼
+- 處理器模組化 (每個處理器獨立檔案)
+- 無字典映射 — `mode.cognitive_level` 是數據欄位
 
 ### 1.4 請求處理流程
 
@@ -149,277 +211,184 @@ class ProcessorFactory:
 sequenceDiagram
     participant U as User
     participant E as Engine
+    participant R as Router
+    participant RT as Runtime
     participant F as Factory
     participant P as Processor
     participant S as Service
-    participant X as External
 
     U->>E: Request(mode, query)
-    E->>E: Create Context
-    E->>F: get_processor(mode)
-    F-->>E: ConcreteProcessor
-    E->>P: process(context)
+    Note over E: CE: ContextManager.reset() + append_user()
+    Note over E: CE: TodoRecitation.create_initial_plan()
 
-    alt Knowledge Mode
-        P->>S: search_docs(query)
-        S->>X: vector_search
-        X-->>S: relevant_docs
-        S-->>P: documents
-        P->>S: generate_answer(docs)
-        S->>X: LLM call
-        X-->>S: answer
-        S-->>P: final_result
-    else Code Mode
-        P->>S: generate_code(query)
-        S->>X: LLM call
-        X-->>S: code
-        S-->>P: generated_code
-        P->>S: execute_code(code)
-        S->>X: Docker run
-        X-->>S: execution_result
+    E->>R: route(request)
+    R-->>E: RoutingDecision(mode, level, runtime)
+
+    alt System 1/2 (ModelRuntime)
+        E->>RT: ModelRuntime.execute(context)
+        RT->>F: get_processor(mode)
+        F-->>RT: Processor instance
+        RT->>P: process(context)
+        P->>S: External calls (LLM, Search, etc.)
         S-->>P: result
+        P-->>RT: result string
+        RT-->>E: result
+    else Agent (AgentRuntime)
+        E->>RT: AgentRuntime.execute(context)
+        RT->>RT: retry_with_backoff(max=2)
+        RT->>F: get_processor(mode)
+        RT->>P: process(context)
+        P-->>RT: result
+        RT-->>E: result
     end
 
-    P-->>E: Update Context
+    Note over E: CE: ContextManager.append_assistant(result)
+    Note over E: CE: ErrorPreservation retry if needed
+    E->>E: Record metrics
     E-->>U: Response
 ```
 
-### 1.5 擴展點與限制
+### 1.5 擴展點與架構能力
 
-| 類別 | 描述 | 影響 |
+| 類別 | 描述 | 實現 |
 |------|------|------|
 | **擴展點** | | |
-| 新增處理器 | 實現 `BaseProcessor` 即可 | 低耦合 |
+| 新增處理器 | 實現 `BaseProcessor` + 加入 `ProcessorFactory` | 低耦合 |
 | 服務替換 | 通過 DI 注入不同實現 | 高彈性 |
-| 中間件支持 | 在 Engine 層添加 hooks | 可觀測性 |
-| **當前限制** | | |
-| 單步處理 | 無法處理多步驟任務 | 複雜任務受限 |
-| 同步阻塞 | 部分操作仍為同步 | 性能瓶頸 |
-| 無狀態 | 跨請求無法保持狀態 | 無法實現工作流 |
+| Feature Flag | 所有新功能通過 `config/cognitive_features.yaml` 控制 | 漸進式發布 |
+| Context Engineering | 6 個 Manus-aligned 組件，全部 Feature Flag 控制 | 零破壞性 |
+| **已解決的 v1.x 限制** | | |
+| ~~單步處理~~ | AgentRuntime 支持多步驟工作流 (v3.0) | DeepResearch |
+| ~~無狀態~~ | AgentRuntime WorkflowState 追蹤 (v3.0) | 有狀態工作流 |
+| ~~無 Context 管理~~ | ContextManager append-only (v3.1) | KV-Cache 友好 |
+| ~~無元認知~~ | TodoRecitation todo.md 覆誦 (v3.1) | 注意力管理 |
 
 ---
 
-## Part 2: 未來架構願景 (v2.0)
+## Part 2: 架構演進歷程與未來方向
 
-### 2.1 核心演進方向
+### 2.1 已完成的演進
 
 ```
-v1.x → v2.0 演進重點
+v1.x → v3.0 (Linus 風格重構)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Model + Tools → Agent Runtime
-單步處理 → 多步工作流
-手動路由 → 智能決策
-簡單響應 → 深度思考
+ProcessingMode enum → frozen dataclass (數據自包含)
+monolithic processor.py → modular processors/ directory
+字典映射 → mode.cognitive_level 數據欄位
+單 Runtime → Dual Runtime (Model + Agent)
+
+v3.0 → v3.1 (Manus Context Engineering)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+無 Context 管理 → Append-only ContextManager
+無元認知 → TodoRecitation (todo.md 覆誦)
+隱藏錯誤 → ErrorPreservation (保留失敗)
+動態工具切換 → ToolAvailabilityMask (Logit Masking)
+無記憶 → FileBasedMemory (檔案系統)
+固定模板 → TemplateRandomizer (結構性雜訊)
 ```
 
-### 2.2 v2.0 架構設計
+### 2.2 當前完整架構 (v3.0 + v3.1)
 
-```mermaid
-graph TB
-    subgraph "統一網關 Unified Gateway"
-        GW[API Gateway<br/>WebSocket Support]
-        Auth[Auth & Rate Limit]
-    end
-
-    subgraph "智能決策層 Intelligence Layer"
-        Router[智能路由器<br/>Complexity Analyzer]
-        Planner[任務規劃器<br/>Task Decomposer]
-    end
-
-    subgraph "執行引擎 Execution Engine"
-        subgraph "Quick Mode"
-            Direct[Direct Processor<br/>快速響應]
-        end
-
-        subgraph "Deep Mode"
-            Chain[Thinking Chain<br/>思考鏈]
-            Reflect[Self-Reflection<br/>自我反思]
-            Memory[Working Memory<br/>工作記憶]
-        end
-
-        subgraph "Agent Mode"
-            Workflow[Workflow Engine<br/>工作流引擎]
-            State[State Manager<br/>狀態管理]
-            Retry[Retry & Recovery<br/>重試恢復]
-        end
-    end
-
-    subgraph "基礎設施 Infrastructure"
-        Pool[Service Pool<br/>服務池]
-        Cache[Result Cache<br/>結果緩存]
-        Queue[Task Queue<br/>任務隊列]
-    end
-
-    GW --> Auth
-    Auth --> Router
-
-    Router -->|Simple| Direct
-    Router -->|Complex| Chain
-    Router -->|Multi-step| Workflow
-
-    Chain --> Reflect
-    Chain --> Memory
-
-    Workflow --> State
-    Workflow --> Retry
-
-    Direct --> Pool
-    Chain --> Pool
-    Workflow --> Pool
-
-    Pool --> Cache
-    Pool --> Queue
+```
+RefactoredEngine (v3.0 + v3.1)
+  +-- DefaultRouter (keyword-based, no ML)
+  |     +-- ComplexityAnalyzer (feature-flag gated)
+  |     +-- ToolAvailabilityMask (CE: logit masking)
+  +-- ProcessorFactory (strategy pattern, no dict mappings)
+  |     +-- ChatProcessor (System 1)
+  |     +-- KnowledgeProcessor (System 1, RAG)
+  |     +-- SearchProcessor (System 2, iterative)
+  |     +-- ThinkingProcessor (System 2, 5-stage)
+  |     +-- CodeProcessor (System 2, sandbox)
+  |     +-- DeepResearchProcessor (Agent, multi-iteration)
+  +-- ModelRuntime (System 1+2, stateless, cached)
+  +-- AgentRuntime (Agent, stateful, retry)
+  +-- ContextManager (CE: append-only context)
+  +-- TodoRecitation (CE: todo.md recitation)
+  +-- ErrorPreservation (CE: keep failed attempts)
+  +-- TemplateRandomizer (CE: structural noise)
+  +-- FileBasedMemory (CE: file system memory)
+  +-- FeatureFlags (YAML-driven, all default OFF)
+  +-- CognitiveMetrics (per-level tracking)
 ```
 
-### 2.3 關鍵創新組件
+### 2.3 Context Engineering 組件 (v3.1, Manus-aligned)
 
-#### 🧠 智能路由器
+**6 個 Manus 原則對應的組件** (總計 ~392 行生產代碼):
 
-```python
-class IntelligentRouter:
-    """基於請求複雜度的自動路由決策"""
+| 原則 | 組件 | 行數 | 替代了什麼 |
+|------|------|------|-----------|
+| KV-Cache 命中率 | `ContextManager` (append-only) | ~102 | GlobalWorkspace (可變字典) |
+| Mask, Don't Remove | `ToolAvailabilityMask` (logit mask) | ~47 | OODA Router (動態切換) |
+| File System as Context | `FileBasedMemory` | ~51 | Vector DB + 知識圖譜 |
+| Attention via Recitation | `TodoRecitation` (todo.md) | ~60 | MetacognitiveGovernor (5 組件) |
+| Keep Erroneous Turns | `ErrorPreservation` | ~39 | 替換 context.request 模式 |
+| Avoid Few-Shot Traps | `TemplateRandomizer` | ~40 | Neuromodulation RL |
 
-    async def analyze(self, request: Request) -> RoutingDecision:
-        features = self.extract_features(request)
-
-        # 複雜度評分
-        complexity_score = self.complexity_model.predict(features)
-
-        # 任務類型識別
-        task_type = self.task_classifier.classify(request)
-
-        # 路由決策
-        if complexity_score < 0.3:
-            return RoutingDecision(mode="direct", reason="simple_query")
-        elif complexity_score < 0.7:
-            return RoutingDecision(mode="thinking", reason="needs_reasoning")
-        else:
-            return RoutingDecision(mode="agent", reason="multi_step_task")
+**Feature Flag 控制** (`config/cognitive_features.yaml`):
+```yaml
+context_engineering:
+  enabled: false              # Master switch
+  append_only_context: false  # ContextManager
+  todo_recitation: false      # TodoRecitation
+  error_preservation: false   # ErrorPreservation
+  tool_masking: false         # ToolAvailabilityMask
+  template_randomizer: false  # TemplateRandomizer
+  file_based_memory: false    # FileBasedMemory
 ```
 
-#### 🔄 深度思考引擎
+所有功能預設 OFF。啟用需要先開 master switch，再開個別功能。
 
-```python
-class DeepThinkingEngine:
-    """模擬結構化思考過程"""
+### 2.4 認知層級與 Runtime 決策矩陣 (已實現)
 
-    async def think(self, query: str) -> ThoughtProcess:
-        # Step 1: 問題分解
-        components = await self.decompose(query)
+| 認知層級 | 處理模式 | Runtime | 特徵 | ProcessingMode 示例 |
+|---------|---------|---------|------|-------------------|
+| **System 1** | CHAT, KNOWLEDGE | ModelRuntime | 快速、可快取、無狀態 | `Modes.CHAT` (cognitive_level="system1") |
+| **System 2** | SEARCH, CODE, THINKING | ModelRuntime | 分析型、多步驟、無狀態 | `Modes.THINKING` (cognitive_level="system2") |
+| **Agent** | DEEP_RESEARCH | AgentRuntime | 有狀態、工作流追蹤、重試 | `Modes.DEEP_RESEARCH` (cognitive_level="agent") |
 
-        # Step 2: 逐步推理
-        thoughts = []
-        for component in components:
-            thought = await self.reason(component)
+### 2.5 架構演進時間線 (已完成 + 未來)
 
-            # Step 3: 自我檢驗
-            critique = await self.reflect(thought)
-            if critique.has_issues:
-                thought = await self.refine(thought, critique)
-
-            thoughts.append(thought)
-
-        # Step 4: 綜合結論
-        synthesis = await self.synthesize(thoughts)
-
-        return ThoughtProcess(
-            steps=thoughts,
-            conclusion=synthesis,
-            confidence=self.calculate_confidence(thoughts)
-        )
 ```
+已完成:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+v1.x  策略模式 + 分層架構
+v3.0  Linus 風格重構 (ProcessingMode dataclass, Dual Runtime, 模組化 Processor)
+v3.1  Context Engineering (6 Manus-aligned components, 63 tests, 0 regressions)
 
-#### 📊 Agent 運行時
-
-```python
-class AgentRuntime:
-    """長時任務的完整執行環境"""
-
-    async def execute(self, goal: str) -> AgentResult:
-        # 初始化執行環境
-        state = WorkflowState(goal=goal)
-
-        while not state.is_complete:
-            # 規劃下一步
-            next_action = await self.planner.plan(state)
-
-            # 執行動作
-            try:
-                result = await self.executor.execute(next_action)
-                state.update(result)
-            except ExecutionError as e:
-                # 智能重試策略
-                recovery = await self.recovery_planner.plan(e, state)
-                state = await self.apply_recovery(recovery, state)
-
-            # 檢查點保存
-            await self.checkpoint(state)
-
-        return AgentResult(
-            goal=goal,
-            steps=state.history,
-            artifacts=state.artifacts,
-            metrics=state.metrics
-        )
-```
-
-### 2.4 Model vs Agent 決策矩陣
-
-| 判斷維度 | Model + Tools | Agent Runtime | 決策依據 |
-|---------|--------------|---------------|----------|
-| **執行時間** | < 10秒 | 分鐘級 | 用戶期望 |
-| **狀態管理** | 無狀態 | 有狀態 | 任務連續性 |
-| **工具調用** | 1-3次 | N次 | 複雜度 |
-| **失敗處理** | 直接失敗 | 重試/恢復 | 可靠性要求 |
-| **輸出類型** | 文本回答 | 結構化成果 | 交付物類型 |
-| **控制流** | 線性 | 分支/循環 | 邏輯複雜度 |
-
-### 2.5 實施路線圖
-
-```mermaid
-timeline
-    title v2.0 架構演進時間線
-
-    2026 Q1 : 智能路由原型
-            : 複雜度模型訓練
-
-    2026 Q2 : 思考鏈實現
-            : 自我反思機制
-
-    2026 Q3 : Agent Runtime
-            : 工作流引擎
-
-    2026 Q4 : 生產部署
-            : 性能優化
+條件觸發 (未來):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[條件] EnhancedRouter      → 當 DefaultRouter 準確度 <70%
+[條件] ConfidenceEstimator  → 當 todo.md 不足以判斷品質
+[條件] Redis 分佈式快取     → 當單機快取不足
 ```
 
 ---
 
-## 🎯 關鍵洞察
+## 關鍵洞察
 
-### Tool 成為標配 ≠ Model 變成 Agent
+### Manus 教訓：Context Engineering > 認知組件
 
-> **核心區別不在於「能否使用工具」，而在於「誰控制執行流程」**
+> **真正需要的不是「認知組件」，而是「Context 管理」**
 
-| 層次 | Model + Tools | Agent |
-|------|--------------|-------|
-| **能力層** | 可調用工具 | 可調用工具 |
-| **策略層** | 系統決定何時調用 | 自主決定調用時機 |
-| **編排層** | 無法控制重試/分支 | 完整的流程控制 |
+| 原始設計 (已廢止) | Manus 替代方案 (已實現) | 代碼量對比 |
+|------------------|----------------------|-----------|
+| MetacognitiveGovernor (5 組件) | TodoRecitation (~60 行) | -90% |
+| GlobalWorkspace (可變字典) | ContextManager (~102 行) | -67% |
+| OODA Router (動態切換) | ToolAvailabilityMask (~47 行) | -90% |
+| MemorySystems (Vector DB) | FileBasedMemory (~51 行) | -98% |
+| Neuromodulation (RL) | TemplateRandomizer (~40 行) | -98% |
 
 ### 設計決策準則
 
 ```python
-def should_use_agent(task: Task) -> bool:
-    """判斷是否需要 Agent Runtime"""
+# Runtime 選擇 — 直接從 ProcessingMode 數據欄位讀取
+mode = Modes.DEEP_RESEARCH
+runtime_type = mode.runtime_type  # RuntimeType.AGENT
+cognitive_level = mode.cognitive_level  # "agent"
 
-    return any([
-        task.needs_event_loop,        # 需要事件循環
-        task.has_multiple_steps,       # 多步驟任務
-        task.requires_state,           # 需要狀態管理
-        task.needs_retry_logic,        # 需要重試邏輯
-        task.produces_artifacts,       # 產生結構化成果
-    ])
+# 無字典映射，無特殊情況
+# Linus: "Good programmers worry about data structures."
 ```
 
 ---
@@ -430,21 +399,32 @@ def should_use_agent(task: Task) -> bool:
 
 | 版本 | 日期 | 變更內容 |
 |------|------|----------|
+| v3.1 | 2026-02-16 | Context Engineering 整合，Manus 6 原則實現，文檔全面更新 |
+| v3.0 | 2026-02-14 | Linus 風格重構：ProcessingMode frozen dataclass, Dual Runtime, 模組化 Processor |
 | v2.2 | 2026-02-10 | 重構文檔結構，明確 Model vs Agent 邊界 |
 | v2.1 | 2026-02-10 | 添加 v2.0 架構願景 |
 | v1.0 | 2026-01-15 | 初始架構文檔 |
 
 ### B. 參考資料
 
+- [Manus: Context Engineering for AI Agents](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus) — 6 Manus 原則的來源
+- [Frozen Dataclass (Python docs)](https://docs.python.org/3/library/dataclasses.html#frozen-instances) — ProcessingMode 設計基礎
 - [Strategy Pattern in Python](https://refactoring.guru/design-patterns/strategy/python/example)
-- [Actor Model for Distributed Systems](https://doc.akka.io/docs/akka/current/typed/guide/actors-intro.html)
 - [Chain of Thought Prompting](https://arxiv.org/abs/2201.11903)
 
 ### C. 術語表
 
 | 術語 | 定義 |
 |------|------|
-| **策略模式** | 將算法族封裝起來，讓它們之間可以互相替換 |
-| **思考鏈** | 通過顯式推理步驟來解決複雜問題的方法 |
-| **Agent Runtime** | 具有自主決策和執行能力的運行環境 |
-| **工作流引擎** | 管理多步驟任務執行的編排系統 |
+| **ProcessingMode** | Frozen dataclass，封裝模式名稱、cognitive_level、runtime_type 等數據欄位 |
+| **Modes** | Helper class，提供 `Modes.CHAT`、`Modes.from_name("chat")` 等靜態存取方式 |
+| **ContextEntry** | Frozen dataclass，context 中的不可變條目 (role + content + metadata) |
+| **ContextManager** | Append-only context 管理器，保護 KV-Cache 前綴穩定性 |
+| **TodoRecitation** | todo.md 注意力聚焦模式，取代 MetacognitiveGovernor |
+| **ErrorPreservation** | 將失敗步驟保留在 context 中，讓模型從錯誤隱式學習 |
+| **TemplateRandomizer** | 結構雜訊注入，防止模型模式崩潰 |
+| **FileBasedMemory** | 以檔案系統作為記憶體，取代 Vector DB 方案 |
+| **ToolAvailabilityMask** | 根據模式限制可用工具集的 logit masking 機制 |
+| **ModelRuntime** | 無狀態運行時，用於 System 1/2 級別的處理模式 |
+| **Agent Runtime** | 有狀態運行時，提供 WorkflowState 追蹤、smart retry、ErrorClassifier |
+| **Feature Flag** | `config/cognitive_features.yaml` 中的功能開關，控制 CE 組件啟用 |

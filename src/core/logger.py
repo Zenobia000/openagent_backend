@@ -53,6 +53,8 @@ class LogCategory(Enum):
 class StructuredLogger:
     """結構化日誌管理器 - 優化版"""
 
+    MAX_LOG_SIZE = 10000  # 10KB — threshold for segmenting long content
+
     def __init__(self, service_name: str = "opencode", log_level: str = "INFO"):
         self.service = service_name
         self.logger = logging.getLogger(service_name)
@@ -421,6 +423,50 @@ class StructuredLogger:
             },
             error_context=context or {}
         )
+
+    def log_long_content(self, level: str, message: str, content: str,
+                         trace_id: str, category: str) -> None:
+        """Log content that exceeds MAX_LOG_SIZE by splitting into segments."""
+        log_level = LogLevel[level.upper()]
+        segment_size = self.MAX_LOG_SIZE
+        total_len = len(content)
+        segments = (total_len + segment_size - 1) // segment_size
+
+        self._log(log_level,
+                  f"{message} [total: {total_len} chars, {segments} segments]",
+                  LogCategory.SYSTEM, category, "log_long_content")
+
+        for i in range(segments):
+            start = i * segment_size
+            end = min(start + segment_size, total_len)
+            self._log(log_level,
+                      f"[{trace_id[:8]}] Segment {i+1}/{segments}: {content[start:end]}",
+                      LogCategory.SYSTEM, category, "segment")
+
+    def save_response_as_markdown(self, content: str, metadata: dict,
+                                  trace_id: str) -> str:
+        """Save content as markdown with YAML frontmatter. Returns file path."""
+        import json
+
+        reports_dir = self.log_dir / "reports"
+        reports_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{trace_id[:8]}_{timestamp}.md"
+        filepath = reports_dir / filename
+
+        frontmatter_lines = ["---"]
+        for key, value in metadata.items():
+            if isinstance(value, (dict, list)):
+                value = json.dumps(value, ensure_ascii=False)
+            frontmatter_lines.append(f"{key}: {value}")
+        frontmatter_lines.append("---\n")
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write("\n".join(frontmatter_lines))
+            f.write(content)
+
+        return str(filepath)
 
     def log_request(self, method: str, path: str = None, query: str = None, mode: str = None):
         """記錄請求"""

@@ -61,12 +61,6 @@ class DeepResearchProcessor(BaseProcessor):
         self.event_callback = event_callback
         self.event_queue: asyncio.Queue = asyncio.Queue()
 
-        # 初始化增強日誌系統
-        try:
-            from core.enhanced_logger import get_enhanced_logger
-            self.enhanced_logger = get_enhanced_logger()
-        except ImportError:
-            self.enhanced_logger = None
         self._streaming_enabled = False
 
     async def process(self, context: ProcessingContext) -> str:
@@ -1161,10 +1155,9 @@ Generate the report body (without references section):
         # 組合完整報告
         full_report = f"{report_body}{references_section}"
 
-        # 保存報告到 Markdown（如果增強日誌器可用）
-        if self.enhanced_logger and context:
+        # Save report to markdown and log long content if needed
+        if context:
             try:
-                # 準備元數據
                 metadata = {
                     "query": context.request.query if context.request else "N/A",
                     "mode": "deep_research",
@@ -1181,17 +1174,13 @@ Generate the report body (without references section):
                     "stages": context.response.metadata.get("stages", [])
                 }
 
-                # 保存到 Markdown
-                trace_id = context.trace_id if hasattr(context, 'trace_id') else str(hash(context.request.query))[:8]
-                md_path = self.enhanced_logger.save_response_as_markdown(
-                    full_report,
-                    metadata,
-                    trace_id
+                trace_id = context.request.trace_id
+                md_path = self.logger.save_response_as_markdown(
+                    full_report, metadata, trace_id
                 )
 
-                # 記錄長內容（如果超過限制）
-                if len(full_report) > self.enhanced_logger.MAX_LOG_SIZE:
-                    self.enhanced_logger.log_long_content(
+                if len(full_report) > self.logger.MAX_LOG_SIZE:
+                    self.logger.log_long_content(
                         "INFO",
                         "Deep Research Report Generated",
                         full_report,
@@ -1199,7 +1188,7 @@ Generate the report body (without references section):
                         "deep_research"
                     )
 
-                self.logger.info(f"📄 Report saved to: {md_path}", "deep_research", "markdown_saved")
+                self.logger.info(f"Report saved to: {md_path}", "deep_research", "markdown_saved")
 
             except Exception as e:
                 self.logger.warning(f"Failed to save markdown report: {e}", "deep_research", "save_error")

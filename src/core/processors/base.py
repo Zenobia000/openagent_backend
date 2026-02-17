@@ -70,43 +70,26 @@ class BaseProcessor(ABC):
                 duration_ms=duration_ms
             )
 
-            # 記錄 LLM Response (用於 debugging，顯示實際輸出)
-            # 檢查是否需要分割長內容
-            try:
-                from core.enhanced_logger import get_enhanced_logger
-                enhanced_logger = get_enhanced_logger()
-
-                if len(response) > 10000:  # 超過 10KB
-                    # 使用增強日誌器處理長內容
-                    trace_id = context.trace_id if context and hasattr(context, 'trace_id') else "unknown"
-                    enhanced_logger.log_long_content(
-                        "INFO",
-                        f"LLM Response (Long: {len(response)} chars, {total_tokens} tokens)",
-                        response,
-                        trace_id,
-                        "llm_response"
-                    )
-                    # 主日誌只記錄摘要
-                    self.logger.info(
-                        f"💬 LLM Response [Long content: {len(response)} chars, see segments]",
-                        "llm",
-                        "response",
-                        response_length=len(response),
-                        total_tokens=total_tokens
-                    )
-                else:
-                    # 正常記錄
-                    self.logger.info(
-                        f"💬 LLM Response: {response[:5000]}...",
-                        "llm",
-                        "response",
-                        response_length=len(response),
-                        response_preview=response[:200]
-                    )
-            except ImportError:
-                # 如果增強日誌器不可用，使用原始方式
+            # Log LLM response — segment if long
+            if len(response) > self.logger.MAX_LOG_SIZE:
+                trace_id = context.request.trace_id if context else "unknown"
+                self.logger.log_long_content(
+                    "INFO",
+                    f"LLM Response (Long: {len(response)} chars, {total_tokens} tokens)",
+                    response,
+                    trace_id,
+                    "llm_response"
+                )
                 self.logger.info(
-                    f"💬 LLM Response: {response[:5000]}...",
+                    f"LLM Response [Long content: {len(response)} chars, see segments]",
+                    "llm",
+                    "response",
+                    response_length=len(response),
+                    total_tokens=total_tokens
+                )
+            else:
+                self.logger.info(
+                    f"LLM Response: {response[:5000]}...",
                     "llm",
                     "response",
                     response_length=len(response),

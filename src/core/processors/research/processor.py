@@ -195,9 +195,20 @@ class DeepResearchProcessor(BaseProcessor):
             workflow_state["current_step"] = "critical_analysis"
             critical_analysis = await self._critical_analysis_stage(context, all_search_results, report_plan)
 
+        # 4.6. Computational Analysis (optional — LLM decides dynamically)
+        computational_result = None
+        if await self._requires_computational_analysis(context, all_search_results):
+            workflow_state["current_step"] = "computational_analysis"
+            computational_result = await self._computational_analysis_stage(
+                context, all_search_results, report_plan
+            )
+
         # 5. 生成最終報告 (WriteFinalReport)
         workflow_state["current_step"] = "synthesize"
-        final_report = await self._write_final_report(context, all_search_results, report_plan, critical_analysis)
+        final_report = await self._write_final_report(
+            context, all_search_results, report_plan,
+            critical_analysis, computational_result
+        )
 
         # WorkflowComplete: 標記成功完成
         workflow_state["status"] = "completed"
@@ -310,6 +321,182 @@ class DeepResearchProcessor(BaseProcessor):
 
         self.logger.progress("critical-analysis", "end")
         return critical_analysis
+
+    # ============================================================
+    # Computational Analysis Phase
+    # ============================================================
+
+    async def _requires_computational_analysis(self, context: ProcessingContext,
+                                                search_results: List[Dict]) -> bool:
+        """Determine if computational analysis would add value — LLM decides dynamically."""
+
+        # Hard gate: sandbox must be available
+        sandbox_service = self.services.get("sandbox")
+        if not sandbox_service:
+            return False
+
+        # LLM triage: ask whether the data warrants computation
+        research_summary = self._summarize_search_results(search_results)
+        triage_prompt = PromptTemplates.get_computational_triage_prompt(
+            query=context.request.query,
+            research_summary=research_summary
+        )
+
+        try:
+            response = await self._call_llm(triage_prompt, context)
+            return response.strip().upper().startswith("YES")
+        except Exception:
+            return False
+
+    async def _computational_analysis_stage(self, context: ProcessingContext,
+                                             search_results: List[Dict],
+                                             report_plan: str) -> Optional[Dict[str, Any]]:
+        """Computational analysis — generate Python code, execute in sandbox, return results."""
+
+        self.logger.progress("computational-analysis", "start")
+        self.logger.info(
+            "Computational Analysis: Generating analysis code from research data",
+            "deep_research", "computational_analysis"
+        )
+
+        # Step 1: Generate analysis code
+        self.logger.reasoning("Generating computational analysis code...", streaming=True)
+        code = await self._generate_analysis_code(context, search_results, report_plan)
+
+        if not code:
+            self.logger.info(
+                "Computational analysis: no viable code generated, skipping",
+                "deep_research", "compute_skip"
+            )
+            self.logger.progress("computational-analysis", "end")
+            return None
+
+        # Step 2: Execute the code
+        self.logger.reasoning("Executing computational analysis in sandbox...", streaming=True)
+        result = await self._execute_analysis_code(code)
+
+        if not result:
+            self.logger.info(
+                "Computational analysis: execution failed, continuing without computation",
+                "deep_research", "compute_failed"
+            )
+            self.logger.progress("computational-analysis", "end")
+            return None
+
+        # Store in context metadata
+        figure_count = len(result.get("figures", []))
+        context.response.metadata["computational_analysis"] = {
+            "code": result["code"],
+            "stdout": result["stdout"][:500],
+            "figure_count": figure_count,
+            "execution_time": result["execution_time"]
+        }
+
+        self.logger.info(
+            f"Computational analysis complete: {figure_count} figures, "
+            f"{len(result.get('stdout', ''))} chars output, "
+            f"{result.get('execution_time', 0):.2f}s",
+            "deep_research", "compute_complete"
+        )
+        self.logger.progress("computational-analysis", "end")
+        return result
+
+    async def _generate_analysis_code(self, context: ProcessingContext,
+                                       search_results: List[Dict],
+                                       report_plan: str) -> Optional[str]:
+        """Ask LLM to generate Python code for computational analysis."""
+
+        research_summary = self._summarize_search_results(search_results)
+        prompt = PromptTemplates.get_computational_analysis_prompt(
+            query=context.request.query,
+            research_summary=research_summary,
+            report_plan=report_plan
+        )
+
+        response = await self._call_llm(prompt, context)
+        code = self._extract_code_block(response)
+        if not code:
+            self.logger.warning(
+                "LLM did not produce a valid code block for analysis",
+                "deep_research", "compute_no_code"
+            )
+        return code
+
+    def _extract_code_block(self, response: str) -> Optional[str]:
+        """Extract Python code from markdown fenced code block."""
+        import re
+        match = re.search(r'```(?:python)?\s*\n(.*?)\n```', response, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        # Fallback: if entire response looks like bare code
+        stripped = response.strip()
+        if stripped.startswith(('import ', 'from ', '# ', 'def ', 'class ')):
+            return stripped
+        return None
+
+    async def _execute_analysis_code(self, code: str, retry: bool = True) -> Optional[Dict[str, Any]]:
+        """Execute analysis code in sandbox. Retry once on failure with error feedback."""
+
+        sandbox_service = self.services.get("sandbox")
+        if not sandbox_service:
+            return None
+
+        try:
+            result = await sandbox_service.execute("execute_python", {
+                "code": code,
+                "timeout": 30
+            })
+
+            if result.get("success"):
+                return {
+                    "stdout": result.get("stdout", ""),
+                    "figures": result.get("figures", []),
+                    "return_value": result.get("return_value"),
+                    "code": code,
+                    "execution_time": result.get("execution_time", 0)
+                }
+
+            error_msg = result.get("error", "Unknown error")
+            self.logger.warning(
+                f"Computational analysis code failed: {error_msg}",
+                "deep_research", "compute_exec_fail"
+            )
+
+            if retry:
+                fixed_code = await self._fix_analysis_code(code, error_msg)
+                if fixed_code:
+                    return await self._execute_analysis_code(fixed_code, retry=False)
+
+            return None
+
+        except Exception as e:
+            self.logger.warning(
+                f"Sandbox execution exception: {e}",
+                "deep_research", "compute_exception"
+            )
+            return None
+
+    async def _fix_analysis_code(self, original_code: str, error: str) -> Optional[str]:
+        """Ask LLM to fix failed analysis code."""
+
+        prompt = f"""The following Python code failed with an error. Fix it and return ONLY the corrected code in a ```python code block.
+
+Original code:
+```python
+{original_code}
+```
+
+Error:
+{error}
+
+Rules:
+- Fix the error while preserving the original intent
+- Use only: numpy, scipy, sympy, pandas, matplotlib, seaborn, plotly, sklearn
+- Store final results in a variable named `result`
+- Use print() for key findings"""
+
+        response = await self._call_llm(prompt, None)
+        return self._extract_code_block(response)
 
     def _summarize_search_results(self, search_results: List[Dict]) -> str:
         """將搜索結果總結為簡潔的上下文"""
@@ -807,7 +994,8 @@ Answer (YES/NO):"""
     async def _write_final_report(self, context: ProcessingContext,
                                   search_results: List[Dict],
                                   report_plan: str,
-                                  critical_analysis: Optional[str] = None) -> str:
+                                  critical_analysis: Optional[str] = None,
+                                  computational_result: Optional[Dict[str, Any]] = None) -> str:
         # Phase 4: 生成最終報告 - 學術論文格式（區分引用/未引用）
         self.logger.progress("final-report", "start")
 
@@ -841,7 +1029,8 @@ Answer (YES/NO):"""
             combined_context,
             references_list,
             context.request.query,
-            critical_analysis
+            critical_analysis,
+            computational_result
         )
 
         # 推理最終報告
@@ -855,7 +1044,8 @@ Answer (YES/NO):"""
 
         # 組合完整報告：主體 + 區分的參考文獻
         final_report = self._format_report_with_categorized_references(
-            report_body, cited_refs, uncited_refs, context, critical_analysis is not None, citation_stats
+            report_body, cited_refs, uncited_refs, context,
+            critical_analysis is not None, citation_stats, computational_result
         )
 
         # 記錄記憶體回收
@@ -936,7 +1126,8 @@ Answer (YES/NO):"""
 
     def _build_academic_report_prompt(self, plan: str, context: str,
                                      references: List[Dict], requirement: str,
-                                     critical_analysis: Optional[str] = None) -> str:
+                                     critical_analysis: Optional[str] = None,
+                                     computational_result: Optional[Dict[str, Any]] = None) -> str:
         # 構建學術格式的報告 prompt（含批判性分析）
         # 準備參考文獻摘要
         ref_summary = "\n".join([
@@ -978,11 +1169,36 @@ Requirements:
 6. Ensure logical flow between sections"""
 
         # 如果有批判性分析，添加特殊要求
+        req_num = 7
         if critical_analysis:
-            prompt += """
-7. Incorporate critical analysis insights to provide balanced, multi-perspective conclusions
-8. Address potential limitations, counterarguments, or alternative interpretations
-9. Demonstrate analytical depth beyond surface-level findings"""
+            prompt += f"""
+{req_num}. Incorporate critical analysis insights to provide balanced, multi-perspective conclusions
+{req_num + 1}. Address potential limitations, counterarguments, or alternative interpretations
+{req_num + 2}. Demonstrate analytical depth beyond surface-level findings"""
+            req_num += 3
+
+        # 如果有計算分析結果，添加到 prompt 中
+        if computational_result:
+            stdout = computational_result.get('stdout', '')
+            figure_count = len(computational_result.get('figures', []))
+            prompt += f"""
+
+Computational Analysis Results:
+The following quantitative analysis was performed programmatically:
+
+Output:
+{stdout}
+
+Number of charts/figures generated: {figure_count}
+
+IMPORTANT: Integrate these computational findings into your report:
+- Reference specific numbers, calculations, and statistical results from the output
+- If charts were generated, reference them as "Figure 1", "Figure 2", etc. in the appropriate sections
+- Explain what the computational analysis reveals in plain language"""
+
+            prompt += f"""
+{req_num}. Integrate computational analysis results with specific numbers and findings
+{req_num + 1}. Reference generated figures as "Figure 1", "Figure 2" etc. where relevant"""
 
         prompt += f"""
 
@@ -1072,7 +1288,8 @@ Generate the report body (without references section):
                                                    uncited_refs: List[Dict],
                                                    context: ProcessingContext = None,
                                                    has_critical_analysis: bool = False,
-                                                   citation_stats: Dict = None) -> str:
+                                                   citation_stats: Dict = None,
+                                                   computational_result: Optional[Dict[str, Any]] = None) -> str:
         """
         格式化報告，區分引用和未引用的參考文獻（增強版）
 
@@ -1135,13 +1352,15 @@ Generate the report body (without references section):
             if citation_stats['invalid_citations']:
                 references_section += f"\n⚠️ **警告**: 檢測到 {len(citation_stats['invalid_citations'])} 個無效引用編號: {citation_stats['invalid_citations']}\n"
 
-        # 如果有批判性分析，添加說明
+        # 分析模式說明
         references_section += f"\n### 分析模式\n"
+        modes = ["深度研究"]
         if has_critical_analysis:
-            references_section += f"- **研究模式**: 深度研究 + 批判性思考 🧠\n"
-            references_section += f"- **分析層次**: 多角度批判性分析\n"
-        else:
-            references_section += f"- **研究模式**: 深度研究\n"
+            modes.append("批判性思考")
+        if computational_result:
+            fig_count = len(computational_result.get("figures", []))
+            modes.append(f"計算分析 ({fig_count} figures)")
+        references_section += f"- **研究模式**: {' + '.join(modes)}\n"
 
         references_section += f"\n---\n"
         references_section += f"*Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n"
@@ -1152,8 +1371,16 @@ Generate the report body (without references section):
         else:
             references_section += f"*"
 
+        # Insert computational figures before references
+        figures_section = ""
+        if computational_result and computational_result.get("figures"):
+            figures_section = "\n\n---\n\n## Computational Analysis Figures\n\n"
+            for i, fig_base64 in enumerate(computational_result["figures"], 1):
+                figures_section += f"**Figure {i}**\n\n"
+                figures_section += f"![Figure {i}](data:image/png;base64,{fig_base64})\n\n"
+
         # 組合完整報告
-        full_report = f"{report_body}{references_section}"
+        full_report = f"{report_body}{figures_section}{references_section}"
 
         # Save report to markdown and log long content if needed
         if context:

@@ -511,6 +511,65 @@ Please conduct in-depth analysis from the following critical thinking perspectiv
 Provide comprehensive, objective, and insightful critical analysis results."""
 
     @staticmethod
+    def get_computational_triage_prompt(query: str, research_summary: str) -> str:
+        """Determine whether research findings warrant computational analysis."""
+        q = _sanitize_xml_input(query)
+        rs = _sanitize_xml_input(research_summary)
+        return f"""You are a research analyst. Determine whether the following research findings contain quantitative data that would benefit from computational analysis (statistics, calculations, trend modeling, data visualization).
+
+<QUERY>
+{q}
+</QUERY>
+
+<RESEARCH_FINDINGS>
+{rs}
+</RESEARCH_FINDINGS>
+
+Answer YES if the findings contain numerical data, percentages, time-series, comparisons, or metrics that can be meaningfully computed, verified, or visualized with code.
+Answer NO if the findings are purely qualitative, conceptual, or lack concrete numbers.
+
+Reply with ONLY "YES" or "NO" followed by a one-sentence reason."""
+
+    @staticmethod
+    def get_computational_analysis_prompt(query: str, research_summary: str, report_plan: str) -> str:
+        """Generate Python code for computational analysis of research data."""
+        q = _sanitize_xml_input(query)
+        rs = _sanitize_xml_input(research_summary)
+        rp = _sanitize_xml_input(report_plan)
+        return f"""You are a data analyst. Based on the research findings below, write Python code that performs meaningful quantitative analysis.
+
+<RESEARCH_QUESTION>
+{q}
+</RESEARCH_QUESTION>
+
+<RESEARCH_PLAN>
+{rp}
+</RESEARCH_PLAN>
+
+<RESEARCH_FINDINGS>
+{rs}
+</RESEARCH_FINDINGS>
+
+Write a single Python script that:
+1. Extracts or reconstructs numerical data mentioned in the research findings
+2. Performs meaningful calculations (statistics, comparisons, trends, projections)
+3. Creates clear visualizations (charts/graphs) using matplotlib or seaborn
+4. Prints key quantitative findings using print()
+5. Stores the final summary in a variable named `result`
+
+Rules:
+- Output ONLY a single ```python code block, no explanation
+- Available libraries: numpy, scipy, sympy, pandas, matplotlib, seaborn, plotly, sklearn
+- Do NOT use requests, urllib, or any network libraries
+- Do NOT read or write files
+- Use matplotlib.pyplot as plt for charts; call plt.tight_layout() before plt.show()
+- Use plt.figure() to create separate figures for different analyses
+- All data must come from the research findings above — hardcode the numbers
+- Focus on computation that adds insight beyond what text alone provides
+- If concrete numbers are sparse, create reasonable illustrative models based on available data
+- Keep the code under 80 lines"""
+
+    @staticmethod
     def get_chain_of_thought_prompt(query: str) -> str:
         """Chain of thought reasoning prompt"""
         q = _sanitize_xml_input(query)

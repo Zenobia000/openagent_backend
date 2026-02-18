@@ -177,6 +177,9 @@ class WebSearchService:
         """Bing 搜尋（爬取 HTML）"""
         try:
             session = await self._get_session()
+            # Truncate query to prevent URL > 8KB (Chinese chars expand ~9x in URL encoding)
+            if len(query) > 150:
+                query = query[:150]
             url = f"https://www.bing.com/search?q={quote_plus(query)}&count={max_results}"
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -218,6 +221,9 @@ class WebSearchService:
         """DuckDuckGo HTML 搜尋（直接爬取）"""
         try:
             session = await self._get_session()
+            # Truncate query to prevent URL > 8KB
+            if len(query) > 150:
+                query = query[:150]
             url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -367,8 +373,28 @@ class WebSearchService:
     # 網頁內容抓取
     # ═══════════════════════════════════════════════════════════════
     
+    # Binary extensions that cannot be decoded as text
+    _BINARY_EXTENSIONS = frozenset({
+        '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
+        '.pdf', '.zip', '.rar', '.7z', '.gz', '.tar',
+        '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp',
+        '.mp3', '.mp4', '.avi', '.mov', '.wav',
+        '.exe', '.dll', '.so', '.bin',
+    })
+
     async def fetch_url(self, url: str, timeout: int = 15) -> Optional[str]:
         """抓取網頁內容並提取主要文字"""
+        # Guard: skip URLs that exceed HTTP header limits
+        if len(url.encode('utf-8')) > 4096:
+            logger.warning(f"⏭️ URL too long ({len(url.encode('utf-8'))} bytes), skipping: {url[:80]}...")
+            return None
+
+        # Guard: skip known binary file extensions
+        parsed_path = urlparse(url).path.lower()
+        if any(parsed_path.endswith(ext) for ext in self._BINARY_EXTENSIONS):
+            logger.warning(f"⏭️ Binary file skipped: {url[:80]}...")
+            return None
+
         try:
             session = await self._get_session()
             headers = {
@@ -376,10 +402,15 @@ class WebSearchService:
                 "Accept": "text/html,application/xhtml+xml",
                 "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8"
             }
-            
+
             async with session.get(url, headers=headers, timeout=timeout) as resp:
                 if resp.status == 200:
-                    html = await resp.text()
+                    # Guard: skip binary Content-Type responses
+                    content_type = resp.headers.get('Content-Type', '')
+                    if not any(t in content_type for t in ('text/', 'application/json', 'application/xml', 'application/xhtml')):
+                        logger.warning(f"⏭️ Non-text content ({content_type}), skipping: {url[:80]}...")
+                        return None
+                    html = await resp.text(errors='replace')
                     soup = BeautifulSoup(html, 'html.parser')
                     
                     # 移除不需要的元素

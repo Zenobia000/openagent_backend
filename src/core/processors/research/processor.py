@@ -203,6 +203,14 @@ class DeepResearchProcessor(BaseProcessor):
                 self.logger.info("Research is sufficient, proceeding to report", "deep_research", "complete")
                 break
 
+            # Budget exhaustion check
+            if len(executed_queries) >= self.search_config.max_total_queries:
+                self.logger.info(
+                    f"Search budget exhausted ({len(executed_queries)}/{self.search_config.max_total_queries})",
+                    "deep_research", "budget_exhausted"
+                )
+                break
+
             self.logger.info("Research needs more depth, continuing...", "deep_research", "continue")
 
         # Reversible compression: save full research data to file,
@@ -668,7 +676,7 @@ Rules:
         response = await self._call_llm(prompt, None)
         return self._extract_code_block(response)
 
-    async def _enrich_with_full_content(self, search_result: Dict, top_n: int = 5) -> Dict:
+    async def _enrich_with_full_content(self, search_result: Dict, top_n: int = None) -> Dict:
         """Fetch full page content for top search result URLs.
 
         Uses search_service.fetch_multiple() to grab full text from the
@@ -676,6 +684,8 @@ Rules:
         search_result['full_content']. Fails silently — if anything goes
         wrong the original result is returned as-is.
         """
+        if top_n is None:
+            top_n = self.search_config.urls_per_query
         search_service = self.services.get("search")
         if not search_service or not hasattr(search_service, 'fetch_multiple'):
             return search_result
@@ -786,15 +796,23 @@ Rules:
                                         report_plan: str,
                                         existing_results: List[Dict],
                                         executed_queries: List[str] = None) -> List[Dict]:
-        """Generate follow-up queries to fill research gaps, with deduplication."""
+        """Generate follow-up queries to fill research gaps — budget-aware."""
+        # Calculate remaining budget
+        used = len(executed_queries) if executed_queries else 0
+        remaining = max(0, self.search_config.max_total_queries - used)
+        budget = min(self.search_config.queries_followup_iteration, remaining)
+
+        if budget <= 0:
+            self.logger.info("Search budget exhausted, skipping follow-up", "deep_research", "budget")
+            return []
+
         self.logger.progress("followup-query", "start")
 
-        # 準備已有學習成果
         learnings = self._prepare_report_context(existing_results)
 
-        # 使用 review prompt 來生成補充查詢
         output_schema = {
             "type": "array",
+            "maxItems": budget,
             "items": {
                 "type": "object",
                 "properties": {
@@ -818,12 +836,12 @@ Rules:
             plan=report_plan,
             learnings=learnings,
             suggestion=dedup_suggestion,
-            output_schema=output_schema
+            output_schema=output_schema,
+            remaining_budget=budget,
         )
 
         response = await self._call_llm(review_prompt, context)
 
-        # 解析新查詢
         try:
             import re
             json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
@@ -834,8 +852,12 @@ Rules:
         except:
             queries = []
 
+        # Safety net: enforce budget
+        if len(queries) > budget:
+            queries = sorted(queries, key=lambda q: q.get("priority", 0), reverse=True)[:budget]
+
         self.logger.info(
-            f"📋 Follow-up Queries: Generated {len(queries)} additional queries",
+            f"📋 Follow-up Queries: {len(queries)} queries (budget: {budget}, total used: {used})",
             "deep_research",
             "followup"
         )
@@ -934,9 +956,12 @@ Rules:
             phase="serp-query"
         )
 
-        # 定義輸出 schema
+        # Budget from config
+        budget = self.search_config.queries_first_iteration
+
         output_schema = {
             "type": "array",
+            "maxItems": budget,
             "items": {
                 "type": "object",
                 "properties": {
@@ -959,11 +984,13 @@ Rules:
                 + "\n".join(domain_lines)
             )
 
-        # 使用 SERP 查詢 prompt
-        serp_prompt = PromptTemplates.get_serp_queries_prompt(plan + domain_supplement, output_schema)
+        # Budget-aware SERP prompt
+        serp_prompt = PromptTemplates.get_serp_queries_prompt(
+            plan + domain_supplement, output_schema, query_budget=budget
+        )
         response = await self._call_llm(serp_prompt, context)
 
-        # 解析查詢
+        # Parse queries
         try:
             import re
             json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
@@ -973,6 +1000,10 @@ Rules:
                 queries = json.loads(response)
         except:
             queries = [{"query": context.request.query, "researchGoal": "General research", "priority": 1}]
+
+        # Safety net: if LLM ignores budget, keep top N by priority
+        if len(queries) > budget:
+            queries = sorted(queries, key=lambda q: q.get("priority", 0), reverse=True)[:budget]
 
         # 記錄生成的查詢
         self.logger.info(

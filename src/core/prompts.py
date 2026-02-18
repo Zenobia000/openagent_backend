@@ -221,8 +221,8 @@ Expected output:
 ```"""
 
     @staticmethod
-    def get_serp_queries_prompt(plan: str, output_schema: Dict[str, Any]) -> str:
-        """獲取 SERP 查詢提示詞"""
+    def get_serp_queries_prompt(plan: str, output_schema: Dict[str, Any], query_budget: int = 8) -> str:
+        """獲取 SERP 查詢提示詞 — budget-aware"""
         p = _sanitize_xml_input(plan)
         schema_prompt = PromptTemplates.get_serp_query_schema_prompt(output_schema)
         return f"""This is the report plan after user confirmation:
@@ -230,7 +230,12 @@ Expected output:
 {p}
 </PLAN>
 
-Based on previous report plan, generate a list of SERP queries to further research the topic. Make sure each query is unique and not similar to each other.
+Generate exactly {query_budget} search queries to research this topic. Rules:
+- Each query is a SHORT keyword phrase (3-8 words) optimized for search engines
+- NOT a research question or full sentence. Example: "藍領平台 SaaS 轉型 2026" not "2026年藍領垂直領域平台如何進行服務轉型"
+- Cover different aspects/domains proportionally
+- Each query must be unique and target distinct information
+- Prioritize queries by information density potential (highest priority = 1)
 
 {schema_prompt}"""
 
@@ -319,8 +324,9 @@ The learnings should be to the point, as detailed and information dense as possi
 Make sure to include any entities like people, places, companies, products, things, etc in the learnings, as well as any specific entities, metrics, numbers, and dates when available. The learnings will be used to research the topic further."""
 
     @staticmethod
-    def get_review_prompt(plan: str, learnings: str, suggestion: str, output_schema: Dict[str, Any]) -> str:
-        """獲取審查提示詞"""
+    def get_review_prompt(plan: str, learnings: str, suggestion: str,
+                          output_schema: Dict[str, Any], remaining_budget: int = 5) -> str:
+        """獲取審查提示詞 — budget-aware follow-up"""
         p = _sanitize_xml_input(plan)
         l = _sanitize_xml_input(learnings)
         s = _sanitize_xml_input(suggestion)
@@ -340,10 +346,12 @@ This is the user's suggestion for research direction:
 {s}
 </SUGGESTION>
 
-Based on previous research and user research suggestions, determine whether further research is needed.
-If further research is needed, list of follow-up SERP queries to research the topic further.
-Make sure each query is unique and not similar to each other.
-If you believe no further research is needed, you can output an empty queries.
+Based on previous research, determine whether further research is needed.
+If further research is needed, generate at most {remaining_budget} follow-up queries to fill specific knowledge gaps.
+Rules:
+- Each query is a SHORT keyword phrase (3-8 words) for search engines
+- Target ONLY the gaps not covered by existing learnings
+- If no significant gaps remain, output an empty array []
 
 {schema_prompt}"""
 

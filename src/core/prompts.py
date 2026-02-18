@@ -570,6 +570,186 @@ Rules:
 - Keep the code under 80 lines"""
 
     @staticmethod
+    def get_chart_planning_prompt(query: str, research_summary: str, report_plan: str) -> str:
+        """Plan specific charts to include in the report."""
+        q = _sanitize_xml_input(query)
+        rs = _sanitize_xml_input(research_summary)
+        rp = _sanitize_xml_input(report_plan)
+        return f"""You are a McKinsey-trained data visualization specialist.
+Based on the research findings, identify 2-4 charts that would add analytical value to the report.
+
+<QUERY>{q}</QUERY>
+<REPORT_PLAN>{rp}</REPORT_PLAN>
+<RESEARCH_FINDINGS>{rs}</RESEARCH_FINDINGS>
+
+For each chart, specify:
+- title: Descriptive chart title
+- chart_type: one of bar, line, pie, heatmap, scatter, waterfall, or radar
+- data_description: What specific data to extract from findings (be precise about numbers, categories, time periods)
+- target_section: Which report section heading this chart belongs in (use exact heading text)
+- insight: The key analytical takeaway this chart should reveal
+
+Rules:
+- Only propose charts where concrete numerical data exists in the research findings
+- Each chart must reveal an insight that text alone cannot convey effectively
+- Prefer comparative charts (bar, heatmap) over decorative ones (pie)
+- Maximum 4 charts
+
+Reply with ONLY a JSON block:
+```json
+{{"charts": [
+  {{"title": "...", "chart_type": "...", "data_description": "...", "target_section": "...", "insight": "..."}}
+]}}
+```"""
+
+    @staticmethod
+    def get_single_chart_code_prompt(chart_spec: dict, research_summary: str) -> str:
+        """Generate Python code for a single chart."""
+        import json as _json
+        spec_str = _json.dumps(chart_spec, ensure_ascii=False, indent=2)
+        rs = _sanitize_xml_input(research_summary)
+        return f"""Generate Python code for ONE chart. Output ONLY a ```python code block.
+
+Chart specification:
+{spec_str}
+
+Research data to extract numbers from:
+{rs}
+
+Rules:
+- Use matplotlib with plt.figure(figsize=(10, 6))
+- Set Chinese font support: plt.rcParams['font.sans-serif'] = ['SimHei', 'Noto Sans CJK TC', 'DejaVu Sans']
+- plt.rcParams['axes.unicode_minus'] = False
+- Hardcode all data from research findings — no external data sources
+- Call plt.tight_layout() then plt.show()
+- Print a one-line insight summary via print()
+- Keep under 40 lines
+- Available: numpy, pandas, matplotlib, seaborn"""
+
+    @staticmethod
+    def get_intermediate_synthesis_prompt(query: str, report_plan: str,
+                                          wave_results: str,
+                                          previous_synthesis: str = None) -> str:
+        """Progressive synthesis — integrate new findings with prior understanding."""
+        q = _sanitize_xml_input(query)
+        rp = _sanitize_xml_input(report_plan)
+        wr = _sanitize_xml_input(wave_results) if isinstance(wave_results, str) else _sanitize_xml_input(str(wave_results))
+
+        prev_block = ""
+        if previous_synthesis:
+            ps = _sanitize_xml_input(previous_synthesis)
+            prev_block = f"""
+<PREVIOUS_SYNTHESIS>
+{ps}
+</PREVIOUS_SYNTHESIS>
+
+Integrate the new findings with your previous understanding. Update, correct, or deepen your synthesis."""
+
+        return f"""You are a research analyst performing progressive synthesis. Integrate the latest search findings into a coherent understanding.
+
+<RESEARCH_QUESTION>
+{q}
+</RESEARCH_QUESTION>
+
+<REPORT_PLAN>
+{rp}
+</REPORT_PLAN>
+
+<NEW_FINDINGS>
+{wr}
+</NEW_FINDINGS>
+{prev_block}
+
+Respond with a JSON object (no markdown fencing) containing:
+{{
+  "synthesis": "Updated comprehensive understanding integrating all findings so far",
+  "section_coverage": {{
+    "section_name": {{"status": "covered|partial|missing", "notes": "brief note"}}
+  }},
+  "knowledge_gaps": ["specific gap 1", "specific gap 2"],
+  "cross_domain_links": ["connection between domain A and B"]
+}}
+
+Rules:
+- synthesis: thorough paragraph summarizing current understanding
+- section_coverage: evaluate each section from the report plan
+- knowledge_gaps: specific questions or data points still missing
+- cross_domain_links: connections between different fields identified in findings"""
+
+    @staticmethod
+    def get_completeness_review_prompt(report_plan: str, section_coverage: dict,
+                                       iteration: int, max_iterations: int) -> str:
+        """Structured completeness review — section-level evaluation."""
+        rp = _sanitize_xml_input(report_plan)
+        import json as _json
+        sc = _sanitize_xml_input(_json.dumps(section_coverage, ensure_ascii=False, default=str))
+
+        return f"""You are evaluating research completeness for a deep research report.
+
+<REPORT_PLAN>
+{rp}
+</REPORT_PLAN>
+
+<CURRENT_COVERAGE>
+{sc}
+</CURRENT_COVERAGE>
+
+Current iteration: {iteration} / {max_iterations}
+
+Evaluate whether the research is sufficient to write a comprehensive report. Consider:
+1. Does every section in the plan have adequate source material?
+2. Are there critical knowledge gaps that would weaken the report?
+3. Is there enough data for cross-domain analysis?
+
+Respond with a JSON object (no markdown fencing):
+{{
+  "is_sufficient": true or false,
+  "overall_coverage": 0-100,
+  "sections": [
+    {{"name": "section name", "coverage": 0-100, "depth": "low|medium|high", "gaps": ["specific gap"]}}
+  ],
+  "priority_gaps": ["most important query direction to fill"]
+}}
+
+Rules:
+- is_sufficient: true only if overall_coverage >= 70 and no section is below 40
+- priority_gaps: 1-3 specific search directions that would most improve the report
+- Be strict: partial coverage of key sections should result in is_sufficient=false"""
+
+    @staticmethod
+    def get_domain_identification_prompt(query: str, report_plan: str) -> str:
+        """Identify research domains and search angles for multi-domain coverage."""
+        q = _sanitize_xml_input(query)
+        p = _sanitize_xml_input(report_plan)
+        return f"""You are a research strategist. Analyze the following research query and plan, then identify the distinct knowledge domains involved and the best search angles for each.
+
+Research Query: {q}
+
+Report Plan:
+{p}
+
+Return a JSON object with this structure:
+```json
+{{
+  "domains": [
+    {{
+      "name": "domain name (e.g. technology, business, economics, regulation, sociology)",
+      "weight": 0.0-1.0,
+      "search_angles": ["specific search angle 1", "specific search angle 2"]
+    }}
+  ]
+}}
+```
+
+Rules:
+- Identify 2-5 distinct domains
+- Weights must sum to 1.0
+- Each domain needs 2-4 specific search angles
+- Search angles should be concrete enough to serve as search queries
+- Consider cross-domain intersections (e.g. "regulatory impact on technology adoption")
+- Return ONLY the JSON, no explanation"""
+
+    @staticmethod
     def get_chain_of_thought_prompt(query: str) -> str:
         """Chain of thought reasoning prompt"""
         q = _sanitize_xml_input(query)

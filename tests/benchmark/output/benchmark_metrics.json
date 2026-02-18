@@ -1,0 +1,42 @@
+{
+  "raw_char_count": 18887,
+  "effective_word_count": 4996,
+  "total_citations": 282,
+  "unique_citations": 43,
+  "table_count": 6,
+  "section_count": 63,
+  "sections": [
+    "執行摘要（Executive Summary）",
+    "1. 2026 年市場與政策環境分析（Market & Policy Environment）",
+    "1.1 人口與勞動力趨勢",
+    "1.2 產業需求與結構變化",
+    "1.3 自動化與數位化趨勢",
+    "1.4 法規／政策風險與機遇",
+    "2. 目標客群與需求洞察（Target Segments & Needs）",
+    "2.1 客群細分模型（按需求側與供給側）",
+    "2.2 使用者痛點（雇主與工人）",
+    "2.3 需求層級圖（價值期望）",
+    "3. 核心價值主張與服務定位（Value Proposition & Positioning）",
+    "3.1 平台差異化定位（垂直化策略）",
+    "3.2 主要服務鏈路（Service Flows）",
+    "4. 平台產品模型與功能藍圖（Product Model & Feature Roadmap）",
+    "4.1 關鍵功能模組（Must‑have）"
+  ],
+  "domains_covered": [
+    "technology",
+    "business",
+    "labor/workforce",
+    "regulation",
+    "economics"
+  ],
+  "domain_count": 5,
+  "research_domains": [
+    "勞動市場與經濟趨勢",
+    "法規與政策",
+    "技術與數據治理",
+    "平台產品與營運",
+    "商業模式、財務與市場拓展"
+  ],
+  "iterations": 3,
+  "synthesis_rounds": 3
+}

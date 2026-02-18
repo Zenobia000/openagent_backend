@@ -140,74 +140,103 @@ class DeepResearchProcessor(BaseProcessor):
             raise last_error
 
     async def _execute_research_workflow(self, context: ProcessingContext, workflow_state: dict) -> str:
-        """執行核心研究工作流程"""
+        """Execute core research workflow with progressive synthesis."""
 
-        # 0. 如果查詢複雜，先澄清研究方向
-        workflow_state["current_step"] = "clarification"
-        if await self._should_clarify(context):
-            await self._ask_clarifying_questions(context)
+        # NOTE: clarification is disabled — awaiting SSE interactive implementation.
+        # When ready, re-enable _should_clarify / _ask_clarifying_questions here.
 
-        # 1. 報告計劃階段 (WriteReportPlan)
+        # 1. Report plan (WriteReportPlan)
         workflow_state["current_step"] = "plan"
         report_plan = await self._write_report_plan(context)
 
-        # 初始化研究迭代
+        # 1.5. Domain identification (drives multi-domain query distribution)
+        workflow_state["current_step"] = "domain_identification"
+        research_domains = await self._identify_research_domains(context, report_plan)
+
+        # Research iteration loop with progressive synthesis
         MAX_ITERATIONS = 3
         all_search_results = []
+        executed_queries: List[str] = []
+        accumulated_synthesis = None
         iteration = 0
 
         while iteration < MAX_ITERATIONS:
             iteration += 1
             workflow_state["iterations"] = iteration
-            self.logger.info(f"🔄 Research Iteration {iteration}/{MAX_ITERATIONS}", "deep_research", "iteration")
+            self.logger.info(f"Research Iteration {iteration}/{MAX_ITERATIONS}", "deep_research", "iteration")
 
-            # 2. SERP 查詢生成 (GenerateSearchQueries)
+            # 2. Generate search queries
             workflow_state["current_step"] = "search"
             if iteration == 1:
-                search_tasks = await self._generate_serp_queries(context, report_plan)
+                search_tasks = await self._generate_serp_queries(
+                    context, report_plan, domains=research_domains
+                )
             else:
-                # 後續迭代：基於已有結果生成補充查詢
                 search_tasks = await self._generate_followup_queries(
-                    context, report_plan, all_search_results
+                    context, report_plan, all_search_results,
+                    executed_queries=executed_queries,
                 )
 
-            if not search_tasks:  # 沒有更多查詢需求
+            if not search_tasks:
                 break
 
-            # 3. 執行搜索任務 (ExecuteSearchTasks)
+            # 3. Execute search tasks
             search_results = await self._execute_search_tasks(context, search_tasks)
             all_search_results.extend(search_results)
+            executed_queries.extend(t.get('query', '') for t in search_tasks)
 
-            # 4. 評估研究是否充分
-            is_sufficient = await self._review_research_completeness(
-                context, report_plan, all_search_results, iteration
+            # 4. Progressive intermediate synthesis
+            workflow_state["current_step"] = "synthesis"
+            synthesis_result = await self._intermediate_synthesis(
+                context, report_plan, search_results, accumulated_synthesis,
+            )
+            accumulated_synthesis = synthesis_result.get("synthesis", "")
+            section_coverage = synthesis_result.get("section_coverage", {})
+
+            # 5. Structured completeness review
+            is_sufficient, gap_report = await self._review_research_completeness(
+                context, report_plan, all_search_results, iteration,
+                section_coverage=section_coverage,
             )
 
             if is_sufficient:
-                self.logger.info("✅ Research is sufficient, proceeding to final report", "deep_research", "complete")
+                self.logger.info("Research is sufficient, proceeding to report", "deep_research", "complete")
                 break
 
-            self.logger.info(f"📊 Research needs more depth, continuing...", "deep_research", "continue")
+            self.logger.info("Research needs more depth, continuing...", "deep_research", "continue")
 
-        # 4.5. 批判性分析階段 (可選 - 借鑒 ThinkingProcessor)
-        critical_analysis = None
-        if await self._requires_critical_analysis(context.request.query):
-            workflow_state["current_step"] = "critical_analysis"
-            critical_analysis = await self._critical_analysis_stage(context, all_search_results, report_plan)
+        # Reversible compression: save full research data to file,
+        # use accumulated_synthesis (LLM-condensed) for downstream prompts
+        research_data_path = self._save_research_data(context, all_search_results)
+        synthesis = accumulated_synthesis or self._summarize_search_results(all_search_results)
 
-        # 4.6. Computational Analysis (optional — LLM decides dynamically)
+        # 6. Critical analysis (always-on for deep research)
+        workflow_state["current_step"] = "critical_analysis"
+        critical_analysis = await self._critical_analysis_stage(
+            context, all_search_results, report_plan,
+            synthesis=synthesis,
+        )
+
+        # 7. Chart planning (always-on) + execution (requires sandbox)
+        chart_specs = await self._plan_report_charts(
+            context, all_search_results, report_plan,
+            synthesis=synthesis,
+        )
+
         computational_result = None
-        if await self._requires_computational_analysis(context, all_search_results):
+        if chart_specs and self.services.get("sandbox"):
             workflow_state["current_step"] = "computational_analysis"
-            computational_result = await self._computational_analysis_stage(
-                context, all_search_results, report_plan
+            computational_result = await self._execute_chart_plan(
+                context, chart_specs, all_search_results,
+                synthesis=synthesis,
             )
 
-        # 5. 生成最終報告 (WriteFinalReport)
+        # 8. Final report generation
         workflow_state["current_step"] = "synthesize"
         final_report = await self._write_final_report(
             context, all_search_results, report_plan,
-            critical_analysis, computational_result
+            critical_analysis, computational_result,
+            synthesis=synthesis,
         )
 
         # WorkflowComplete: 標記成功完成
@@ -242,49 +271,91 @@ class DeepResearchProcessor(BaseProcessor):
 
         self.logger.progress("clarification", "end")
 
-    async def _requires_critical_analysis(self, query: str) -> bool:
-        """判斷是否需要批判性分析階段"""
+    async def _identify_research_domains(self, context: ProcessingContext,
+                                          report_plan: str) -> List[Dict[str, Any]]:
+        """Identify research domains and search angles for multi-domain coverage."""
 
-        # 批判性思考關鍵詞
-        critical_keywords = [
-            # 分析類
-            '分析', '評估', '批判', '檢視', '思考', '反思',
-            # 比較類
-            '比較', '對比', '差異', '優缺點', '利弊',
-            # 深度思考類
-            '為什麼', '如何看待', '怎麼看', '觀點', '看法',
-            # 複雜問題類
-            '影響', '原因', '後果', '趨勢', '預測',
-            # 多角度類
-            '各方面', '全面', '深入', '綜合', '整體'
-        ]
+        self.logger.progress("domain-identification", "start")
 
-        # 實證研究 + 抽象思考的混合關鍵詞
-        mixed_patterns = [
-            ('趨勢', '分析'), ('發展', '評估'), ('市場', '觀點'),
-            ('數據', '思考'), ('研究', '批判'), ('報告', '反思')
-        ]
-
-        query_lower = query.lower()
-
-        # 檢查單一關鍵詞
-        has_critical_keywords = any(kw in query_lower for kw in critical_keywords)
-
-        # 檢查混合模式
-        has_mixed_patterns = any(
-            kw1 in query_lower and kw2 in query_lower
-            for kw1, kw2 in mixed_patterns
+        prompt = PromptTemplates.get_domain_identification_prompt(
+            query=context.request.query,
+            report_plan=report_plan,
         )
 
-        # 長查詢（>50字符）通常需要更深度的分析
-        is_complex_query = len(query) > 50
+        response = await self._call_llm(prompt, context)
 
-        # 如果符合以上任一條件，啟用批判性分析
-        return has_critical_keywords or has_mixed_patterns or is_complex_query
+        try:
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
+            if json_match:
+                result = json.loads(json_match.group(1))
+            else:
+                result = json.loads(response)
+            domains = result.get("domains", [])
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Fallback: empty domains — SERP generation proceeds without domain guidance
+            domains = []
+
+        self.logger.info(
+            f"Identified {len(domains)} research domains",
+            "deep_research", "domains",
+            domains=[d.get("name") for d in domains]
+        )
+
+        context.response.metadata["research_domains"] = [d.get("name") for d in domains]
+        self.logger.progress("domain-identification", "end")
+
+        return domains
+
+    async def _intermediate_synthesis(self, context: ProcessingContext,
+                                      report_plan: str,
+                                      wave_results: List[Dict],
+                                      previous_synthesis: Optional[str] = None) -> Dict[str, Any]:
+        """Progressive synthesis — integrate new findings with prior understanding."""
+
+        self.logger.progress("intermediate-synthesis", "start")
+
+        wave_summary = self._summarize_search_results(wave_results)
+        prompt = PromptTemplates.get_intermediate_synthesis_prompt(
+            query=context.request.query,
+            report_plan=report_plan,
+            wave_results=wave_summary,
+            previous_synthesis=previous_synthesis,
+        )
+
+        response = await self._call_llm(prompt, context)
+
+        # Parse JSON
+        try:
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
+            if json_match:
+                result = json.loads(json_match.group(1))
+            else:
+                result = json.loads(response)
+        except (json.JSONDecodeError, TypeError):
+            # Fallback: treat entire response as synthesis text
+            result = {
+                "synthesis": response,
+                "section_coverage": {},
+                "knowledge_gaps": [],
+                "cross_domain_links": [],
+            }
+
+        # Ensure required keys exist
+        result.setdefault("synthesis", "")
+        result.setdefault("section_coverage", {})
+        result.setdefault("knowledge_gaps", [])
+        result.setdefault("cross_domain_links", [])
+
+        context.response.metadata.setdefault("synthesis_history", [])
+        context.response.metadata["synthesis_history"].append(result.get("synthesis", "")[:500])
+
+        self.logger.progress("intermediate-synthesis", "end")
+        return result
 
     async def _critical_analysis_stage(self, context: ProcessingContext,
                                      search_results: List[Dict],
-                                     report_plan: str) -> str:
+                                     report_plan: str,
+                                     synthesis: str = None) -> str:
         """批判性分析階段 - 借鑒 ThinkingProcessor 的能力"""
 
         self.logger.progress("critical-analysis", "start")
@@ -295,8 +366,8 @@ class DeepResearchProcessor(BaseProcessor):
             phase="critical-analysis"
         )
 
-        # 準備分析上下文
-        research_summary = self._summarize_search_results(search_results)
+        # Use accumulated synthesis (bounded) instead of raw search results
+        research_summary = synthesis or self._summarize_search_results(search_results)
 
         # 借用 ThinkingProcessor 的批判性思維提示詞
         critical_prompt = PromptTemplates.get_critical_thinking_prompt(
@@ -321,6 +392,41 @@ class DeepResearchProcessor(BaseProcessor):
 
         self.logger.progress("critical-analysis", "end")
         return critical_analysis
+
+    # ============================================================
+    # Chart Planning Phase (always-on)
+    # ============================================================
+
+    async def _plan_report_charts(self, context: ProcessingContext,
+                                   search_results: List[Dict],
+                                   report_plan: str,
+                                   synthesis: str = None) -> List[Dict]:
+        """Plan specific charts for the report — always runs, no sandbox gate."""
+        self.logger.info("Planning report charts...", "deep_research", "chart_plan")
+
+        research_summary = synthesis or self._summarize_search_results(search_results)
+        prompt = PromptTemplates.get_chart_planning_prompt(
+            query=context.request.query,
+            research_summary=research_summary,
+            report_plan=report_plan,
+        )
+
+        try:
+            response = await self._call_llm(prompt, context)
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
+            if json_match:
+                result = json.loads(json_match.group(1))
+            else:
+                result = json.loads(response)
+            charts = result.get("charts", [])
+            self.logger.info(
+                f"Planned {len(charts)} charts",
+                "deep_research", "chart_plan_done"
+            )
+            return charts[:5]
+        except Exception as e:
+            self.logger.warning(f"Chart planning failed: {e}", "deep_research", "chart_plan_fail")
+            return []
 
     # ============================================================
     # Computational Analysis Phase
@@ -400,6 +506,70 @@ class DeepResearchProcessor(BaseProcessor):
         )
         self.logger.progress("computational-analysis", "end")
         return result
+
+    async def _execute_chart_plan(self, context: ProcessingContext,
+                                   chart_specs: List[Dict],
+                                   search_results: List[Dict],
+                                   synthesis: str = None) -> Optional[Dict[str, Any]]:
+        """Execute chart plan: generate and run code for each chart individually."""
+        self.logger.progress("computational-analysis", "start")
+
+        research_summary = synthesis or self._summarize_search_results(search_results)
+        all_figures = []
+        all_stdout = []
+        total_time = 0.0
+
+        for i, spec in enumerate(chart_specs):
+            self.logger.info(
+                f"Generating chart {i+1}/{len(chart_specs)}: {spec.get('title', '?')}",
+                "deep_research", "chart_gen"
+            )
+            try:
+                prompt = PromptTemplates.get_single_chart_code_prompt(spec, research_summary)
+                response = await self._call_llm(prompt, context)
+                code = self._extract_code_block(response)
+                if not code:
+                    continue
+
+                result = await self._execute_analysis_code(code)
+                if result and result.get("figures"):
+                    for fig in result["figures"]:
+                        all_figures.append({"base64": fig, "spec": spec})
+                    all_stdout.append(result.get("stdout", ""))
+                    total_time += result.get("execution_time", 0)
+            except Exception as e:
+                self.logger.warning(
+                    f"Chart {i+1} failed: {e}", "deep_research", "chart_fail"
+                )
+                continue
+
+        if not all_figures:
+            self.logger.info(
+                "No charts generated successfully", "deep_research", "no_charts"
+            )
+            self.logger.progress("computational-analysis", "end")
+            return None
+
+        combined = {
+            "figures": [f["base64"] for f in all_figures],
+            "figure_specs": [f["spec"] for f in all_figures],
+            "stdout": "\n".join(all_stdout),
+            "code": f"# {len(all_figures)} charts generated individually",
+            "execution_time": total_time,
+        }
+
+        context.response.metadata["computational_analysis"] = {
+            "figure_count": len(all_figures),
+            "execution_time": total_time,
+            "chart_titles": [f["spec"].get("title", "") for f in all_figures],
+        }
+
+        self.logger.info(
+            f"Chart plan complete: {len(all_figures)} figures in {total_time:.2f}s",
+            "deep_research", "chart_plan_complete"
+        )
+        self.logger.progress("computational-analysis", "end")
+        return combined
 
     async def _generate_analysis_code(self, context: ProcessingContext,
                                        search_results: List[Dict],
@@ -498,24 +668,125 @@ Rules:
         response = await self._call_llm(prompt, None)
         return self._extract_code_block(response)
 
-    def _summarize_search_results(self, search_results: List[Dict]) -> str:
-        """將搜索結果總結為簡潔的上下文"""
+    async def _enrich_with_full_content(self, search_result: Dict, top_n: int = 5) -> Dict:
+        """Fetch full page content for top search result URLs.
+
+        Uses search_service.fetch_multiple() to grab full text from the
+        highest-relevance URLs, then stores the combined content in
+        search_result['full_content']. Fails silently — if anything goes
+        wrong the original result is returned as-is.
+        """
+        search_service = self.services.get("search")
+        if not search_service or not hasattr(search_service, 'fetch_multiple'):
+            return search_result
+
+        sources = search_result.get('sources', [])
+        if not sources:
+            return search_result
+
+        # Pick top N by relevance (already sorted in most code paths)
+        top_sources = sorted(sources, key=lambda s: s.get('relevance', 0), reverse=True)[:top_n]
+        urls = [s['url'] for s in top_sources if s.get('url')]
+
+        if not urls:
+            return search_result
+
+        try:
+            content_map = await search_service.fetch_multiple(urls)
+            if content_map:
+                full_texts = []
+                for url in urls:
+                    text = content_map.get(url)
+                    if text:
+                        full_texts.append(text)
+                if full_texts:
+                    search_result['full_content'] = "\n\n---\n\n".join(full_texts)
+        except Exception as e:
+            self.logger.warning(
+                f"Full-content extraction failed: {e}",
+                "deep_research", "fetch_content_error"
+            )
+
+        return search_result
+
+    def _save_research_data(self, context: ProcessingContext,
+                             search_results: List[Dict]) -> Optional[str]:
+        """Reversible compression: save full search results to file.
+
+        Full raw data is preserved on disk. Downstream stages use the
+        LLM-condensed accumulated_synthesis instead, keeping prompts bounded.
+        """
+        try:
+            from pathlib import Path
+
+            trace_id = context.request.trace_id
+            data_dir = Path(self.logger.log_dir) / "research_data"
+            data_dir.mkdir(parents=True, exist_ok=True)
+
+            filepath = data_dir / f"{trace_id[:8]}_search_results.json"
+
+            # Extract serializable subset (skip raw HTML etc.)
+            serializable = []
+            for r in search_results:
+                inner = r.get('result', {}) if isinstance(r.get('result'), dict) else {}
+                serializable.append({
+                    "query": r.get("query", ""),
+                    "goal": r.get("goal", ""),
+                    "priority": r.get("priority", 1),
+                    "summary": inner.get("summary", ""),
+                    "processed": inner.get("processed", ""),
+                    "sources": inner.get("sources", []),
+                })
+
+            filepath.write_text(
+                json.dumps(serializable, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            self.logger.info(
+                f"Research data saved: {filepath} ({len(search_results)} results)",
+                "deep_research", "data_saved",
+            )
+            return str(filepath)
+        except Exception as e:
+            self.logger.warning(f"Failed to save research data: {e}", "deep_research", "data_save_error")
+            return None
+
+    def _summarize_search_results(self, search_results: List[Dict],
+                                   max_per_result: int = 8000,
+                                   max_total: int = 200000) -> str:
+        """Summarize search results — prefer full_content over snippets.
+
+        Truncates per-result and total output to stay within LLM context limits.
+        """
 
         summaries = []
-        for i, result in enumerate(search_results[:5], 1):  # 限制前5個結果避免上下文過長
+        total_chars = 0
+        for i, result in enumerate(search_results, 1):
             query = result.get('query', 'Unknown')
-            content = result.get('results', '')
-
-            # 截取每個結果的前200字符
-            content_preview = content[:200] + "..." if len(content) > 200 else content
-            summaries.append(f"Search {i} - Query: {query}\nFindings: {content_preview}")
+            # Prefer full_content (from fetch) → result.full_content → result.results
+            inner = result.get('result', {}) if isinstance(result.get('result'), dict) else {}
+            content = (
+                inner.get('full_content')
+                or result.get('results', '')
+                or inner.get('processed', '')
+                or inner.get('summary', '')
+            )
+            if isinstance(content, str) and len(content) > max_per_result:
+                content = content[:max_per_result] + "... [truncated]"
+            entry = f"Search {i} - Query: {query}\nFindings: {content}"
+            total_chars += len(entry)
+            if total_chars > max_total:
+                summaries.append(f"... [{len(search_results) - i} more results truncated for context limit]")
+                break
+            summaries.append(entry)
 
         return "\n\n".join(summaries)
 
     async def _generate_followup_queries(self, context: ProcessingContext,
                                         report_plan: str,
-                                        existing_results: List[Dict]) -> List[Dict]:
-        """生成後續查詢以填補研究空缺"""
+                                        existing_results: List[Dict],
+                                        executed_queries: List[str] = None) -> List[Dict]:
+        """Generate follow-up queries to fill research gaps, with deduplication."""
         self.logger.progress("followup-query", "start")
 
         # 準備已有學習成果
@@ -534,10 +805,19 @@ Rules:
             }
         }
 
+        # Dedup notice
+        dedup_suggestion = "Focus on filling knowledge gaps and getting more specific details"
+        if executed_queries:
+            queries_list = "\n".join(f"- {q}" for q in executed_queries)
+            dedup_suggestion += (
+                f"\n\nIMPORTANT: The following queries have already been executed. "
+                f"Do NOT generate similar or duplicate queries:\n{queries_list}"
+            )
+
         review_prompt = PromptTemplates.get_review_prompt(
             plan=report_plan,
             learnings=learnings,
-            suggestion="Focus on filling knowledge gaps and getting more specific details",
+            suggestion=dedup_suggestion,
             output_schema=output_schema
         )
 
@@ -566,47 +846,48 @@ Rules:
     async def _review_research_completeness(self, context: ProcessingContext,
                                            report_plan: str,
                                            search_results: List[Dict],
-                                           iteration: int) -> bool:
-        """評估研究是否充分完整"""
+                                           iteration: int,
+                                           section_coverage: Optional[Dict] = None) -> tuple:
+        """Evaluate research completeness — returns (is_sufficient, gap_report)."""
         self.logger.progress("review", "start")
 
-        # 準備評估上下文
-        learnings = self._prepare_report_context(search_results)
-
-        # 簡單的完整性檢查
-        review_prompt = f"""Based on the research plan and collected information, evaluate if the research is sufficient.
-
-Research Plan:
-{report_plan[:500]}
-
-Collected Information Summary:
-- Number of sources: {sum(len(r['result'].get('sources', [])) for r in search_results)}
-- Topics covered: {len(search_results)}
-- Current iteration: {iteration}
-
-Learnings:
-{learnings[:1000]}
-
-Answer with YES if research is sufficient, NO if more research is needed.
-Consider: coverage of all plan sections, depth of information, quality of sources.
-
-Answer (YES/NO):"""
+        review_prompt = PromptTemplates.get_completeness_review_prompt(
+            report_plan=report_plan,
+            section_coverage=section_coverage or {},
+            iteration=iteration,
+            max_iterations=3,
+        )
 
         response = await self._call_llm(review_prompt, context)
 
-        is_sufficient = "YES" in response.upper()[:10]
+        # Parse structured JSON response
+        try:
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
+            if json_match:
+                result = json.loads(json_match.group(1))
+            else:
+                result = json.loads(response)
+
+            is_sufficient = bool(result.get("is_sufficient", False))
+            gap_report = {
+                "overall_coverage": result.get("overall_coverage", 0),
+                "sections": result.get("sections", []),
+                "priority_gaps": result.get("priority_gaps", []),
+            }
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Fallback: simple YES/NO parsing for backward compatibility
+            is_sufficient = "YES" in response.upper()[:10]
+            gap_report = {"overall_coverage": 0, "sections": [], "priority_gaps": []}
 
         self.logger.info(
-            f"📊 Research Completeness: {'Sufficient' if is_sufficient else 'Needs more'}",
-            "deep_research",
-            "review",
-            iteration=iteration,
-            is_sufficient=is_sufficient
+            f"Research Completeness: {'Sufficient' if is_sufficient else 'Needs more'}",
+            "deep_research", "review",
+            iteration=iteration, is_sufficient=is_sufficient
         )
 
         self.logger.progress("review", "end", {"is_sufficient": is_sufficient})
 
-        return is_sufficient
+        return is_sufficient, gap_report
 
     async def _write_report_plan(self, context: ProcessingContext) -> str:
         """Phase 1: 生成研究報告計畫"""
@@ -640,8 +921,9 @@ Answer (YES/NO):"""
 
         return plan
 
-    async def _generate_serp_queries(self, context: ProcessingContext, plan: str) -> List[Dict]:
-        """Phase 2: 生成 SERP 查詢"""
+    async def _generate_serp_queries(self, context: ProcessingContext, plan: str,
+                                      domains: Optional[List[Dict]] = None) -> List[Dict]:
+        """Phase 2: 生成 SERP 查詢 — domain-aware when domains are provided."""
         self.logger.progress("serp-query", "start")
 
         # 記錄查詢生成
@@ -665,8 +947,20 @@ Answer (YES/NO):"""
             }
         }
 
+        # Build domain-aware plan supplement
+        domain_supplement = ""
+        if domains:
+            domain_lines = []
+            for d in domains:
+                angles = ", ".join(d.get("search_angles", []))
+                domain_lines.append(f"- {d['name']} (weight {d.get('weight', 0):.1f}): {angles}")
+            domain_supplement = (
+                "\n\nResearch Domains (ensure queries cover ALL domains proportionally):\n"
+                + "\n".join(domain_lines)
+            )
+
         # 使用 SERP 查詢 prompt
-        serp_prompt = PromptTemplates.get_serp_queries_prompt(plan, output_schema)
+        serp_prompt = PromptTemplates.get_serp_queries_prompt(plan + domain_supplement, output_schema)
         response = await self._call_llm(serp_prompt, context)
 
         # 解析查詢
@@ -800,6 +1094,9 @@ Answer (YES/NO):"""
 
             # 執行搜索（支援多引擎平行搜索）
             search_result = await self._perform_parallel_deep_search(query, goal)
+
+            # Enrich with full page content
+            search_result = await self._enrich_with_full_content(search_result)
 
             # 記錄搜索結果
             self.logger.info(
@@ -995,7 +1292,8 @@ Answer (YES/NO):"""
                                   search_results: List[Dict],
                                   report_plan: str,
                                   critical_analysis: Optional[str] = None,
-                                  computational_result: Optional[Dict[str, Any]] = None) -> str:
+                                  computational_result: Optional[Dict[str, Any]] = None,
+                                  synthesis: str = None) -> str:
         # Phase 4: 生成最終報告 - 學術論文格式（區分引用/未引用）
         self.logger.progress("final-report", "start")
 
@@ -1009,16 +1307,17 @@ Answer (YES/NO):"""
             plan_length=len(report_plan)
         )
 
-        # 準備上下文和參考文獻
-        combined_context = self._prepare_report_context(search_results)
+        # Use accumulated synthesis (bounded, LLM-condensed) as primary context.
+        # Raw search results saved to file earlier (reversible compression).
+        research_context = synthesis or self._prepare_report_context(search_results)
         references_list = self._extract_references(search_results)
 
         # 記錄記憶體操作
         self.logger.info(
-            f"💾 Memory: Storing research context",
+            f"💾 Memory: Research context for report",
             "memory",
             "store",
-            context_size=len(combined_context),
+            context_size=len(research_context),
             chunks=len(search_results),
             type="research_report"
         )
@@ -1026,7 +1325,7 @@ Answer (YES/NO):"""
         # 構建增強的 prompt，包含參考文獻指引和批判性分析
         enhanced_prompt = self._build_academic_report_prompt(
             report_plan,
-            combined_context,
+            research_context,
             references_list,
             context.request.query,
             critical_analysis,
@@ -1081,18 +1380,30 @@ Answer (YES/NO):"""
 
         return final_report
 
-    def _prepare_report_context(self, search_results: List[Dict]) -> str:
-        # 準備報告上下文
+    def _prepare_report_context(self, search_results: List[Dict],
+                                max_per_result: int = 6000,
+                                max_total: int = 200000) -> str:
+        # 準備報告上下文（含截斷保護）
         context_parts = []
+        total_chars = 0
         for i, result in enumerate(search_results, 1):
-            context_parts.append(f"""
+            summary = result['result'].get('summary', '')
+            processed = result['result'].get('processed', '')
+            if isinstance(processed, str) and len(processed) > max_per_result:
+                processed = processed[:max_per_result] + "... [truncated]"
+            entry = f"""
             搜索 {i}: {result['query']}
             目標: {result['goal']}
             優先級: {result.get('priority', 1)}
-            結果摘要: {result['result'].get('summary', '')}
-            處理結果: {result['result'].get('processed', '')}
+            結果摘要: {summary}
+            處理結果: {processed}
             來源數量: {len(result['result'].get('sources', []))}
-            """)
+            """
+            total_chars += len(entry)
+            if total_chars > max_total:
+                context_parts.append(f"... [{len(search_results) - i} more results truncated]")
+                break
+            context_parts.append(entry)
         return "\n\n".join(context_parts)
 
     def _extract_report_sections(self, report: str) -> List[str]:
@@ -1132,7 +1443,7 @@ Answer (YES/NO):"""
         # 準備參考文獻摘要
         ref_summary = "\n".join([
             f"[{ref['id']}] {ref['title']}"
-            for ref in references[:20]  # 最多使用前20個參考
+            for ref in references
         ])
 
         # 基礎 prompt
@@ -1161,15 +1472,35 @@ Use the multi-perspective thinking to enrich your conclusions and provide more n
         prompt += f"""
 
 Requirements:
-1. Write in academic style with clear sections
-2. Use inline citations like [1], [2], [3] when referencing information
-3. Each claim should be supported by citations
-4. DO NOT include a references section in your output (it will be added separately)
-5. Focus on synthesis and analysis, not just summarization
-6. Ensure logical flow between sections"""
+
+=== STRUCTURE (MECE + Pyramid Principle) ===
+1. Open with Executive Summary (3-5 bullet conclusions FIRST, then supporting evidence below)
+2. Structure every section using MECE: sub-sections must be mutually exclusive and collectively exhaustive — no overlaps, no gaps
+3. Each section follows the Pyramid Principle: state the conclusion/claim as the section heading, then provide supporting evidence underneath
+4. Every factual claim ends with a So-What: "This means..." or "The implication is..." — never leave raw data without interpretation
+
+=== ANALYTICAL DEPTH (Claim-Evidence-Implication) ===
+5. Every analytical paragraph follows CEI: Claim (one sentence) → Evidence (data, citations) → Implication (so-what for the reader)
+6. Cross-domain synthesis is mandatory: connect findings from different fields (e.g., regulatory changes → business model impact → technology response)
+7. Include forward-looking analysis with specific trend predictions (2-5 year horizon with quantified estimates)
+
+=== TABLES (Analytical, Not Listing) ===
+8. Include 3-5 ANALYTICAL tables. Each table MUST have a "So-What" interpretation paragraph immediately after it. BANNED table types: simple feature lists, timeline-only tables, raw data dumps
+9. Required analytical table types (use at least 2): Cross-tabulation matrix (rows vs columns with scores/ratings), Comparative scoring matrix (weighted criteria evaluation), Decomposition waterfall (breaking totals into components), Risk-impact quadrant (2x2 or 3x3 matrix with strategic implications)
+
+=== QUANTIFICATION ===
+10. Every market claim must include specific numbers: market size ($B), growth rate (CAGR%), adoption rate (%), company names with revenue/headcount
+11. Use inline citations [1], [2], [3] for every factual claim — minimum 15 unique citations across the report
+12. DO NOT include a references section in your output (it will be added separately)
+
+=== OUTPUT STANDARDS ===
+13. Aim for 3000+ words with deep analysis, not surface-level summarization
+14. Structure with ## for main sections, ### for sub-sections
+15. Write in professional analytical tone — BANNED vague phrases: "重要的是", "值得注意的是", "眾所周知" — replace with specific analytical claims
+16. Include specific company names, product names, statistics, and real-world examples"""
 
         # 如果有批判性分析，添加特殊要求
-        req_num = 7
+        req_num = 17
         if critical_analysis:
             prompt += f"""
 {req_num}. Incorporate critical analysis insights to provide balanced, multi-perspective conclusions
@@ -1209,7 +1540,7 @@ User's Research Question:
 
 IMPORTANT:
 - Use citations [1] to [{len(references)}] naturally throughout the text
-- Make the report comprehensive and detailed (aim for 1000+ words)
+- Make the report comprehensive and detailed (aim for 3000+ words)
 - Structure with clear headings using ## for main sections
 - Write in professional, academic tone
 
@@ -1218,9 +1549,6 @@ Generate the report body (without references section):
 
         return prompt
 
-        # 加上輸出指南
-        output_guidelines = PromptTemplates.get_output_guidelines()
-        return f"{prompt}\n\n{output_guidelines}"
 
     def _analyze_citations(self, report_body: str, references: List[Dict]) -> tuple:
         """
@@ -1371,56 +1699,110 @@ Generate the report body (without references section):
         else:
             references_section += f"*"
 
-        # Insert computational figures before references
-        figures_section = ""
+        # Embed figures inline at target sections (or fallback to bottom)
+        overflow_figures = ""
         if computational_result and computational_result.get("figures"):
-            figures_section = "\n\n---\n\n## Computational Analysis Figures\n\n"
+            figure_specs = computational_result.get("figure_specs", [])
             for i, fig_base64 in enumerate(computational_result["figures"], 1):
-                figures_section += f"**Figure {i}**\n\n"
-                figures_section += f"![Figure {i}](data:image/png;base64,{fig_base64})\n\n"
+                spec = figure_specs[i - 1] if i - 1 < len(figure_specs) else {}
+                title = spec.get("title", f"Figure {i}")
+                insight = spec.get("insight", "")
+                target_section = spec.get("target_section", "")
+
+                figure_md = f"\n\n**Figure {i}: {title}**\n\n"
+                figure_md += f"![Figure {i}: {title}](data:image/png;base64,{fig_base64})\n\n"
+                if insight:
+                    figure_md += f"*{insight}*\n\n"
+
+                # Try to insert after the target section's first paragraph
+                inserted = False
+                if target_section and len(target_section) >= 4:
+                    escaped = re.escape(target_section[:20])
+                    pattern = re.compile(
+                        rf'(#{1,3}\s+[^\n]*{escaped}[^\n]*\n(?:(?!#{1,3}\s).+\n)*)',
+                        re.IGNORECASE,
+                    )
+                    match = pattern.search(report_body)
+                    if match:
+                        insert_pos = match.end()
+                        report_body = report_body[:insert_pos] + figure_md + report_body[insert_pos:]
+                        inserted = True
+
+                if not inserted:
+                    overflow_figures += figure_md
 
         # 組合完整報告
-        full_report = f"{report_body}{figures_section}{references_section}"
+        full_report = f"{report_body}{overflow_figures}{references_section}"
 
-        # Save report to markdown and log long content if needed
+        # Save report as structured bundle
         if context:
             try:
-                metadata = {
-                    "query": context.request.query if context.request else "N/A",
-                    "mode": "deep_research",
-                    "model": getattr(self.llm_client, 'model', 'unknown'),
-                    "timestamp": datetime.now().isoformat(),
-                    "duration_ms": context.response.metadata.get("total_duration_ms", 0),
-                    "tokens": context.response.metadata.get("total_tokens", {}),
-                    "citations": {
-                        "cited_count": len(cited_refs),
-                        "uncited_count": len(uncited_refs),
-                        "total_count": len(cited_refs) + len(uncited_refs),
-                        "citation_rate": len(cited_refs) / max(1, len(cited_refs) + len(uncited_refs)) * 100
-                    },
-                    "stages": context.response.metadata.get("stages", [])
-                }
-
-                trace_id = context.request.trace_id
-                md_path = self.logger.save_response_as_markdown(
-                    full_report, metadata, trace_id
+                save_path = self._save_report_bundle(
+                    full_report, context, computational_result, cited_refs
                 )
-
-                if len(full_report) > self.logger.MAX_LOG_SIZE:
-                    self.logger.log_long_content(
-                        "INFO",
-                        "Deep Research Report Generated",
-                        full_report,
-                        trace_id,
-                        "deep_research"
-                    )
-
-                self.logger.info(f"Report saved to: {md_path}", "deep_research", "markdown_saved")
-
+                if save_path:
+                    self.logger.info(f"Report saved to: {save_path}", "deep_research", "report_saved")
             except Exception as e:
-                self.logger.warning(f"Failed to save markdown report: {e}", "deep_research", "save_error")
+                self.logger.warning(f"Failed to save report: {e}", "deep_research", "save_error")
 
         return full_report
+
+    def _save_report_bundle(self, full_report: str, context: ProcessingContext,
+                             computational_result: Optional[Dict[str, Any]] = None,
+                             cited_refs: List[Dict] = None) -> Optional[str]:
+        """Save report as a structured bundle: report.md + metadata.json + figures/."""
+        from pathlib import Path
+        import base64
+
+        trace_id = context.request.trace_id
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        bundle_name = f"{trace_id[:8]}_{timestamp}"
+
+        reports_dir = Path(self.logger.log_dir) / "reports"
+        bundle_dir = reports_dir / bundle_name
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Save figures as individual PNG files + replace base64 inline
+        report_for_bundle = full_report
+        if computational_result and computational_result.get("figures"):
+            figures_dir = bundle_dir / "figures"
+            figures_dir.mkdir(exist_ok=True)
+            for i, fig_b64 in enumerate(computational_result["figures"], 1):
+                fig_bytes = base64.b64decode(fig_b64)
+                (figures_dir / f"figure_{i}.png").write_bytes(fig_bytes)
+                # Replace base64 inline image with relative path
+                report_for_bundle = re.sub(
+                    rf'!\[Figure {i}[^\]]*\]\(data:image/png;base64,[A-Za-z0-9+/=]+\)',
+                    f'![Figure {i}](figures/figure_{i}.png)',
+                    report_for_bundle,
+                )
+
+        (bundle_dir / "report.md").write_text(report_for_bundle, encoding="utf-8")
+
+        # 2. Save metadata.json
+        figure_specs = (computational_result or {}).get("figure_specs", [])
+        metadata = {
+            "query": context.request.query if context.request else "N/A",
+            "mode": "deep_research",
+            "model": getattr(self.llm_client, 'model', 'unknown'),
+            "timestamp": datetime.now().isoformat(),
+            "duration_ms": context.response.metadata.get("total_duration_ms", 0),
+            "tokens": context.response.metadata.get("total_tokens", {}),
+            "citations": {
+                "cited_count": len(cited_refs) if cited_refs else 0,
+            },
+            "figures": {
+                "count": len(computational_result.get("figures", [])) if computational_result else 0,
+                "titles": [s.get("title", "") for s in figure_specs],
+            },
+            "stages": context.response.metadata.get("stages", []),
+        }
+        (bundle_dir / "metadata.json").write_text(
+            json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        self.logger.info(f"Report bundle saved: {bundle_dir}", "deep_research", "bundle_saved")
+        return str(bundle_dir)
 
     # ============================================================
     # Enhanced Deep Research Methods (SSE Streaming & Events)

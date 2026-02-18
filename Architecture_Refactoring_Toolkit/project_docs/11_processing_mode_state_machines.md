@@ -2,13 +2,20 @@
 
 ---
 
-**Document Version:** `v2.2`
-**Last Updated:** `2026-02-13`
-**Status:** `Current (Enhanced with Decorator Error Handling & Iterative Search)`
+**Document Version:** `v2.3`
+**Last Updated:** `2026-02-16`
+**Status:** `Current (v3.0 + Context Engineering, Decorator Error Handling & Iterative Search)`
 
 ---
 
 ## Changelog
+
+### v2.3 (2026-02-16)
+- Updated for v3.0 Linus-style refactoring: ProcessingMode is now frozen dataclass (`Modes.CHAT`), not enum
+- Added Context Engineering integration: append-only context, todo recitation, error preservation, tool masking
+- Updated processor paths: `src/core/processor.py` → `src/core/processors/*.py` (modular)
+- Added ToolAvailabilityMask integration to routing
+- All CE features are feature-flag controlled (`context_engineering.*`)
 
 ### v2.2 (2026-02-13)
 - Added `@enhanced_error_handler` decorator to SearchProcessor, ThinkingProcessor, CodeProcessor
@@ -37,7 +44,12 @@
 
 ## 1. Overview
 
-This document visualizes the internal workflow of each `ProcessingMode` using state machine diagrams. Each mode is implemented by a corresponding `Processor` class in `src/core/processor.py`.
+This document visualizes the internal workflow of each `ProcessingMode` using state machine diagrams. Each mode is implemented by a corresponding `Processor` class under `src/core/processors/` (modular structure, one file per processor).
+
+**Important v3.0 changes**:
+- `ProcessingMode` is now a **frozen dataclass** (not enum). Use `Modes.CHAT`, `Modes.SEARCH`, etc.
+- Cognitive level is embedded in the mode: `mode.cognitive_level` (data field, no dictionary mapping)
+- Processors are modular: `src/core/processors/chat.py`, `search.py`, etc. (not monolithic `processor.py`)
 
 ### Cognitive Architecture Context
 
@@ -53,8 +65,13 @@ Every mode is classified into a cognitive level that determines its runtime exec
 
 ```mermaid
 stateDiagram-v2
-    [*] --> RouteRequest
+    [*] --> ContextSetup
+    ContextSetup: CE: ContextManager.reset() + append_user()
+    note right of ContextSetup: CE: TodoRecitation.create_initial_plan()
+    ContextSetup --> RouteRequest
+
     RouteRequest: DefaultRouter.route()
+    note right of RouteRequest: ToolAvailabilityMask.get_allowed_tools()
     RouteRequest --> CheckRuntime: RoutingDecision
 
     state CheckRuntime <<choice>>
@@ -82,10 +99,15 @@ stateDiagram-v2
         WorkflowFailed --> [*]
     }
 
-    ModelRuntime --> RecordMetrics
-    AgentRuntime --> RecordMetrics
+    ModelRuntime --> ContextUpdate
+    AgentRuntime --> ContextUpdate
+    ContextUpdate: CE: append_assistant() + update_plan()
+    note right of ContextUpdate: CE: ErrorPreservation retry if needed
+    ContextUpdate --> RecordMetrics
     RecordMetrics --> [*]
 ```
+
+Note: CE (Context Engineering) steps only execute when `context_engineering.enabled` and individual feature flags are ON in `config/cognitive_features.yaml`. When disabled, behavior is identical to v3.0.
 
 ---
 
@@ -503,11 +525,17 @@ Citation Statistics:
 
 ## 8. Mode-to-Infrastructure Mapping
 
-| Mode | Cognitive Level | Runtime | Cache | Error Handler | LLM Calls | External Services |
-|:---|:---|:---|:---:|:---:|:---:|:---|
-| **CHAT** | System 1 | ModelRuntime | Yes | None | 1 | LLM only |
-| **KNOWLEDGE** | System 1 | ModelRuntime | Yes | None | 1-2 | Embedding + Qdrant + LLM (+ rerank LLM) |
-| **SEARCH** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=2, ["NETWORK","LLM"])` | 4-8 | Search engines + LLM |
-| **CODE** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM","SANDBOX"])` | 1 | LLM + Docker |
-| **THINKING** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM"])` | 5 | LLM only |
-| **DEEP_RESEARCH** | Agent | AgentRuntime | No | `retry_with_backoff(max=2)` | 3+ | Search engines + LLM |
+| Mode | Cognitive Level | Runtime | Cache | Error Handler | LLM Calls | External Services | CE Tool Mask |
+|:---|:---|:---|:---:|:---:|:---:|:---|:---|
+| **CHAT** | System 1 | ModelRuntime | Yes | None | 1 | LLM only | `["respond"]` |
+| **KNOWLEDGE** | System 1 | ModelRuntime | Yes | None | 1-2 | Embedding + Qdrant + LLM (+ rerank LLM) | `["respond", "web_search"]` |
+| **SEARCH** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=2, ["NETWORK","LLM"])` | 4-8 | Search engines + LLM | `["respond", "web_search", "web_fetch"]` |
+| **CODE** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM","SANDBOX"])` | 1 | LLM + Docker | `["respond", "code_execute", "code_analyze"]` |
+| **THINKING** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM"])` | 5 | LLM only | `["respond", "web_search", "code_analyze"]` |
+| **DEEP_RESEARCH** | Agent | AgentRuntime | No | `retry_with_backoff(max=2)` | 3+ | Search engines + LLM | `["respond", "web_search", "web_fetch", "code_execute"]` |
+
+**Context Engineering Notes**:
+- `ProcessingMode` is a frozen dataclass: `Modes.CHAT`, `Modes.SEARCH`, etc. (NOT an enum)
+- `cognitive_level` is a data field on the mode itself: `Modes.CHAT.cognitive_level == "system1"`
+- CE Tool Mask column shows `ToolAvailabilityMask.TOOL_GROUPS` per mode (only active when `context_engineering.tool_masking` flag is ON)
+- All CE features (append-only context, todo recitation, error preservation) apply uniformly to all modes when enabled

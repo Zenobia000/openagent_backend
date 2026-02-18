@@ -49,6 +49,18 @@ _DEFAULT_CONFIG = {
             "remove_unused_protocols": False,
             "simplified_initialization": False,
         },
+        # Context Engineering (Manus-aligned)
+        "context_engineering": {
+            "enabled": False,
+            "append_only_context": False,
+            "todo_recitation": False,
+            "error_preservation": False,
+            "tool_masking": False,
+            "template_randomizer": False,
+            "file_based_memory": False,
+            "file_memory_workspace": ".agent_workspace",
+            "compress_keep_last": 10,
+        },
     }
 }
 

@@ -2,9 +2,9 @@
 
 ---
 
-**Document Version:** `v2.1`
-**Last Updated:** `2026-02-13`
-**Status:** `Current`
+**Document Version:** `v2.2`
+**Last Updated:** `2026-02-16`
+**Status:** `Current (v3.0 + Context Engineering)`
 
 ---
 
@@ -18,6 +18,8 @@ Provide a standardized, accurate map of the project's directory and file structu
 - **Cognitive 3-Tier**: System 1 (fast/cached) / System 2 (analytical) / Agent (stateful workflows).
 - **Protocol-Driven**: Components depend on abstractions (`protocols.py`), not concrete implementations.
 - **Feature Flags**: All cognitive features gated by `config/cognitive_features.yaml`, default OFF.
+- **Data Self-Containment**: `ProcessingMode` is a frozen dataclass with all data embedded (no dictionary mappings). Use `Modes.CHAT`, `Modes.from_name("chat")`.
+- **Context Engineering**: Manus-aligned append-only context, KV-Cache friendly. 6 components under `src/core/context/` and `src/core/routing/`.
 
 ## 3. Top-Level Directory Structure
 
@@ -78,30 +80,54 @@ src/auth/
 
 ### 4.3 `src/core/` - Core Engine
 
-**Responsibility**: Business logic orchestration. Router, dual runtime dispatch, processors, caching, metrics, error classification. Does not call external APIs directly -- delegates to `services` layer.
+**Responsibility**: Business logic orchestration. Router, dual runtime dispatch, processors, caching, metrics, error classification, and Context Engineering. Does not call external APIs directly -- delegates to `services` layer.
 
 ```plaintext
 src/core/
 ├── __init__.py
-├── engine.py              # RefactoredEngine (router + runtime dispatch + metrics)
-├── router.py              # DefaultRouter + ComplexityAnalyzer
-├── processor.py           # ProcessorFactory + BaseProcessor + 6 concrete processors
-├── models.py              # Request, Response, ProcessingContext, ProcessingMode, EventType, CognitiveLevel
+├── engine.py              # RefactoredEngine (router + runtime dispatch + CE integration + metrics)
+├── router.py              # DefaultRouter + ComplexityAnalyzer + ToolAvailabilityMask integration
+├── models_v2.py           # Request, Response, ProcessingContext, ProcessingMode (frozen dataclass), Modes, Event, RuntimeType
 ├── feature_flags.py       # FeatureFlags (YAML-driven, all default OFF)
 ├── cache.py               # ResponseCache (SHA-256 key, TTL, LRU eviction, stats)
 ├── metrics.py             # CognitiveMetrics (per-level latency, success rate, tokens)
 ├── errors.py              # ErrorClassifier, ErrorCategory, retry_with_backoff, llm_fallback
 ├── error_handler.py       # Decorator-based error handling (enhanced_error_handler, robust_processor)
 ├── protocols.py           # LLMClientProtocol, RouterProtocol, RuntimeProtocol
+├── processors/            # Modular processor implementations (Linus-style refactored)
+│   ├── __init__.py
+│   ├── base.py            # BaseProcessor (abstract base class)
+│   ├── factory.py         # ProcessorFactory (strategy pattern, no dict mappings)
+│   ├── chat.py            # ChatProcessor (System 1)
+│   ├── knowledge.py       # KnowledgeProcessor (System 1, RAG pipeline)
+│   ├── search.py          # SearchProcessor (System 2, iterative search)
+│   ├── thinking.py        # ThinkingProcessor (System 2, 5-stage deep thinking)
+│   ├── code.py            # CodeProcessor (System 2, sandbox execution)
+│   └── research/          # DeepResearchProcessor (Agent level)
+│       ├── __init__.py
+│       ├── processor.py   # Main research processor
+│       ├── config.py      # Research configuration
+│       └── events.py      # Research event types
+├── context/               # Context Engineering (Manus-aligned, ~240 lines)
+│   ├── __init__.py        # Exports: ContextManager, TodoRecitation, ErrorPreservation, etc.
+│   ├── models.py          # ContextEntry (frozen dataclass, KV-Cache friendly)
+│   ├── context_manager.py # Append-only context manager (~102 lines)
+│   ├── todo_recitation.py # todo.md recitation pattern (~60 lines)
+│   ├── error_preservation.py # Error preservation for retry (~39 lines)
+│   ├── template_randomizer.py # Structural noise injection (~40 lines)
+│   └── file_memory.py     # File system as agent memory (~51 lines)
+├── routing/               # Routing components
+│   ├── __init__.py
+│   └── tool_mask.py       # ToolAvailabilityMask - logit masking (~47 lines)
 ├── runtime/
 │   ├── __init__.py        # Exports ModelRuntime, AgentRuntime
 │   ├── base.py            # BaseRuntime (abstract base for all runtimes)
 │   ├── model_runtime.py   # ModelRuntime (System 1+2, stateless, cached)
 │   ├── agent_runtime.py   # AgentRuntime (Agent level, stateful, retry)
 │   └── workflow.py        # WorkflowOrchestrator
+├── service_initializer.py # Graceful service initialization
 ├── prompts.py             # Prompt templates (system instruction, output guidelines, etc.)
 ├── logger.py              # StructuredLogger (console + file, SSE callback, surrogate-safe)
-├── sre_logger.py          # SRE-compliant logging (structured JSON, log categories, rotation)
 └── utils.py               # Utilities (get_project_root, load_env)
 ```
 
@@ -178,7 +204,17 @@ plugins/
 
 ```plaintext
 tests/
-├── conftest.py                    # Shared test fixtures
+├── conftest.py                    # Shared test fixtures (adds src/ to sys.path)
+├── core/                          # Context Engineering & Routing tests
+│   ├── context/
+│   │   ├── test_context_manager.py     # Append-only context tests
+│   │   ├── test_todo_recitation.py     # todo.md recitation tests
+│   │   ├── test_error_preservation.py  # Error preservation tests
+│   │   ├── test_template_randomizer.py # Structural noise tests
+│   │   └── test_file_memory.py         # File-based memory tests
+│   └── routing/
+│       └── test_tool_mask.py           # Tool availability mask tests
+│
 ├── unit/                          # Unit tests (isolated, no external deps)
 │   ├── test_feature_flags.py      # Feature flag loading/defaults
 │   ├── test_router.py             # Router + ComplexityAnalyzer
@@ -190,10 +226,14 @@ tests/
 │   └── test_multi_provider.py     # Multi-provider LLM fallback chain
 │
 ├── integration/                   # Integration tests (module interactions)
+│   ├── test_context_engineering.py # Full CE integration tests (19 tests)
 │   ├── test_api.py                # All API endpoints via httpx AsyncClient
 │   ├── test_sse.py                # SSE streaming tests
 │   ├── test_model_runtime.py      # ModelRuntime dispatch tests
 │   └── test_agent_runtime.py      # AgentRuntime workflow tests
+│
+├── performance/                   # Performance benchmarks
+│   └── test_context_overhead.py   # CE overhead < 50ms verification
 │
 └── e2e/                           # End-to-end tests (all modes)
     └── test_all_modes.py          # Full pipeline tests for all processing modes

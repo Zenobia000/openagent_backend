@@ -2,15 +2,15 @@
 
 ---
 
-**Document Version:** `v2.1`
-**Last Updated:** `2026-02-13`
-**Status:** `Current (Implemented)`
+**Document Version:** `v2.2`
+**Last Updated:** `2026-02-16`
+**Status:** `Current (Implemented, v3.0 + Context Engineering)`
 
 ---
 
 ## 1. Overview
 
-This document defines the **implemented** API contracts of OpenCode Platform. All endpoints listed below are fully functional with JWT authentication, Pydantic validation, and structured error responses.
+This document defines the **implemented** API contracts of OpenCode Platform. All endpoints listed below are fully functional with JWT authentication, Pydantic validation, and structured error responses. Context Engineering (v3.1) operates transparently behind the API — no new endpoints are required as all CE features are controlled via `config/cognitive_features.yaml`.
 
 ### Design Principles
 

@@ -11,6 +11,7 @@ from .models_v2 import (
 )
 from .feature_flags import FeatureFlags, feature_flags as default_flags
 from .protocols import RouterProtocol
+from .routing.tool_mask import ToolAvailabilityMask
 
 
 class ComplexityAnalyzer:
@@ -119,6 +120,7 @@ class DefaultRouter(RouterProtocol):
     def __init__(self, feature_flags: Optional[FeatureFlags] = None):
         self._flags = feature_flags or default_flags
         self._complexity_analyzer = ComplexityAnalyzer()
+        self._tool_mask = ToolAvailabilityMask(self._flags)
 
     async def route(self, request: Request) -> RoutingDecision:
         """Route a request to a processing decision."""
@@ -130,23 +132,24 @@ class DefaultRouter(RouterProtocol):
             mode = request.mode
             reason = "explicitly specified"
 
-        # Step 2: Cognitive level from the mode
-        cognitive_level = mode.cognitive_level
-
-        # Step 3: Runtime dispatch
-        runtime_type = mode.runtime_type
-
-        # Step 4: Optional complexity analysis
+        # Step 2: Optional complexity analysis
         complexity = None
         if self._flags.is_enabled("routing.complexity_analysis"):
             complexity = self._complexity_analyzer.analyze(request.query)
 
+        # cognitive_level and runtime_type are @property on RoutingDecision,
+        # derived from mode — not constructor args.
         return RoutingDecision(
             mode=mode,
             complexity=complexity,
             confidence=0.85,
             reason=reason,
         )
+
+    @property
+    def tool_mask(self) -> ToolAvailabilityMask:
+        """Expose tool mask for processors to query allowed tools."""
+        return self._tool_mask
 
     @staticmethod
     def _select_mode(query: str):

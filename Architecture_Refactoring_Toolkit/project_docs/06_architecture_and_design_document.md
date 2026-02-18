@@ -2,9 +2,9 @@
 
 ---
 
-**Document Version:** `v2.1`
-**Last Updated:** `2026-02-13`
-**Status:** `Current (Implemented)`
+**Document Version:** `v2.2`
+**Last Updated:** `2026-02-16`
+**Status:** `Current (v3.0 Linus Refactored + v3.1 Context Engineering)`
 
 ---
 
@@ -21,7 +21,7 @@
 
 ---
 
-**Purpose**: This document translates the OpenCode Platform's architecture into a technical blueprint reflecting the **currently implemented** system: Cognitive 3-Tier processing, Dual Runtime dispatch, Multi-Provider LLM fallback, JWT authentication, and feature-flagged capabilities.
+**Purpose**: This document translates the OpenCode Platform's architecture into a technical blueprint reflecting the **currently implemented** system: Cognitive 3-Tier processing, Dual Runtime dispatch, Multi-Provider LLM fallback, JWT authentication, feature-flagged capabilities, and Manus-aligned Context Engineering (v3.1).
 
 ---
 
@@ -74,16 +74,25 @@ graph TB
     end
 
     subgraph "Core Engine"
-        Engine["RefactoredEngine<br/>Router + Runtime Dispatch<br/>src/core/engine.py"]
+        Engine["RefactoredEngine<br/>Router + Runtime Dispatch + CE<br/>src/core/engine.py"]
         Router["DefaultRouter<br/>Mode + Cognitive Level<br/>src/core/router.py"]
         ModelRT["ModelRuntime<br/>System 1+2 (stateless, cached)<br/>src/core/runtime/model_runtime.py"]
         AgentRT["AgentRuntime<br/>Agent (stateful, retry)<br/>src/core/runtime/agent_runtime.py"]
-        Factory["ProcessorFactory<br/>Strategy Pattern<br/>src/core/processor.py"]
+        Factory["ProcessorFactory<br/>Strategy Pattern<br/>src/core/processors/factory.py"]
         Cache["ResponseCache<br/>SHA-256, TTL, LRU<br/>src/core/cache.py"]
         Metrics["CognitiveMetrics<br/>Per-level tracking<br/>src/core/metrics.py"]
         Errors["ErrorClassifier<br/>5 categories, retry<br/>src/core/errors.py"]
         ErrHandler["enhanced_error_handler<br/>Decorator-based retry<br/>src/core/error_handler.py"]
         Flags["FeatureFlags<br/>YAML-driven<br/>src/core/feature_flags.py"]
+    end
+
+    subgraph "Context Engineering (Manus-aligned, feature-flag controlled)"
+        CtxMgr["ContextManager<br/>Append-only context<br/>src/core/context/context_manager.py"]
+        TodoRec["TodoRecitation<br/>todo.md recitation<br/>src/core/context/todo_recitation.py"]
+        ErrPres["ErrorPreservation<br/>Keep failed attempts<br/>src/core/context/error_preservation.py"]
+        TplRand["TemplateRandomizer<br/>Structural noise<br/>src/core/context/template_randomizer.py"]
+        FileMem["FileBasedMemory<br/>File system memory<br/>src/core/context/file_memory.py"]
+        ToolMask["ToolAvailabilityMask<br/>Logit masking<br/>src/core/routing/tool_mask.py"]
     end
 
     subgraph "Service Layer"
@@ -110,6 +119,12 @@ graph TB
     Engine --> AgentRT
     Engine --> Metrics
     Engine --> Flags
+    Engine --> CtxMgr
+    Engine --> TodoRec
+    Engine --> ErrPres
+    Engine --> TplRand
+    Engine --> FileMem
+    Router --> ToolMask
     ModelRT --> Cache
     ModelRT --> Factory
     AgentRT --> Factory
@@ -170,8 +185,17 @@ graph LR
             Flags[FeatureFlags]
         end
 
+        subgraph "Context Engineering"
+            CE_Ctx[ContextManager<br/>Append-only]
+            CE_Todo[TodoRecitation<br/>todo.md pattern]
+            CE_Err[ErrorPreservation<br/>Keep failures]
+            CE_Tpl[TemplateRandomizer<br/>Structural noise]
+            CE_Mem[FileBasedMemory<br/>File system]
+            CE_Mask[ToolAvailabilityMask<br/>Logit masking]
+        end
+
         subgraph "Data & Interfaces"
-            Models[Data Models<br/>models.py]
+            Models[Data Models<br/>models_v2.py]
             Protocols[Protocols<br/>protocols.py]
             Prompts[Prompt Templates<br/>prompts.py]
         end
@@ -208,12 +232,20 @@ graph LR
 
     Engine --> Metrics
     Engine --> Flags
+    Engine --> CE_Ctx
+    Engine --> CE_Todo
+    Engine --> CE_Err
+    Engine --> CE_Tpl
+    Engine --> CE_Mem
+    Router --> CE_Mask
 
     style Engine fill:#FFF8E1,stroke:#F57C00
     classDef processor fill:#F3E5F5,stroke:#6A1B9A
     classDef runtime fill:#E8F5E9,stroke:#2E7D32
+    classDef ce fill:#E1F5FE,stroke:#0288D1
     class Chat,Knowledge,Search,Code,Thinking,DeepResearch processor
     class MRT,ART runtime
+    class CE_Ctx,CE_Todo,CE_Err,CE_Tpl,CE_Mem,CE_Mask ce
 ```
 
 ### 1.2 Strategic DDD
@@ -224,9 +256,14 @@ graph LR
 |:---|:---|:---|
 | **Request** | Encapsulated user request with mode, trace_id, metadata | `core.models.Request` |
 | **Response** | Unified response with result, tokens, events | `core.models.Response` |
-| **ProcessingMode** | 7 modes: auto, chat, knowledge, search, code, thinking, deep_research | `core.models.ProcessingMode` |
-| **CognitiveLevel** | System 1 (fast), System 2 (analytical), Agent (stateful) | `core.models.CognitiveLevel` |
-| **RuntimeType** | ModelRuntime (stateless) or AgentRuntime (stateful) | `core.models.RuntimeType` |
+| **ProcessingMode** | Frozen dataclass. 7 modes: auto, chat, knowledge, search, code, thinking, deep_research. Data self-contained (no dict mappings) | `core.models_v2.ProcessingMode` |
+| **Modes** | Predefined mode constants: `Modes.CHAT`, `Modes.SEARCH`, etc. Use `Modes.from_name("chat")` for lookup | `core.models_v2.Modes` |
+| **CognitiveLevel** | Embedded in ProcessingMode.cognitive_level: "system1", "system2", "agent" | `ProcessingMode.cognitive_level` field |
+| **RuntimeType** | ModelRuntime (stateless) or AgentRuntime (stateful) | `core.models_v2.RuntimeType` |
+| **ContextEntry** | Frozen dataclass for append-only context entries (KV-Cache friendly) | `core.context.models.ContextEntry` |
+| **ContextManager** | Append-only context manager (never modify, never delete) | `core.context.context_manager.ContextManager` |
+| **TodoRecitation** | todo.md recitation pattern (replaces MetacognitiveGovernor) | `core.context.todo_recitation.TodoRecitation` |
+| **ToolAvailabilityMask** | Logit masking for tool selection (mask, don't remove) | `core.routing.tool_mask.ToolAvailabilityMask` |
 | **Engine** | Central orchestrator: route → dispatch → execute → respond | `core.engine.RefactoredEngine` |
 | **Router** | Classifies requests by mode, cognitive level, and runtime | `core.router.DefaultRouter` |
 | **Processor** | Strategy object for a specific mode | `core.processor.*Processor` |
@@ -253,13 +290,18 @@ graph TB
         ResearchCtx[Research Context<br/>Deep Research Pipeline<br/>services.research]
     end
 
+    subgraph "Context Engineering Domain"
+        CECtx[Context Engineering<br/>Append-Only + KV-Cache<br/>core.context.*]
+        ToolMaskCtx[Tool Masking<br/>Logit Masking<br/>core.routing.tool_mask]
+    end
+
     subgraph "Generic Domain"
         CacheCtx[Cache Context<br/>Response Caching<br/>core.cache]
         MetricsCtx[Metrics Context<br/>Cognitive Metrics<br/>core.metrics]
         ErrorCtx[Error Context<br/>Classification + Retry<br/>core.errors]
         FlagsCtx[Feature Flags<br/>YAML Configuration<br/>core.feature_flags]
         LogCtx[Logging Context<br/>Structured Logger<br/>core.logger]
-        ModelCtx[Data Model Context<br/>Unified Models<br/>core.models]
+        ModelCtx[Data Model Context<br/>Unified Models<br/>core.models_v2]
     end
 
     EngineCtx --> RuntimeCtx
@@ -284,8 +326,8 @@ The project strictly follows a unidirectional dependency structure: **API → Co
 
 | Layer | Clean Architecture Role | Implementation | Forbidden Imports |
 |:---|:---|:---|:---|
-| **Entities** | Domain models | `core/models.py` — Request, Response, ProcessingMode, CognitiveLevel, RuntimeType, RoutingDecision | — |
-| **Use Cases** | Application logic | `core/engine.py` — RefactoredEngine orchestration; `core/processor.py` — 6 concrete processors; `core/router.py` — DefaultRouter; `core/runtime/` — Dual runtime dispatch; `core/error_handler.py` — decorator-based retry | `src.api` |
+| **Entities** | Domain models | `core/models_v2.py` — Request, Response, ProcessingMode (frozen dataclass), Modes, RuntimeType, Event; `core/context/models.py` — ContextEntry | — |
+| **Use Cases** | Application logic | `core/engine.py` — RefactoredEngine orchestration + CE integration; `core/processors/` — 6 concrete processors (modular); `core/router.py` — DefaultRouter; `core/runtime/` — Dual runtime dispatch; `core/context/` — Context Engineering; `core/routing/` — Tool masking | `src.api` |
 | **Interface Adapters** | HTTP/CLI boundary | `src/api/routes.py` — 11 FastAPI endpoints; `src/api/streaming.py` — SSE bridge; `src/auth/` — JWT auth; `main.py` — CLI | — |
 | **Frameworks & Drivers** | Infrastructure | `src/services/` — LLM providers, Qdrant, Docker, web search, browser | `src.core`, `src.api` |
 
@@ -297,17 +339,19 @@ The project strictly follows a unidirectional dependency structure: **API → Co
 
 #### Module: Router (`core.router`)
 
-- **Responsibility**: Classify incoming requests by mode, cognitive level, and runtime type.
+- **Responsibility**: Classify incoming requests by mode, cognitive level, and runtime type. Integrates ToolAvailabilityMask for KV-Cache-friendly tool selection.
 - **Components**:
   - `DefaultRouter`: 4-step routing pipeline — resolve mode → classify cognitive level → select runtime → optional complexity analysis.
   - `ComplexityAnalyzer`: Rule-based query complexity scoring (length, multi-step indicators, tool keywords, question count). Gated by feature flag `routing.complexity_analysis`.
+  - `ToolAvailabilityMask` (`core.routing.tool_mask`): Logit masking — all tools always defined in system prompt (stable KV-Cache prefix), mode determines which tools are allowed via mask. Replaces the original OODA Router dynamic switching design.
 - **Flow**:
   ```
   Request(mode=AUTO) → DefaultRouter.route()
-    → Step 1: _select_mode(query) → ProcessingMode.CHAT
-    → Step 2: mode.cognitive_level → CognitiveLevel.SYSTEM1
-    → Step 3: _select_runtime(level) → RuntimeType.MODEL_RUNTIME
+    → Step 1: _select_mode(query) → Modes.CHAT (frozen dataclass, not enum)
+    → Step 2: mode.cognitive_level → "system1" (data field, no dict lookup)
+    → Step 3: _select_runtime(level) → RuntimeType.MODEL
     → Step 4: ComplexityAnalyzer.analyze(query) → ComplexityScore (optional)
+    → Step 5: ToolAvailabilityMask.get_allowed_tools(mode.name) (CE, optional)
     → return RoutingDecision
   ```
 
@@ -319,14 +363,14 @@ The project strictly follows a unidirectional dependency structure: **API → Co
   - `AgentRuntime` (Agent level): Stateful workflow execution with WorkflowState tracking. Wraps processor calls in `retry_with_backoff(max_retries=2)`. Failed steps are classified by ErrorClassifier.
 - **Feature Flag Gating**: When `routing.smart_routing` is OFF, engine falls back to direct ProcessorFactory dispatch (legacy path). When ON, routes to the appropriate runtime.
 
-#### Module: Engine & Processors (`core.engine`, `core.processor`)
+#### Module: Engine & Processors (`core.engine`, `core.processors`)
 
-- **Responsibility**: Engine orchestrates the full request lifecycle. ProcessorFactory creates mode-specific strategy objects.
+- **Responsibility**: Engine orchestrates the full request lifecycle with Context Engineering integration. ProcessorFactory creates mode-specific strategy objects.
 - **Components**:
-  - `RefactoredEngine`: Route → dispatch to runtime → collect metrics → return response. Supports both sync `process()` and SSE `process_stream()`.
-  - `ProcessorFactory`: Strategy pattern — maps ProcessingMode to Processor instances.
-  - `BaseProcessor`: Abstract base class defining `async process(context) -> str`.
-  - 6 concrete processors: `ChatProcessor`, `KnowledgeProcessor`, `SearchProcessor`, `CodeProcessor`, `ThinkingProcessor`, `DeepResearchProcessor`.
+  - `RefactoredEngine`: Route → CE context setup → dispatch to runtime → CE context update → collect metrics → return response. Supports both sync `process()` and SSE `process_stream()`. Integrates all 6 Context Engineering components via feature flags.
+  - `ProcessorFactory` (`processors/factory.py`): Strategy pattern — maps `Modes.*` (frozen dataclass) to Processor instances. No dictionary mappings — uses mode data directly.
+  - `BaseProcessor` (`processors/base.py`): Abstract base class defining `async process(context) -> str`.
+  - 6 concrete processors (modular, each in own file): `ChatProcessor`, `KnowledgeProcessor`, `SearchProcessor`, `CodeProcessor`, `ThinkingProcessor`, `DeepResearchProcessor`.
 
 - **Sequence Diagram**:
   ```mermaid
@@ -340,6 +384,8 @@ The project strictly follows a unidirectional dependency structure: **API → Co
       participant LLM as MultiProviderLLMClient
 
       Client->>Engine: process(Request)
+      Note over Engine: CE: ContextManager.reset() + append_user()
+      Note over Engine: CE: TodoRecitation.create_initial_plan()
       Engine->>Router: route(Request)
       Router-->>Engine: RoutingDecision(mode, level, runtime)
       Engine->>Runtime: execute(Context)
@@ -350,6 +396,9 @@ The project strictly follows a unidirectional dependency structure: **API → Co
       LLM-->>Proc: response (with fallback)
       Proc-->>Runtime: result string
       Runtime-->>Engine: result
+      Note over Engine: CE: ContextManager.append_assistant(result)
+      Note over Engine: CE: TodoRecitation.update_from_output()
+      Note over Engine: CE: ErrorPreservation.should_retry() if needed
       Engine->>Engine: record metrics
       Engine-->>Client: Response
   ```
@@ -375,6 +424,26 @@ The project strictly follows a unidirectional dependency structure: **API → Co
   - `llm_fallback()` (`errors.py`): Primary/secondary function fallback utility.
   - `enhanced_error_handler()` (`error_handler.py`): Decorator-based retry for processor methods. Supports configurable `max_retries`, `retryable_categories`, and `base_delay`. Used directly on processor `process()` methods (e.g., `SearchProcessor`).
   - `robust_processor` (`error_handler.py`): Alias for `enhanced_error_handler` (backward compatibility).
+
+#### Module: Context Engineering (`core.context` + `core.routing`)
+
+- **Responsibility**: Manus-aligned context management for KV-Cache optimization, attention management, and error learning. All components are feature-flag controlled (`context_engineering.*` in `config/cognitive_features.yaml`).
+- **Design Principles** (from [Manus Context Engineering](https://manus.im/blog/Context-Engineering-for-AI-Agents)):
+  1. **KV-Cache friendly**: Context is append-only — never modify or delete history
+  2. **Mask, don't remove**: All tools always defined; mode constrains via logit masking
+  3. **File system as memory**: Unlimited, persistent, agent-manipulable
+  4. **Attention via recitation**: Push goals into recent context position
+  5. **Keep erroneous turns**: Model learns implicitly from seeing own mistakes
+  6. **Avoid few-shot traps**: Structural noise prevents pattern lock-in
+- **Components**:
+  - `ContextManager` (~102 lines): Append-only context with reversible compression. Only `append()` and `reset()` operations — no modify/delete.
+  - `TodoRecitation` (~60 lines): Replaces MetacognitiveGovernor. Pushes current plan into recent context position to combat "lost in the middle".
+  - `ErrorPreservation` (~39 lines): Stateless utility. Builds retry prompts that include failed attempts (never hide errors).
+  - `TemplateRandomizer` (~40 lines): Randomizes prompt templates to prevent few-shot lock-in. Replaces Neuromodulation RL.
+  - `FileBasedMemory` (~51 lines): File system as agent memory. Replaces Vector DB + Knowledge Graph for context persistence.
+  - `ToolAvailabilityMask` (~47 lines): Logit masking for tool selection. All tools always in prompt (stable prefix). Replaces OODA Router dynamic switching.
+- **Integration**: All 6 components are initialized in `RefactoredEngine.__init__()` when their respective feature flags are enabled. Processing flow: reset → append user → execute → append result → update plan → retry if needed.
+- **Total**: ~392 lines production code, ~746 lines tests, 63 test cases, 0 regressions.
 
 #### Module: Knowledge Base (`services.knowledge`)
 
@@ -488,9 +557,28 @@ uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 - [x] ResponseCache for System 1, CognitiveMetrics
 - [x] ErrorClassifier, retry_with_backoff, llm_fallback
 - [x] Feature flags (YAML-driven, default OFF)
-- [x] Multi-Provider LLM fallback chain (OpenAI → Anthropic → Gemini)
+- [x] Multi-Provider LLM fallback chain (OpenAI -> Anthropic -> Gemini)
 - [x] Structured logging with surrogate sanitization
 - [x] Comprehensive test suite (17+ unit tests for multi-provider alone)
+
+### v3.0: Linus-Style Refactoring (Completed)
+
+- [x] ProcessingMode refactored to frozen dataclass (data self-contained, no dict mappings)
+- [x] Processors modularized (`src/core/processors/` directory, one file per processor)
+- [x] ProcessorFactory uses `Modes.*` directly (no COGNITIVE_MAPPING dict)
+- [x] Unified Event model (replaces SSEEvent)
+- [x] ServiceInitializer for graceful service startup
+
+### v3.1: Context Engineering (Completed - Manus-aligned)
+
+- [x] ContextManager — append-only context (KV-Cache friendly, ~102 lines)
+- [x] TodoRecitation — todo.md recitation pattern (replaces MetacognitiveGovernor, ~60 lines)
+- [x] ErrorPreservation — keep failed attempts in context (~39 lines)
+- [x] TemplateRandomizer — structural noise injection (~40 lines)
+- [x] FileBasedMemory — file system as agent memory (~51 lines)
+- [x] ToolAvailabilityMask — logit masking for tool selection (~47 lines)
+- [x] Engine integration with feature flag gating (63 new tests, 0 regressions)
+- [x] Performance verified: <1ms/request overhead
 
 ### Phase 5+: Future Enhancements
 
@@ -501,3 +589,5 @@ uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Prometheus metrics + Grafana dashboards
 - [ ] Multi-tenant support and resource isolation
+- [ ] [Conditional] EnhancedRouter (if DefaultRouter accuracy <70%)
+- [ ] [Conditional] Lightweight ConfidenceEstimator (if todo.md insufficient for quality gating)

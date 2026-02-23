@@ -14,6 +14,7 @@ Extracted from monolithic processor.py (1487 lines)
 
 import asyncio
 import json
+import os
 import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, AsyncGenerator
@@ -526,8 +527,18 @@ class DeepResearchProcessor(BaseProcessor):
         all_figures = []
         all_stdout = []
         total_time = 0.0
+        consecutive_failures = 0
+        max_chart_failures = int(os.environ.get("SANDBOX_MAX_CHART_FAILURES", "2"))
 
         for i, spec in enumerate(chart_specs):
+            if consecutive_failures >= max_chart_failures:
+                self.logger.warning(
+                    f"Aborting chart plan: {consecutive_failures} consecutive failures, "
+                    f"skipping remaining {len(chart_specs) - i} charts",
+                    "deep_research", "chart_abort"
+                )
+                break
+
             self.logger.info(
                 f"Generating chart {i+1}/{len(chart_specs)}: {spec.get('title', '?')}",
                 "deep_research", "chart_gen"
@@ -537,6 +548,7 @@ class DeepResearchProcessor(BaseProcessor):
                 response = await self._call_llm(prompt, context)
                 code = self._extract_code_block(response)
                 if not code:
+                    consecutive_failures += 1
                     continue
 
                 result = await self._execute_analysis_code(code)
@@ -545,10 +557,14 @@ class DeepResearchProcessor(BaseProcessor):
                         all_figures.append({"base64": fig, "spec": spec})
                     all_stdout.append(result.get("stdout", ""))
                     total_time += result.get("execution_time", 0)
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
             except Exception as e:
                 self.logger.warning(
                     f"Chart {i+1} failed: {e}", "deep_research", "chart_fail"
                 )
+                consecutive_failures += 1
                 continue
 
         if not all_figures:
@@ -619,10 +635,12 @@ class DeepResearchProcessor(BaseProcessor):
         if not sandbox_service:
             return None
 
+        compute_timeout = int(os.environ.get("SANDBOX_COMPUTE_TIMEOUT", "60"))
+
         try:
             result = await sandbox_service.execute("execute_python", {
                 "code": code,
-                "timeout": 30
+                "timeout": compute_timeout
             })
 
             if result.get("success"):
@@ -725,15 +743,17 @@ Rules:
 
         Full raw data is preserved on disk. Downstream stages use the
         LLM-condensed accumulated_synthesis instead, keeping prompts bounded.
+        Files are organized into per-session directories under research_data/.
         """
         try:
             from pathlib import Path
 
             trace_id = context.request.trace_id
-            data_dir = Path(self.logger.log_dir) / "research_data"
-            data_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            session_dir = Path(self.logger.log_dir) / "research_data" / f"{trace_id[:8]}_{timestamp}"
+            session_dir.mkdir(parents=True, exist_ok=True)
 
-            filepath = data_dir / f"{trace_id[:8]}_search_results.json"
+            filepath = session_dir / "search_results.json"
 
             # Extract serializable subset (skip raw HTML etc.)
             serializable = []
@@ -1518,6 +1538,11 @@ Requirements:
 === TABLES (Analytical, Not Listing) ===
 8. Include 3-5 ANALYTICAL tables. Each table MUST have a "So-What" interpretation paragraph immediately after it. BANNED table types: simple feature lists, timeline-only tables, raw data dumps
 9. Required analytical table types (use at least 2): Cross-tabulation matrix (rows vs columns with scores/ratings), Comparative scoring matrix (weighted criteria evaluation), Decomposition waterfall (breaking totals into components), Risk-impact quadrant (2x2 or 3x3 matrix with strategic implications)
+10-TABLE. MANDATORY: All tables MUST use standard Markdown pipe syntax. Example:
+| Criterion | Option A | Option B | Score |
+|-----------|----------|----------|-------|
+| data      | data     | data     | data  |
+Do NOT describe tables in prose. Do NOT use bullet lists as table substitutes. Render every table as a proper Markdown pipe table with header row and separator row.
 
 === QUANTIFICATION ===
 10. Every market claim must include specific numbers: market size ($B), growth rate (CAGR%), adoption rate (%), company names with revenue/headcount
@@ -1555,7 +1580,8 @@ Number of charts/figures generated: {figure_count}
 
 IMPORTANT: Integrate these computational findings into your report:
 - Reference specific numbers, calculations, and statistical results from the output
-- If charts were generated, reference them as "Figure 1", "Figure 2", etc. in the appropriate sections
+- If charts were generated, reference them as "Figure 1", "Figure 2", etc. INLINE within the relevant analysis section's paragraph (e.g., "As shown in Figure 1, the market share distribution reveals...")
+- Do NOT create a separate section for figures/charts — embed each figure reference naturally in the section where its data is discussed
 - Explain what the computational analysis reveals in plain language"""
 
             prompt += f"""
@@ -1730,7 +1756,7 @@ Generate the report body (without references section):
         else:
             references_section += f"*"
 
-        # Embed figures inline at target sections (or fallback to bottom)
+        # Embed figures inline where "Figure N" is referenced in text
         overflow_figures = ""
         if computational_result and computational_result.get("figures"):
             figure_specs = computational_result.get("figure_specs", [])
@@ -1738,26 +1764,28 @@ Generate the report body (without references section):
                 spec = figure_specs[i - 1] if i - 1 < len(figure_specs) else {}
                 title = spec.get("title", f"Figure {i}")
                 insight = spec.get("insight", "")
-                target_section = spec.get("target_section", "")
 
                 figure_md = f"\n\n**Figure {i}: {title}**\n\n"
                 figure_md += f"![Figure {i}: {title}](data:image/png;base64,{fig_base64})\n\n"
                 if insight:
                     figure_md += f"*{insight}*\n\n"
 
-                # Try to insert after the target section's first paragraph
+                # Strategy: find paragraph containing "Figure N" reference,
+                # insert image right after that paragraph's end
                 inserted = False
-                if target_section and len(target_section) >= 4:
-                    escaped = re.escape(target_section[:20])
-                    pattern = re.compile(
-                        rf'(#{1,3}\s+[^\n]*{escaped}[^\n]*\n(?:(?!#{1,3}\s).+\n)*)',
-                        re.IGNORECASE,
-                    )
-                    match = pattern.search(report_body)
-                    if match:
-                        insert_pos = match.end()
-                        report_body = report_body[:insert_pos] + figure_md + report_body[insert_pos:]
-                        inserted = True
+                fig_ref_pattern = re.compile(
+                    rf'Figure\s+{i}\b', re.IGNORECASE
+                )
+                match = fig_ref_pattern.search(report_body)
+                if match:
+                    # Find end of the paragraph containing the reference
+                    para_end = report_body.find('\n\n', match.end())
+                    if para_end == -1:
+                        para_end = len(report_body)
+                    else:
+                        para_end += 1  # include one newline
+                    report_body = report_body[:para_end] + figure_md + report_body[para_end:]
+                    inserted = True
 
                 if not inserted:
                     overflow_figures += figure_md

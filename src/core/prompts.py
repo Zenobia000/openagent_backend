@@ -571,11 +571,21 @@ Rules:
 - Do NOT use requests, urllib, or any network libraries
 - Do NOT read or write files
 - Use matplotlib.pyplot as plt for charts; call plt.tight_layout() before plt.show()
+- Set Chinese font at the top: plt.rcParams['font.sans-serif'] = ['Noto Sans CJK JP', 'Noto Sans CJK TC', 'Noto Sans CJK SC', 'DejaVu Sans']; plt.rcParams['axes.unicode_minus'] = False
 - Use plt.figure() to create separate figures for different analyses
 - All data must come from the research findings above — hardcode the numbers
 - Focus on computation that adds insight beyond what text alone provides
 - If concrete numbers are sparse, create reasonable illustrative models based on available data
-- Keep the code under 80 lines"""
+- Keep the code under 80 lines
+
+PERFORMANCE CONSTRAINTS (CRITICAL):
+- Code MUST complete execution within 20 seconds
+- Limit all data arrays/lists to under 1000 elements
+- Do NOT train ML models (no sklearn .fit() on datasets > 100 rows)
+- Do NOT use scipy.optimize with complex objective functions
+- Prefer vectorized numpy/pandas operations over nested loops
+- Maximum 3 matplotlib figures per script
+- Use pd.DataFrame with at most 50 rows of hardcoded data"""
 
     @staticmethod
     def get_chart_planning_prompt(query: str, research_summary: str, report_plan: str) -> str:
@@ -626,13 +636,16 @@ Research data to extract numbers from:
 
 Rules:
 - Use matplotlib with plt.figure(figsize=(10, 6))
-- Set Chinese font support: plt.rcParams['font.sans-serif'] = ['SimHei', 'Noto Sans CJK TC', 'DejaVu Sans']
+- Set Chinese font support: plt.rcParams['font.sans-serif'] = ['Noto Sans CJK JP', 'Noto Sans CJK TC', 'Noto Sans CJK SC', 'DejaVu Sans']
 - plt.rcParams['axes.unicode_minus'] = False
 - Hardcode all data from research findings — no external data sources
 - Call plt.tight_layout() then plt.show()
 - Print a one-line insight summary via print()
 - Keep under 40 lines
-- Available: numpy, pandas, matplotlib, seaborn"""
+- Available: numpy, pandas, matplotlib, seaborn
+- Code MUST complete within 15 seconds — use simple data structures only
+- Hardcode at most 30 data points
+- Do NOT use sklearn, scipy, or any model-fitting operations"""
 
     @staticmethod
     def get_intermediate_synthesis_prompt(query: str, report_plan: str,

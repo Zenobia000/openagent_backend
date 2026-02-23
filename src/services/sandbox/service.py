@@ -15,7 +15,10 @@ import asyncio
 import json
 import os
 import logging
+import queue
+import struct
 import tempfile
+import threading
 import time
 import uuid
 import re
@@ -181,16 +184,215 @@ class CodeSecurityFilter:
         return code
 
 
+class _PersistentSandbox:
+    """
+    Persistent Docker container with a long-running Python REPL process.
+
+    Eliminates cold start overhead by keeping the container alive and
+    libraries pre-imported. Communicates via stdin/stdout JSON lines
+    through Docker's attach_socket (multiplexed stream with tty=False).
+
+    Thread safety: Lock serializes concurrent execute() calls.
+    A background daemon thread reads stdout into a Queue.
+    """
+
+    def __init__(self, docker_client, image: str, mem_limit: str = "512m",
+                 cpu_quota: int = 50000):
+        self._docker = docker_client
+        self._image = image
+        self._mem_limit = mem_limit
+        self._cpu_quota = cpu_quota
+
+        self._container = None
+        self._socket = None
+        self._reader_thread: Optional[threading.Thread] = None
+        self._response_queue: queue.Queue = queue.Queue()
+        self._lock = threading.Lock()
+        self._alive = False
+
+    def start(self) -> bool:
+        """Create container, attach socket, start reader, wait for ready signal."""
+        try:
+            self._container = self._docker.containers.run(
+                self._image,
+                command=["python", "/app/runner.py", "--persistent"],
+                detach=True,
+                stdin_open=True,
+                stdout=True,
+                stderr=True,
+                tty=False,
+                mem_limit=self._mem_limit,
+                cpu_quota=self._cpu_quota,
+                network_mode="none",
+                read_only=True,
+                remove=False,
+                tmpfs={'/tmp': 'size=100M'},
+                user="sandbox",
+            )
+
+            self._socket = self._container.attach_socket(
+                params={'stdin': 1, 'stdout': 1, 'stderr': 1, 'stream': 1}
+            )
+
+            self._alive = True
+            self._reader_thread = threading.Thread(
+                target=self._read_loop, daemon=True
+            )
+            self._reader_thread.start()
+
+            # Wait for ready signal from runner.py
+            try:
+                ready_msg = self._response_queue.get(timeout=30)
+                if ready_msg.get("status") == "ready":
+                    logger.info("Persistent sandbox container ready")
+                    return True
+                logger.warning(f"Unexpected ready message: {ready_msg}")
+            except queue.Empty:
+                logger.warning("Persistent sandbox timed out waiting for ready signal")
+
+            self.stop()
+            return False
+
+        except Exception as e:
+            logger.error(f"Failed to start persistent sandbox: {e}")
+            self.stop()
+            return False
+
+    def execute(self, code: str, timeout: int = 60) -> dict:
+        """Send code to the persistent container, wait for result with timeout."""
+        with self._lock:
+            if not self._alive or not self._container:
+                raise RuntimeError("Persistent sandbox is not running")
+
+            # Drain stale responses
+            while not self._response_queue.empty():
+                try:
+                    self._response_queue.get_nowait()
+                except queue.Empty:
+                    break
+
+            payload = json.dumps({"code": code}, ensure_ascii=False) + "\n"
+            try:
+                self._socket._sock.sendall(payload.encode('utf-8'))
+            except (BrokenPipeError, OSError) as e:
+                self._alive = False
+                raise RuntimeError(f"Sandbox socket broken: {e}")
+
+            try:
+                return self._response_queue.get(timeout=timeout)
+            except queue.Empty:
+                logger.warning(
+                    f"Persistent sandbox timed out after {timeout}s, restarting"
+                )
+                self._restart()
+                return {
+                    "success": False,
+                    "error": f"Execution timed out after {timeout}s",
+                    "error_type": "TimeoutError",
+                    "stdout": "", "stderr": "",
+                    "figures": [], "return_value": None
+                }
+
+    def _read_loop(self):
+        """Background thread: parse Docker multiplexed stream, collect JSON lines."""
+        # tty=False → Docker multiplexes stdout/stderr with 8-byte frame headers:
+        # [stream_type(1), padding(3), payload_size(4 big-endian)]
+        raw_sock = self._socket._sock
+        stdout_buf = b""
+
+        while self._alive:
+            try:
+                header = self._recv_exact(raw_sock, 8)
+                if not header:
+                    break
+
+                stream_type = header[0]
+                payload_size = struct.unpack('>I', header[4:8])[0]
+
+                payload = self._recv_exact(raw_sock, payload_size)
+                if not payload:
+                    break
+
+                if stream_type == 1:  # stdout
+                    stdout_buf += payload
+                    while b"\n" in stdout_buf:
+                        line, stdout_buf = stdout_buf.split(b"\n", 1)
+                        line = line.strip()
+                        if line:
+                            try:
+                                msg = json.loads(
+                                    line.decode('utf-8', errors='replace')
+                                )
+                                self._response_queue.put(msg)
+                            except json.JSONDecodeError:
+                                pass
+                # stderr is logged but not queued
+                elif stream_type == 2:
+                    logger.debug(
+                        f"Sandbox stderr: "
+                        f"{payload.decode('utf-8', errors='replace')}"
+                    )
+
+            except (OSError, ConnectionError):
+                break
+            except Exception as e:
+                logger.warning(f"Sandbox reader error: {e}")
+                break
+
+        self._alive = False
+
+    @staticmethod
+    def _recv_exact(sock, n: int) -> bytes:
+        """Receive exactly n bytes from socket, or empty bytes on EOF."""
+        data = b""
+        while len(data) < n:
+            chunk = sock.recv(n - len(data))
+            if not chunk:
+                return b""
+            data += chunk
+        return data
+
+    def _restart(self):
+        """Kill current container and start a fresh one."""
+        self.stop()
+        self.start()
+
+    def stop(self):
+        """Stop and clean up the container."""
+        self._alive = False
+        if self._socket:
+            try:
+                self._socket.close()
+            except Exception:
+                pass
+            self._socket = None
+        if self._container:
+            try:
+                self._container.kill()
+            except Exception:
+                pass
+            try:
+                self._container.remove(force=True)
+            except Exception:
+                pass
+            self._container = None
+
+    @property
+    def is_alive(self) -> bool:
+        return self._alive and self._container is not None
+
+
 class SandboxService(MCPServiceProtocol):
     """
     Docker 隔離的程式碼執行沙箱
-    
+
     安全特性:
     - 網路隔離 (network_mode="none")
     - 記憶體限制 (預設 512MB)
     - CPU 限制 (50% 單核)
     - 執行時間限制 (預設 30 秒)
     - 非 root 用戶執行
+    - 常駐容器 REPL 模式消除冷啟動開銷
     """
     
     # Docker image 名稱
@@ -217,6 +419,10 @@ class SandboxService(MCPServiceProtocol):
         self.docker_client = None
         self._image_ready = False
         self._initialized = False
+
+        # Persistent sandbox (lazy init)
+        self._persistent_sandbox: Optional[_PersistentSandbox] = None
+        self._persistent_enabled = self.config.get("persistent_sandbox", True)
     
     @property
     def service_id(self) -> str:
@@ -265,6 +471,24 @@ class SandboxService(MCPServiceProtocol):
                 logger.warning(f"⚠️ Docker not available: {e}")
                 self.docker_enabled = False
         
+        # Start persistent sandbox if Docker is available
+        if self.docker_enabled and self._image_ready and self._persistent_enabled:
+            try:
+                self._persistent_sandbox = _PersistentSandbox(
+                    self.docker_client, self.SANDBOX_IMAGE,
+                    mem_limit=self.memory_limit, cpu_quota=self.cpu_quota
+                )
+                if not self._persistent_sandbox.start():
+                    logger.warning(
+                        "Persistent sandbox failed to start, using ephemeral mode"
+                    )
+                    self._persistent_sandbox = None
+            except Exception as e:
+                logger.warning(
+                    f"Persistent sandbox init error: {e}, using ephemeral mode"
+                )
+                self._persistent_sandbox = None
+
         self._initialized = True
         logger.info(f"✅ {self.service_id} initialized (Docker: {self.docker_enabled})")
     
@@ -316,6 +540,9 @@ class SandboxService(MCPServiceProtocol):
     
     async def shutdown(self) -> None:
         """關閉服務"""
+        if self._persistent_sandbox:
+            self._persistent_sandbox.stop()
+            self._persistent_sandbox = None
         logger.info(f"{self.service_id} shutdown")
     
     # ========== 核心執行方法 ==========
@@ -400,9 +627,35 @@ class SandboxService(MCPServiceProtocol):
         code: str,
         timeout: int = 30
     ) -> Dict[str, Any]:
-        """在 Docker 容器中執行 Python 代碼"""
+        """Execute Python — prefer persistent sandbox, fallback to ephemeral."""
+        # Try persistent sandbox first (zero cold start)
+        if self._persistent_sandbox and self._persistent_sandbox.is_alive:
+            try:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, self._persistent_sandbox.execute, code, timeout
+                )
+                return result
+            except RuntimeError as e:
+                logger.warning(
+                    f"Persistent sandbox failed: {e}, falling back to ephemeral"
+                )
+                try:
+                    self._persistent_sandbox._restart()
+                except Exception:
+                    self._persistent_sandbox = None
+
+        # Fallback: ephemeral container
+        return await self._execute_python_docker_ephemeral(code, timeout)
+
+    async def _execute_python_docker_ephemeral(
+        self,
+        code: str,
+        timeout: int = 30
+    ) -> Dict[str, Any]:
+        """在 Docker 容器中執行 Python 代碼（一次性容器）"""
         import docker
-        
+
         # 準備輸入
         input_data = json.dumps({"code": code}, ensure_ascii=False)
         

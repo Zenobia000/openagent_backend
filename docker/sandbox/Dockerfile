@@ -11,15 +11,16 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV MPLBACKEND=Agg
 
-# 安裝系統依賴
+# 安裝系統依賴 + CJK 字體（matplotlib 中文渲染）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libffi-dev \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # 安裝 Python 套件
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --default-timeout=300 \
     numpy==1.26.4 \
     pandas==2.2.0 \
     matplotlib==3.8.2 \

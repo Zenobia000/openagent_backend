@@ -2,9 +2,9 @@
 
 ---
 
-**Document Version:** `v2.2`
-**Last Updated:** `2026-02-16`
-**Status:** `Current (v3.0 + Context Engineering)`
+**Document Version:** `v2.4`
+**Last Updated:** `2026-02-23`
+**Status:** `Current (v3.0 + Context Engineering + Persistent Sandbox + Dead Code Cleanup)`
 
 ---
 
@@ -27,9 +27,9 @@ Provide a standardized, accurate map of the project's directory and file structu
 openagent_backend/
 ├── config/                     # Feature flag configuration
 │   └── cognitive_features.yaml
-├── docker/                     # Docker configs (Dockerfile, compose)
+├── docker/                     # Docker configs (Dockerfile, compose); runner.py supports --persistent flag for persistent REPL mode
 ├── docs/                       # Project-level documentation
-├── logs/                       # Application logs (auto-created)
+├── logs/                       # Application logs (auto-created); research_data/{trace_id}_{timestamp}/search_results.json
 ├── plugins/                    # Plugin system (3 example plugins)
 │   ├── PLUGIN_DEV_GUIDE.md     # Plugin development guide
 │   ├── example-translator/     # Example: translation plugin
@@ -123,8 +123,7 @@ src/core/
 │   ├── __init__.py        # Exports ModelRuntime, AgentRuntime
 │   ├── base.py            # BaseRuntime (abstract base for all runtimes)
 │   ├── model_runtime.py   # ModelRuntime (System 1+2, stateless, cached)
-│   ├── agent_runtime.py   # AgentRuntime (Agent level, stateful, retry)
-│   └── workflow.py        # WorkflowOrchestrator
+│   └── agent_runtime.py   # AgentRuntime (Agent level, stateful, retry)
 ├── service_initializer.py # Graceful service initialization
 ├── prompts.py             # Prompt templates (system instruction, output guidelines, etc.)
 ├── logger.py              # StructuredLogger (console + file, SSE callback, surrogate-safe)
@@ -138,43 +137,30 @@ src/core/
 ```plaintext
 src/services/
 ├── __init__.py
-├── llm_service.py             # Legacy LLM service wrapper
 ├── llm/                       # Multi-provider LLM client
 │   ├── __init__.py            # create_llm_client() factory
 │   ├── base.py                # LLMProvider ABC (generate, stream, provider_name, is_available)
 │   ├── openai_client.py       # OpenAILLMClient (GPT-4o, GPT-4o-mini)
 │   ├── anthropic_client.py    # AnthropicLLMClient (Claude)
 │   ├── gemini_client.py       # GeminiLLMClient (Gemini, google-genai SDK)
+│   ├── gpt5_adapter.py        # GPT5Adapter (GPT-5 series parameter constraints)
+│   ├── errors.py              # LLM-specific error types
 │   └── multi_provider.py      # MultiProviderLLMClient (fallback chain orchestrator)
 │
 ├── knowledge/                 # RAG knowledge base service
 │   ├── __init__.py
 │   ├── indexer.py             # Document chunking + embedding + Qdrant indexing
-│   ├── multimodal_parser.py   # PDF/DOCX/image parsing
-│   ├── parser.py              # Base document parser
+│   ├── multimodal_parser.py   # Multi-format document parser (PDF, DOCX, Excel, CSV, Markdown, JSON, code)
 │   ├── retriever.py           # Vector similarity search
 │   └── service.py             # KnowledgeBaseService entry point
 │
 ├── search/                    # Web search (multi-engine)
 │   ├── __init__.py
-│   └── service.py             # Tavily > Serper > DuckDuckGo fallback
+│   └── service.py             # Tavily > Serper > DuckDuckGo > Exa fallback
 │
-├── sandbox/                   # Docker code execution
-│   ├── __init__.py
-│   ├── routes.py              # Sandbox-specific API routes
-│   └── service.py             # Docker container management + CodeSecurityFilter
-│
-├── research/                  # Deep research service
-│   ├── __init__.py
-│   └── service.py             # Multi-step research pipeline
-│
-├── browser/                   # Web content extraction
-│   ├── __init__.py
-│   └── service.py             # Page fetching and parsing
-│
-└── repo/                      # Git operations
+└── sandbox/                   # Docker code execution
     ├── __init__.py
-    └── service.py
+    └── service.py             # Docker container management + CodeSecurityFilter + _PersistentSandbox (thread-safe Docker REPL)
 ```
 
 ## 5. Plugin Structure

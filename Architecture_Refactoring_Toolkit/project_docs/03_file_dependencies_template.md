@@ -2,9 +2,9 @@
 
 ---
 
-**Document Version:** `v2.2`
-**Last Updated:** `2026-02-16`
-**Status:** `Current (v3.0 + Context Engineering)`
+**Document Version:** `v2.4`
+**Last Updated:** `2026-02-23`
+**Status:** `Current (v3.0 + Context Engineering + Persistent Sandbox + Dead Code Cleanup)`
 
 ---
 
@@ -80,9 +80,7 @@ graph TD
         Knowledge[services.knowledge]
         Search[services.search]
         Sandbox[services.sandbox]
-        Browser[services.browser]
-        Research[services.research]
-        Repo[services.repo]
+        PersistSB[services.sandbox<br/>_PersistentSandbox]
     end
 
     %% External -> API
@@ -135,8 +133,6 @@ graph TD
     Factory --> Knowledge
     Factory --> Search
     Factory --> Sandbox
-    Factory --> Browser
-    Factory --> Research
 
     %% LLM Multi-provider internal
     LLMMulti --> LLMOpenAI
@@ -150,7 +146,7 @@ graph TD
     Knowledge --> VectorDB
     Search --> Web
     Sandbox --> DockerD
-    Browser --> Web
+    PersistSB --> DockerD
 
     classDef api fill:#E8F4FD,stroke:#1565C0,stroke-width:2px,color:#000
     classDef core fill:#FFF8E1,stroke:#F57C00,stroke-width:2px,color:#000
@@ -162,7 +158,7 @@ graph TD
     class Routes,Schemas,Streaming,APIErrors,Middleware,Auth api
     class Engine,Router,BaseRT,ModelRT,AgentRT,Factory,Models,Flags,Cache,Metrics,Errors,ErrHandler,Protocols,Logger,Prompts,Utils core
     class CtxMgr,TodoRec,ErrPres,TplRand,FileMem,CtxEntry,ToolMask ce
-    class LLMMulti,LLMOpenAI,LLMAnthropic,LLMGemini,Knowledge,Search,Sandbox,Browser,Research,Repo service
+    class LLMMulti,LLMOpenAI,LLMAnthropic,LLMGemini,Knowledge,Search,Sandbox,PersistSB service
     class User,LLM_API,VectorDB,Web,DockerD external
 ```
 
@@ -213,7 +209,9 @@ api.routes -> core.engine.process(Request)
   -> core.runtime.agent_runtime.execute()
     -> core.processors.research.DeepResearchProcessor.process()
       -> [wrapped in retry_with_backoff(max_retries=2)]
-      -> services.research -> services.search -> services.llm
+      -> services.search + services.llm (parallel search execution)
+      -> [chart planning -> services.sandbox (_PersistentSandbox) -> execute]
+      -> [early abort after SANDBOX_MAX_CHART_FAILURES consecutive failures]
     -> [on failure: ErrorClassifier -> record error_category]
     -> [CE: ErrorPreservation.build_retry_prompt() if retry needed]
   -> [CE: ContextManager.append_assistant(result)]
@@ -229,5 +227,5 @@ api.routes -> core.engine.process(Request)
 |:---|:---|:---|:---|
 | **LLM APIs** | High | All AI features | Multi-provider fallback chain (OpenAI -> Anthropic -> Gemini) |
 | **Qdrant DB** | Medium | RAG/Knowledge features | Abstract `VectorStoreProtocol`, local fallback possible |
-| **Docker Daemon** | Low | Code sandbox only | Sandbox is optional; core system runs without it |
+| **Docker Daemon** | Low | Code sandbox only | Sandbox is optional; persistent sandbox (`_PersistentSandbox`) with auto-restart + fallback to ephemeral containers; core system runs without it |
 | **Web Search APIs** | Low | Search mode only | Multi-engine fallback (Tavily -> Serper -> DuckDuckGo) |

@@ -225,9 +225,30 @@ Do NOT describe tables in prose. Do NOT use bullet lists as table substitutes. R
 13. Aim for 3000+ words with deep analysis, not surface-level summarization
 14. Structure with ## for main sections, ### for sub-sections
 15. Write in professional analytical tone — BANNED vague phrases: "重要的是", "值得注意的是", "眾所周知" — replace with specific analytical claims
-16. Include specific company names, product names, statistics, and real-world examples"""
+16. Include specific company names, product names, statistics, and real-world examples
 
-        req_num = 17
+=== TABLE COMPLETENESS ===
+17. MANDATORY: Every cell in every table MUST contain a completed value. BANNED: "=?", "TBD", "N/A", empty cells, incomplete formulas. If a calculation is shown, compute and display the final number.
+
+=== EXPRESSION DIVERSITY ===
+18. BANNED: Using the same transitional phrase more than 3 times in the entire report. Specifically BANNED repetitive templates: "這意味著", "值得注意的是", "重要的是". Instead, vary by context: "戰略含義在於...", "對 [role] 而言，這重新定義了...", "此發現挑戰了...", "淨效應是...", "董事會應將此視為..."
+
+=== COMPETITIVE LANDSCAPE (Mandatory Section) ===
+19. MUST include a dedicated competitive analysis section covering: key players (with names, revenue, market share), competitive positioning, barriers to entry, value chain analysis. Apply at least one strategic framework: Porter's Five Forces, SWOT, or Value Chain Analysis.
+
+=== SOURCE QUALITY AWARENESS ===
+20. Prioritize Tier 1-2 sources for core claims. When citing Tier 4-5 sources for key numbers, add explicit caveat: "（來源為行業博客/廠商白皮書，建議交叉驗證）". Every core market-sizing claim needs at least 2 independent sources or an explicit single-source warning.
+
+=== SCENARIO ANALYSIS ===
+21. For any investment or strategic recommendation, include Bull/Base/Bear scenario analysis with quantified ranges (market size, ROI, timeline). Format as a 3-column comparison table.
+
+=== METHODOLOGY TRANSPARENCY ===
+22. Include a brief Methodology section near the end: research scope, number of sources reviewed, source language distribution, key limitations, and what was excluded from analysis.
+
+=== FIGURE ORDERING ===
+23. Figures MUST be numbered sequentially (Figure 1, Figure 2, ...) in order of first appearance. Each figure reference MUST appear in the same paragraph or section where its data is discussed — never cluster figures together."""
+
+        req_num = 24
         if critical_analysis:
             prompt += f"""
 {req_num}. Incorporate critical analysis insights to provide balanced, multi-perspective conclusions

@@ -83,12 +83,14 @@ class ResearchAnalyzer:
                 "section_coverage": {},
                 "knowledge_gaps": [],
                 "cross_domain_links": [],
+                "evidence_quality": {},
             }
 
         result.setdefault("synthesis", "")
         result.setdefault("section_coverage", {})
         result.setdefault("knowledge_gaps", [])
         result.setdefault("cross_domain_links", [])
+        result.setdefault("evidence_quality", {})
 
         context.response.metadata.setdefault("synthesis_history", [])
         context.response.metadata["synthesis_history"].append(

@@ -53,7 +53,13 @@ class PromptTemplates:
 
         "deep_research": """
 - Conduct exhaustive, multi-step research with structured output.
-- Maintain a clear evidence hierarchy: primary sources over secondary, recent over dated.
+- Evidence hierarchy (MUST follow):
+  Tier 1 (Primary): Government statistics, central bank data, SEC/annual filings, peer-reviewed papers
+  Tier 2 (Institutional): Gartner, IDC, Forrester, McKinsey/BCG/Bain published research
+  Tier 3 (Quality media): FT, WSJ, Bloomberg, Economist, Reuters
+  Tier 4 (Secondary): Industry blogs, vendor white papers, company press releases
+  Tier 5 (Weak): Social media, news aggregators, unverified sources
+- Core quantitative claims MUST cite Tier 1-2 sources. If unavailable, explicitly flag as "based on Tier 4 source — independent verification recommended".
 - Organize findings into a coherent report structure.
 - Flag areas where evidence is insufficient or conflicting.""",
     }
@@ -236,6 +242,9 @@ Generate exactly {query_budget} search queries to research this topic. Rules:
 - Cover different aspects/domains proportionally
 - Each query must be unique and target distinct information
 - Prioritize queries by information density potential (highest priority = 1)
+- At least 30% of queries MUST target authoritative sources by including terms like: "Gartner report", "IDC forecast", "government statistics", "academic paper", "white paper site:gov", "market research", "annual report", "SEC filing"
+- At least 2 queries MUST be in English to capture global primary research (e.g., "edge computing market size Gartner 2025" alongside Chinese queries)
+- Prefer specificity: "edge computing TAM IDC 2025 forecast" over generic terms like "邊緣運算市場"
 
 {schema_prompt}"""
 
@@ -258,7 +267,13 @@ You need to think like a human researcher.
 Generate a list of learnings from the search results.
 Make sure each learning is unique and not similar to each other.
 The learnings should be to the point, as detailed and information dense as possible.
-Make sure to include any entities like people, places, companies, products, things, etc in the learnings, as well as any specific entities, metrics, numbers, and dates when available. The learnings will be used to research the topic further."""
+Make sure to include any entities like people, places, companies, products, things, etc in the learnings, as well as any specific entities, metrics, numbers, and dates when available. The learnings will be used to research the topic further.
+
+For EACH learning, assess the source credibility and prepend a tag:
+- [PRIMARY] if from: government statistics, central bank data, SEC filings, peer-reviewed papers, official industry body reports (Gartner, IDC, Forrester)
+- [SECONDARY] if from: established business media (FT, WSJ, Bloomberg, Economist), company annual reports, well-known research institutions
+- [WEAK] if from: blog posts, social media, vendor marketing materials, news aggregators, press releases
+Format each learning as: "[TAG] The learning content here..." """
 
     @staticmethod
     def get_citation_rules() -> str:
@@ -294,7 +309,13 @@ You need to think like a human researcher.
 Generate a list of learnings from the contexts.
 Make sure each learning is unique and not similar to each other.
 The learnings should be to the point, as detailed and information dense as possible.
-Make sure to include any entities like people, places, companies, products, things, etc in the learnings, as well as any specific entities, metrics, numbers, and dates when available. The learnings will be used to research the topic further."""
+Make sure to include any entities like people, places, companies, products, things, etc in the learnings, as well as any specific entities, metrics, numbers, and dates when available. The learnings will be used to research the topic further.
+
+For EACH learning, assess the source credibility and prepend a tag:
+- [PRIMARY] if from: government statistics, central bank data, SEC filings, peer-reviewed papers, official industry body reports (Gartner, IDC, Forrester)
+- [SECONDARY] if from: established business media (FT, WSJ, Bloomberg, Economist), company annual reports, well-known research institutions
+- [WEAK] if from: blog posts, social media, vendor marketing materials, news aggregators, press releases
+Format each learning as: "[TAG] The learning content here..." """
 
     @staticmethod
     def get_search_knowledge_result_prompt(query: str, research_goal: str, context: str) -> str:
@@ -351,6 +372,8 @@ If further research is needed, generate at most {remaining_budget} follow-up que
 Rules:
 - Each query is a SHORT keyword phrase (3-8 words) for search engines
 - Target ONLY the gaps not covered by existing learnings
+- Also target QUALITY gaps: if key claims rely solely on Tier 4-5 sources (blogs, social media), generate queries specifically seeking Tier 1-2 sources (e.g., add "Gartner", "IDC", "government report", "academic paper" to the query)
+- Prioritize quality-upgrading queries over coverage-expanding queries when coverage is already adequate
 - If no significant gaps remain, output an empty array []
 
 {schema_prompt}"""
@@ -378,7 +401,8 @@ Rules:
 
     @staticmethod
     def get_final_report_prompt(plan: str, learnings: str, sources: str, images: str, requirement: str) -> str:
-        """獲取最終報告提示詞"""
+        """DEPRECATED: Use ReportGenerator.build_academic_report_prompt() instead.
+        This legacy prompt lacks McKinsey-grade quality controls. Kept for backward compatibility only."""
         p = _sanitize_xml_input(plan)
         l = _sanitize_xml_input(learnings)
         src = _sanitize_xml_input(sources)
@@ -688,14 +712,18 @@ Respond with a JSON object (no markdown fencing) containing:
     "section_name": {{"status": "covered|partial|missing", "notes": "brief note"}}
   }},
   "knowledge_gaps": ["specific gap 1", "specific gap 2"],
-  "cross_domain_links": ["connection between domain A and B"]
+  "cross_domain_links": ["connection between domain A and B"],
+  "evidence_quality": {{
+    "section_name": {{"tier1_2_count": 0, "tier3_count": 0, "tier4_5_count": 0, "weakest_claim": "description of weakest-supported core claim"}}
+  }}
 }}
 
 Rules:
 - synthesis: thorough paragraph summarizing current understanding
 - section_coverage: evaluate each section from the report plan
 - knowledge_gaps: specific questions or data points still missing
-- cross_domain_links: connections between different fields identified in findings"""
+- cross_domain_links: connections between different fields identified in findings
+- evidence_quality: for each section, count sources by tier (use [PRIMARY]/[SECONDARY]/[WEAK] tags from learnings) and identify the weakest-supported core claim"""
 
     @staticmethod
     def get_completeness_review_prompt(report_plan: str, section_coverage: dict,
@@ -721,20 +749,22 @@ Evaluate whether the research is sufficient to write a comprehensive report. Con
 1. Does every section in the plan have adequate source material?
 2. Are there critical knowledge gaps that would weaken the report?
 3. Is there enough data for cross-domain analysis?
+4. Are core quantitative claims supported by Tier 1-2 sources (government stats, Gartner/IDC, peer-reviewed)? Sections relying entirely on Tier 4-5 sources (blogs, social media) should be flagged as quality-insufficient even if coverage is adequate.
 
 Respond with a JSON object (no markdown fencing):
 {{
   "is_sufficient": true or false,
   "overall_coverage": 0-100,
   "sections": [
-    {{"name": "section name", "coverage": 0-100, "depth": "low|medium|high", "gaps": ["specific gap"]}}
+    {{"name": "section name", "coverage": 0-100, "depth": "low|medium|high", "source_quality": "strong|adequate|weak", "gaps": ["specific gap"]}}
   ],
   "priority_gaps": ["most important query direction to fill"]
 }}
 
 Rules:
-- is_sufficient: true only if overall_coverage >= 70 and no section is below 40
-- priority_gaps: 1-3 specific search directions that would most improve the report
+- is_sufficient: true only if overall_coverage >= 70, no section is below 40, AND no critical section has source_quality="weak"
+- source_quality: "strong" = mostly Tier 1-2 sources, "adequate" = mix of tiers, "weak" = mostly Tier 4-5 sources
+- priority_gaps: 1-3 specific search directions that would most improve the report (prefer quality-upgrading queries for weak sections)
 - Be strict: partial coverage of key sections should result in is_sufficient=false"""
 
     @staticmethod

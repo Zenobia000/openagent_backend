@@ -2,9 +2,9 @@
 
 ---
 
-**Document Version:** `v2.2`
-**Last Updated:** `2026-02-16`
-**Status:** `Current (v3.0 + Context Engineering)`
+**Document Version:** `v2.3`
+**Last Updated:** `2026-02-23`
+**Status:** `Current (v3.0 + Context Engineering + Persistent Sandbox)`
 
 ---
 
@@ -28,7 +28,7 @@ This document ensures all developers can set up a consistent development environ
 | Service | Image | Port | Purpose |
 |:---|:---|:---|:---|
 | **Qdrant** | `qdrant/qdrant:latest` | `6333` | Vector DB for RAG retrieval |
-| **Sandbox** | `build from docker/sandbox/Dockerfile` | internal | Isolated code execution |
+| **Sandbox** | `build from docker/sandbox/Dockerfile` | internal | Isolated code execution (persistent REPL + ephemeral fallback) |
 | **Redis** | `redis:7-alpine` (optional) | `6379` | Distributed cache |
 
 ### 2.3 Core Python Packages
@@ -47,6 +47,24 @@ This document ensures all developers can set up a consistent development environ
 | **Container** | `docker` | `>=7.0.0` | Sandbox code execution |
 | **CLI** | `typer`, `rich` | `>=0.9.0`, `>=13.0.0` | CLI interface |
 | **Logging** | `structlog` | `>=23.0.0` | Structured logging |
+
+### 2.4 Sandbox Container Dependencies
+
+The Docker sandbox image (`docker/sandbox/Dockerfile`) includes:
+
+| Package | Version | Purpose |
+|:---|:---|:---|
+| `fonts-noto-cjk` | system | CJK font rendering for matplotlib charts |
+| `numpy` | 1.26.4 | Numerical computation |
+| `pandas` | 2.2.0 | Data manipulation |
+| `matplotlib` | 3.8.2 | Chart generation |
+| `seaborn` | 0.13.2 | Statistical visualization |
+| `scipy` | 1.12.0 | Scientific computing |
+| `scikit-learn` | 1.4.0 | Machine learning |
+| `sympy` | 1.12 | Symbolic math |
+
+- `runner.py` supports `--persistent` flag for long-running REPL mode (eliminates cold start)
+- `pip --default-timeout=300` for reliable package installation in slow networks
 
 ---
 
@@ -80,6 +98,14 @@ Create `.env` in project root (reference `.env.example`).
 | `API_HOST` | No | `0.0.0.0` | API bind address |
 | `API_PORT` | No | `8888` | API server port |
 | `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins |
+| **Sandbox** |
+| `SANDBOX_COMPUTE_TIMEOUT` | No | `60` | Sandbox computation timeout (seconds) |
+| `SANDBOX_MAX_CHART_FAILURES` | No | `2` | Max consecutive chart failures before aborting |
+| **Deep Research** |
+| `DEEP_RESEARCH_QUERIES_FIRST_ITERATION` | No | `8` | Search queries in first iteration |
+| `DEEP_RESEARCH_QUERIES_FOLLOWUP_ITERATION` | No | `5` | Search queries in follow-up iterations |
+| `DEEP_RESEARCH_MAX_TOTAL_QUERIES` | No | `20` | Maximum total search queries per session |
+| `DEEP_RESEARCH_URLS_PER_QUERY` | No | `3` | Full-content URLs fetched per query |
 | **Debug** |
 | `DEBUG` | No | `false` | Debug mode |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
@@ -161,6 +187,9 @@ python3 -m pytest tests/integration/test_context_engineering.py -o "addopts="
 | `pytest-cov` not installed | Use `-o "addopts="` to override pyproject.toml coverage flags |
 | Unicode crash in WSL2 | Fixed in `core/logger.py` (surrogate sanitization) |
 | Context Engineering not active | All CE flags default OFF in `config/cognitive_features.yaml`. Enable `context_engineering.enabled` master switch first, then individual flags |
+| CJK characters garbled in charts | Sandbox image includes `fonts-noto-cjk`. Rebuild: `cd docker/sandbox && ./build.sh` |
+| Sandbox cold start slow | Persistent sandbox enabled by default. Check Docker socket availability and container status |
+| pip timeout during Docker build | Dockerfile uses `--default-timeout=300`. For slow networks, build with `--network=host` |
 
 ---
 

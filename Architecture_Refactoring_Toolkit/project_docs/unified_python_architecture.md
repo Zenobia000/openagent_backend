@@ -1,8 +1,8 @@
 # OpenCode Platform 架構設計文檔
 
-**版本:** `v3.1`
-**更新日期:** `2026-02-16`
-**狀態:** `Production Ready (v3.0 Linus Refactored + v3.1 Context Engineering)`
+**版本:** `v3.2`
+**更新日期:** `2026-02-23`
+**狀態:** `Production Ready (v3.0 Linus Refactored + v3.1 Context Engineering + v3.2 Persistent Sandbox & Report Quality)`
 
 ---
 
@@ -15,6 +15,7 @@
 | **v1.x** | 已完成 | 策略模式 + 分層架構 | 穩定、可擴展、明確職責 |
 | **v3.0** | 已完成 | Linus 風格重構 + 雙 Runtime | 數據自包含、無字典映射、模組化處理器 |
 | **v3.1** | 已完成 | Manus Context Engineering | Append-only context、KV-Cache 友好、Feature Flag 控制 |
+| **v3.2** | 已完成 | Persistent Sandbox & Report Quality | `_PersistentSandbox` REPL、Chart Pipeline、CJK 字體、Figure 內嵌、Search Budget Model |
 | **v4.0+** | 條件觸發 | 增強路由 + 信心估計 | 數據驅動，僅在 v3.1 指標不足時實施 |
 
 ---
@@ -73,7 +74,7 @@ graph TB
     subgraph "服務層 Service Layer"
         LLM[MultiProviderLLMClient<br/>OpenAI → Anthropic → Gemini]
         KB[KnowledgeService<br/>向量檢索]
-        SB[SandboxService<br/>代碼沙盒]
+        SB[SandboxService<br/>Persistent REPL + Ephemeral Fallback]
         Search[SearchService<br/>多引擎搜索]
     end
 
@@ -109,6 +110,7 @@ graph TB
     P5 --> LLM
     P6 --> Search
     P6 --> LLM
+    P6 --> SB
 
     style Engine fill:#FFE082
     style Router fill:#FFE082
@@ -205,6 +207,36 @@ class ProcessorFactory:
 - 處理器模組化 (每個處理器獨立檔案)
 - 無字典映射 — `mode.cognitive_level` 是數據欄位
 
+#### SandboxService & Persistent REPL (`src/services/sandbox/`)
+
+```python
+class _PersistentSandbox:
+    """
+    Persistent Docker container with long-running Python REPL.
+    Communicates via stdin/stdout JSON lines through Docker attach_socket.
+    Thread-safe: Lock serializes concurrent execute() calls.
+    """
+    def __init__(self, docker_client, image, mem_limit="512m", cpu_quota=50000):
+        # Starts container with runner.py --persistent
+        # Background daemon thread reads stdout into Queue
+
+    async def execute(self, code: str, timeout: int = 60) -> dict:
+        # Write JSON request → Read JSON response → Parse multiplexed frames
+```
+
+**架構特點:**
+- `runner.py --persistent`: 長駐 REPL 模式，預匯入 numpy/pandas/matplotlib/seaborn
+- Docker multiplexed stream (`tty=False`): 8-byte header (stream_type + length) + payload
+- 自動重啟 + 降級為短暫容器 (ephemeral fallback)
+- CJK 字體: `fonts-noto-cjk` (Noto Sans CJK JP 優先)
+- 超時: `SANDBOX_COMPUTE_TIMEOUT` (預設 60s)
+
+**Deep Research 圖表管線:**
+1. **Chart Planning**: LLM 從研究綜述生成圖表規格 (max 5)
+2. **Computational Analysis**: 逐一在 `_PersistentSandbox` 中執行圖表代碼
+3. **Early Abort**: 連續失敗 >= `SANDBOX_MAX_CHART_FAILURES` (預設 2) 時跳過剩餘
+4. **Figure Inline Placement**: 報告中搜索 "Figure N" 引用，在段落結尾插入 base64 圖表
+
 ### 1.4 請求處理流程
 
 ```mermaid
@@ -285,12 +317,22 @@ v3.0 → v3.1 (Manus Context Engineering)
 動態工具切換 → ToolAvailabilityMask (Logit Masking)
 無記憶 → FileBasedMemory (檔案系統)
 固定模板 → TemplateRandomizer (結構性雜訊)
+
+v3.1 → v3.2 (Persistent Sandbox & Report Quality)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+短暫容器 → _PersistentSandbox (線程安全 Docker REPL + auto-restart + fallback)
+無圖表 → Chart Planning + Computational Analysis pipeline
+報告純文字 → Mandatory pipe-tables + Figure inline placement
+無 CJK → fonts-noto-cjk (Noto Sans CJK JP 優先)
+固定超時 → SANDBOX_COMPUTE_TIMEOUT 可配置 (預設 60s)
+無預算控制 → Search Budget Model (env-configurable query limits)
+平坦 logs → Per-session research_data/{trace_id}_{timestamp}/ 目錄
 ```
 
 ### 2.2 當前完整架構 (v3.0 + v3.1)
 
 ```
-RefactoredEngine (v3.0 + v3.1)
+RefactoredEngine (v3.0 + v3.1 + v3.2)
   +-- DefaultRouter (keyword-based, no ML)
   |     +-- ComplexityAnalyzer (feature-flag gated)
   |     +-- ToolAvailabilityMask (CE: logit masking)
@@ -300,9 +342,10 @@ RefactoredEngine (v3.0 + v3.1)
   |     +-- SearchProcessor (System 2, iterative)
   |     +-- ThinkingProcessor (System 2, 5-stage)
   |     +-- CodeProcessor (System 2, sandbox)
-  |     +-- DeepResearchProcessor (Agent, multi-iteration)
+  |     +-- DeepResearchProcessor (Agent, multi-iteration + chart pipeline)
   +-- ModelRuntime (System 1+2, stateless, cached)
   +-- AgentRuntime (Agent, stateful, retry)
+  +-- SandboxService (_PersistentSandbox REPL + ephemeral fallback)
   +-- ContextManager (CE: append-only context)
   +-- TodoRecitation (CE: todo.md recitation)
   +-- ErrorPreservation (CE: keep failed attempts)
@@ -355,6 +398,7 @@ context_engineering:
 v1.x  策略模式 + 分層架構
 v3.0  Linus 風格重構 (ProcessingMode dataclass, Dual Runtime, 模組化 Processor)
 v3.1  Context Engineering (6 Manus-aligned components, 63 tests, 0 regressions)
+v3.2  Persistent Sandbox & Report Quality (_PersistentSandbox, Chart Pipeline, CJK, Search Budget)
 
 條件觸發 (未來):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -399,6 +443,7 @@ cognitive_level = mode.cognitive_level  # "agent"
 
 | 版本 | 日期 | 變更內容 |
 |------|------|----------|
+| v3.2 | 2026-02-23 | Persistent Sandbox (`_PersistentSandbox` REPL)、Chart Planning + Computational Analysis pipeline、CJK 字體支援、Report Quality (pipe-tables, figure inline)、Search Budget Model、per-session research data |
 | v3.1 | 2026-02-16 | Context Engineering 整合，Manus 6 原則實現，文檔全面更新 |
 | v3.0 | 2026-02-14 | Linus 風格重構：ProcessingMode frozen dataclass, Dual Runtime, 模組化 Processor |
 | v2.2 | 2026-02-10 | 重構文檔結構，明確 Model vs Agent 邊界 |
@@ -427,4 +472,9 @@ cognitive_level = mode.cognitive_level  # "agent"
 | **ToolAvailabilityMask** | 根據模式限制可用工具集的 logit masking 機制 |
 | **ModelRuntime** | 無狀態運行時，用於 System 1/2 級別的處理模式 |
 | **Agent Runtime** | 有狀態運行時，提供 WorkflowState 追蹤、smart retry、ErrorClassifier |
+| **_PersistentSandbox** | 線程安全的長駐 Docker REPL，通過 stdin/stdout JSON lines 通信，消除冷啟動 |
+| **Chart Plan** | LLM 從研究綜述生成的圖表規格列表 (max 5)，包含 title、type、python_code |
+| **SANDBOX_COMPUTE_TIMEOUT** | 沙箱計算超時 env var (預設 60s)，控制每次代碼執行的最大時間 |
+| **SANDBOX_MAX_CHART_FAILURES** | 連續圖表失敗閾值 env var (預設 2)，超過時觸發早期中止 |
+| **Search Budget Model** | 通過 env vars 控制搜索資源分配 (查詢數、URL 數、迭代數) |
 | **Feature Flag** | `config/cognitive_features.yaml` 中的功能開關，控制 CE 組件啟用 |

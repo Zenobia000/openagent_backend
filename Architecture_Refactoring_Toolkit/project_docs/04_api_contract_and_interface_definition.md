@@ -2,9 +2,9 @@
 
 ---
 
-**Document Version:** `v2.2`
-**Last Updated:** `2026-02-16`
-**Status:** `Current (Implemented, v3.0 + Context Engineering)`
+**Document Version:** `v2.3`
+**Last Updated:** `2026-02-23`
+**Status:** `Current (Implemented, v3.0 + Context Engineering + Persistent Sandbox)`
 
 ---
 
@@ -100,6 +100,13 @@ Use the token in subsequent requests: `Authorization: Bearer <token>`
 }
 ```
 
+> **Note (mode=deep_research):** When `mode` is `deep_research`, the `result` field contains a full Markdown report with inline **Figure N** references and embedded base64 chart images (data URIs).
+
+```json
+// Example deep_research result field excerpt:
+// "result": "## Analysis\n\n...see Figure 1...\n\n![Figure 1](data:image/png;base64,iVBOR...)"
+```
+
 ### 3.3 Streaming Chat (SSE)
 
 #### POST `/api/v1/chat/stream`
@@ -192,9 +199,14 @@ data: {"event": "end", "data": {"tokens_used": 789, "time_ms": 6995}}
   "stderr": "",
   "return_value": null,
   "execution_time": 0.15,
-  "error": null
+  "error": null,
+  "figures": ["<base64_png>"]
 }
 ```
+
+**`figures`**: Array of base64-encoded PNG chart images captured from matplotlib. Empty array if no charts were produced.
+
+**Timeout**: Default timeout sourced from `SANDBOX_COMPUTE_TIMEOUT` env var (default 60s).
 
 ### 3.7 Cognitive Metrics
 

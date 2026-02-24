@@ -2,13 +2,20 @@
 
 ---
 
-**Document Version:** `v2.3`
-**Last Updated:** `2026-02-16`
-**Status:** `Current (v3.0 + Context Engineering, Decorator Error Handling & Iterative Search)`
+**Document Version:** `v2.4`
+**Last Updated:** `2026-02-23`
+**Status:** `Current (v3.0 + Context Engineering + Persistent Sandbox & Report Quality)`
 
 ---
 
 ## Changelog
+
+### v2.4 (2026-02-23)
+- Added persistent sandbox path to Code Mode state machine (`_PersistentSandbox` → ephemeral fallback)
+- Added ChartPlanning and ComputationalAnalysis substages to Deep Research state machine
+- Added early abort logic (`SANDBOX_MAX_CHART_FAILURES` consecutive failures) to computational analysis
+- Updated Mode-to-Infrastructure table: CODE uses persistent sandbox, DEEP_RESEARCH adds sandbox + chart pipeline
+- Added search budget model configuration references
 
 ### v2.3 (2026-02-16)
 - Updated for v3.0 Linus-style refactoring: ProcessingMode is now frozen dataclass (`Modes.CHAT`), not enum
@@ -268,14 +275,23 @@ Code generation and isolated execution in Docker sandbox.
 stateDiagram-v2
     [*] --> GenerateCode
     GenerateCode: LLM generates executable code from natural language
-    GenerateCode --> ExecuteInSandbox: Send to Docker container
-    ExecuteInSandbox: SandboxService.execute(code, timeout)
+    GenerateCode --> CheckPersistentSandbox: Code ready
 
-    state ExecuteInSandbox <<choice>>
-    ExecuteInSandbox --> FormatSuccess: Exit code 0
-    ExecuteInSandbox --> FormatError: Non-zero exit / timeout
+    state CheckPersistentSandbox <<choice>>
+    CheckPersistentSandbox --> PersistentExec: _PersistentSandbox available
+    CheckPersistentSandbox --> EphemeralExec: Fallback to ephemeral container
 
-    FormatSuccess: Capture stdout + return value
+    PersistentExec: Execute via persistent REPL (no cold start)
+    EphemeralExec: Create container → execute → destroy
+
+    PersistentExec --> CheckResult
+    EphemeralExec --> CheckResult
+
+    state CheckResult <<choice>>
+    CheckResult --> FormatSuccess: Exit code 0
+    CheckResult --> FormatError: Non-zero exit / timeout
+
+    FormatSuccess: Capture stdout + return value + figures
     FormatError: Capture stderr + error message
 
     FormatSuccess --> [*]
@@ -285,8 +301,10 @@ stateDiagram-v2
 ### State Descriptions
 
 - **GenerateCode**: LLM converts natural language requirements into executable code (Python).
-- **ExecuteInSandbox**: Creates an isolated Docker container with resource limits (CPU, memory, timeout). Executes the generated code.
-- **FormatSuccess/Error**: Collects stdout, stderr, return value, and execution time. Returns formatted result to user.
+- **CheckPersistentSandbox**: Checks if `_PersistentSandbox` is available (Docker socket accessible, container running). Falls back to ephemeral container if unavailable.
+- **PersistentExec**: Sends code to persistent REPL via stdin JSON, reads result from stdout. No cold start latency. Thread-safe via lock.
+- **EphemeralExec**: Creates an isolated Docker container with resource limits (CPU, memory). Executes code and destroys container after.
+- **FormatSuccess/Error**: Collects stdout, stderr, return value, figures (base64 PNG from matplotlib), and execution time. Timeout controlled by `SANDBOX_COMPUTE_TIMEOUT` (default 60s).
 
 ---
 
@@ -397,14 +415,39 @@ stateDiagram-v2
 
         state CriticalAnalysis <<choice>>
         CriticalAnalysis --> ThinkingStage: Complex query requiring analysis
-        CriticalAnalysis --> WriteFinalReport: Simple query, skip analysis
+        CriticalAnalysis --> ChartPlanning: Simple query, skip analysis
 
         ThinkingStage: Multi-perspective critical analysis
-        ThinkingStage --> WriteFinalReport: Analysis complete
+        ThinkingStage --> ChartPlanning: Analysis complete
 
-        WriteFinalReport: Generate report with categorized references
-        WriteFinalReport --> SaveMarkdown: Export to markdown file
-        SaveMarkdown --> [*]
+        ChartPlanning: LLM generates chart specs from synthesis (max 5)
+        ChartPlanning --> ComputationalAnalysis: Specs ready
+
+        state ComputationalAnalysis {
+            [*] --> ExecuteChart
+            ExecuteChart: Execute chart code in _PersistentSandbox
+            ExecuteChart --> CheckChartResult
+
+            state CheckChartResult <<choice>>
+            CheckChartResult --> CollectFigure: Success (base64 PNG)
+            CheckChartResult --> RetryWithFix: Failure (attempt LLM fix)
+            RetryWithFix --> ExecuteChart: Retry once
+
+            CheckChartResult --> EarlyAbort: Consecutive failures >= SANDBOX_MAX_CHART_FAILURES
+
+            CollectFigure --> NextChart
+            state NextChart <<choice>>
+            NextChart --> ExecuteChart: More charts
+            NextChart --> [*]: All done
+
+            EarlyAbort --> [*]: Skip remaining charts
+        }
+
+        ComputationalAnalysis --> WriteFinalReport: Figures collected
+
+        WriteFinalReport: Generate report (mandatory pipe-tables, inline Figure refs)
+        WriteFinalReport --> SaveResearchData: Save to per-session directory
+        SaveResearchData --> [*]
     }
 
     InitWorkflow --> RetryBoundary: retry_with_backoff(max=2)
@@ -471,16 +514,29 @@ stateDiagram-v2
   - Provides deeper insights and balanced perspectives
   - Integrates with search results for enriched conclusions
 
+- **ChartPlanning**: LLM generates up to 5 chart specifications from research synthesis:
+  - Each spec includes `title`, `chart_type`, `data_source`, `python_code`
+  - Always runs (no sandbox gate); only execution requires sandbox
+  - Graceful skip on failure (does not block report generation)
+
+- **ComputationalAnalysis**: Executes chart code in Docker sandbox:
+  - Uses `_PersistentSandbox` (persistent REPL, no cold start) with ephemeral fallback
+  - Timeout: `SANDBOX_COMPUTE_TIMEOUT` env var (default 60s)
+  - CJK font chain: `Noto Sans CJK JP → TC → SC → DejaVu Sans`
+  - **Early abort**: After `SANDBOX_MAX_CHART_FAILURES` (default 2) consecutive failures, skips remaining charts
+  - Failed charts get one LLM-assisted code fix retry before counting as failure
+
 - **WriteFinalReport**: Generates comprehensive report with:
   - Academic-style formatting
+  - **Mandatory markdown pipe-table syntax** (no prose/bullet table substitutes)
   - Categorized references (cited vs uncited)
   - Citation statistics
-  - Structured sections
+  - **Figure inline placement**: "Figure N" references in text, base64 chart images inserted after referencing paragraph
 
-- **SaveMarkdown**: Exports response using `EnhancedLogger`:
-  - Saves as `.md` file with metadata
+- **SaveResearchData**: Saves research data to per-session directory:
+  - Path: `logs/research_data/{trace_id[:8]}_{timestamp}/search_results.json`
+  - Exports report as markdown with metadata
   - Segments long content (>10KB) into multiple files
-  - Includes trace ID and timestamp
 
 - **ErrorHandling**: Intelligent error classification:
   - **Retryable** (NETWORK/LLM): Exponential backoff retry
@@ -530,9 +586,9 @@ Citation Statistics:
 | **CHAT** | System 1 | ModelRuntime | Yes | None | 1 | LLM only | `["respond"]` |
 | **KNOWLEDGE** | System 1 | ModelRuntime | Yes | None | 1-2 | Embedding + Qdrant + LLM (+ rerank LLM) | `["respond", "web_search"]` |
 | **SEARCH** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=2, ["NETWORK","LLM"])` | 4-8 | Search engines + LLM | `["respond", "web_search", "web_fetch"]` |
-| **CODE** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM","SANDBOX"])` | 1 | LLM + Docker | `["respond", "code_execute", "code_analyze"]` |
+| **CODE** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM","SANDBOX"])` | 1 | LLM + Docker (`_PersistentSandbox` + ephemeral fallback) | `["respond", "code_execute", "code_analyze"]` |
 | **THINKING** | System 2 | ModelRuntime | No | `@enhanced_error_handler(max_retries=1, ["LLM"])` | 5 | LLM only | `["respond", "web_search", "code_analyze"]` |
-| **DEEP_RESEARCH** | Agent | AgentRuntime | No | `retry_with_backoff(max=2)` | 3+ | Search engines + LLM | `["respond", "web_search", "web_fetch", "code_execute"]` |
+| **DEEP_RESEARCH** | Agent | AgentRuntime | No | `retry_with_backoff(max=2)` | 3+ | Search engines + LLM + Docker sandbox (chart planning + computational analysis) | `["respond", "web_search", "web_fetch", "code_execute"]` |
 
 **Context Engineering Notes**:
 - `ProcessingMode` is a frozen dataclass: `Modes.CHAT`, `Modes.SEARCH`, etc. (NOT an enum)

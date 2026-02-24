@@ -2,15 +2,15 @@
 
 ---
 
-**文件版本:** `v1.1`
-**最後更新:** `2026-02-16`
-**狀態:** `已批准 (Updated for v3.0 + Context Engineering)`
+**文件版本:** `v1.2`
+**最後更新:** `2026-02-23`
+**狀態:** `已批准 (Updated for v3.0 + Context Engineering + Persistent Sandbox & Report Quality)`
 
 ---
 
 ## 執行摘要 (Executive Summary)
 
-Deep Research 是一個 AI 驅動的研究助手，採用**五階段串行處理模式**，通過智能協調多個 AI 和搜索服務提供者來完成深度研究任務。
+Deep Research 是一個 AI 驅動的研究助手，採用**七階段串行處理模式**，通過智能協調多個 AI、搜索服務提供者和 Docker 沙箱來完成深度研究任務。v3.2 新增圖表規劃 (Chart Planning) 和計算分析 (Computational Analysis) 兩個階段。
 
 ### 架構定位 (v3.0+)
 
@@ -83,13 +83,38 @@ sequenceDiagram
         end
     end
 
+    rect rgb(255, 250, 230)
+        Note right of DR: Phase 4.5: 圖表規劃
+        DR->>AI: planCharts(synthesis, plan)
+        activate AI
+        AI-->>AI: 分析研究數據
+        AI-->>AI: 生成圖表規格 (max 5)
+        AI-->>DR: [{title, type, data_source, code}...]
+        deactivate AI
+        DR->>UI: onMessage("chart-planning", specs)
+    end
+
+    rect rgb(245, 235, 255)
+        Note right of DR: Phase 4.6: 計算分析
+        participant SB as Sandbox (Docker)
+        loop 每個圖表規格
+            DR->>SB: execute_python(chart_code)
+            activate SB
+            SB-->>DR: {stdout, figures: [base64_png]}
+            deactivate SB
+            DR->>UI: onMessage("chart-result", figure)
+            Note right of DR: Early abort after N consecutive failures
+        end
+    end
+
     rect rgb(240, 240, 255)
         Note right of DR: Phase 5: 報告生成
-        DR->>AI: writeFinalReport(learnings)
+        DR->>AI: writeFinalReport(learnings, figures)
         activate AI
-        AI-->>AI: 整合所有資訊
-        AI-->>AI: 生成結構化報告
-        AI-->>DR: 完整報告 (markdown)
+        AI-->>AI: 整合所有資訊 + 圖表
+        AI-->>AI: 生成結構化報告 (mandatory pipe-tables)
+        AI-->>AI: 內嵌 Figure N 引用
+        AI-->>DR: 完整報告 (markdown + inline figures)
         deactivate AI
 
         DR->>UI: onMessage("final-report", report)
@@ -213,6 +238,65 @@ flowchart TD
 - 實時 streaming 返回結果
 - 自動去重和排序
 
+### 📍 Step 4.5: 圖表規劃 (Chart Planning)
+
+```python
+# src/core/processors/research/processor.py
+async def _plan_charts(
+    self, context: ProcessingContext,
+    search_results: List[Dict],
+    report_plan: str,
+    synthesis: str = None
+) -> List[Dict]:
+```
+
+**處理流程:**
+1. 將研究綜述和報告大綱傳入 LLM (`PromptTemplates.get_chart_planning_prompt()`)
+2. LLM 生成最多 5 個圖表規格，每個包含 `title`、`chart_type`、`data_source`、`python_code`
+3. 圖表規劃永遠執行（不依賴沙箱可用性），只有後續執行需要沙箱
+
+**輸出格式:**
+```python
+[
+    {
+        "title": "各技術方案成本對比",
+        "chart_type": "bar",
+        "data_source": "from_research",
+        "python_code": "import matplotlib.pyplot as plt\n..."
+    },
+    # ... (max 5)
+]
+```
+
+### 📍 Step 4.6: 計算分析 (Computational Analysis)
+
+```python
+# src/core/processors/research/processor.py
+async def _execute_chart_plan(
+    self, context: ProcessingContext,
+    chart_specs: List[Dict],
+    search_results: List[Dict],
+    synthesis: str = None
+) -> Optional[Dict[str, Any]]:
+```
+
+**處理流程:**
+1. 逐一在 Docker 沙箱中執行每個圖表的 Python 代碼
+2. 超時控制：`SANDBOX_COMPUTE_TIMEOUT` env var (預設 60 秒)
+3. 捕獲 matplotlib 圖表為 base64 PNG (`figures` 陣列)
+4. **早期中止 (Early Abort)**: 連續失敗次數達到 `SANDBOX_MAX_CHART_FAILURES` (預設 2) 時，跳過剩餘圖表
+5. 失敗的圖表嘗試 LLM 修復代碼後重試一次
+
+**CJK 字體支援:**
+- 沙箱 Docker 映像預安裝 `fonts-noto-cjk`
+- 字體鏈: `Noto Sans CJK JP → Noto Sans CJK TC → Noto Sans CJK SC → DejaVu Sans`
+- 圖表代碼通過 prompt 注入 `plt.rcParams['font.sans-serif']` 設定
+
+**沙箱架構:**
+- 使用 `_PersistentSandbox` (線程安全 Docker REPL) 消除冷啟動
+- 通過 Docker multiplexed stream (`attach_socket`, `tty=False`) 通信
+- 容器崩潰時自動重啟，降級為短暫容器 (ephemeral fallback)
+
 ### 📍 Step 5: 最終報告生成 (Final Report Generation)
 
 ```typescript
@@ -230,8 +314,10 @@ async writeFinalReport(
 1. 收集所有搜索任務的學習結果
 2. 合併去重來源和圖片
 3. 生成資源文件 (可選)
-4. 調用 AI 生成結構化報告
+4. 調用 AI 生成結構化報告 (mandatory markdown pipe-table syntax)
 5. 添加引用標記和參考文獻
+6. **Figure 內嵌處理**: 搜索報告中的 "Figure N" 文字引用，將對應的 base64 圖表插入引用段落結尾
+7. 儲存研究數據至 per-session 目錄: `research_data/{trace_id}_{timestamp}/`
 
 **輸出結構:**
 ```typescript
@@ -265,12 +351,17 @@ stateDiagram-v2
     Planning --> Querying: 計劃完成
     Querying --> Searching: 查詢生成
     Searching --> Searching: 處理下一個任務
-    Searching --> Reporting: 所有任務完成
+    Searching --> ChartPlanning: 所有搜索完成
+    ChartPlanning --> ComputationalAnalysis: 圖表規格生成
+    ComputationalAnalysis --> ComputationalAnalysis: 執行下一個圖表
+    ComputationalAnalysis --> Reporting: 圖表完成 or 早期中止
     Reporting --> Completed: 報告生成
 
     Planning --> Error: 計劃失敗
     Querying --> Error: 查詢失敗
     Searching --> Error: 搜索失敗
+    ChartPlanning --> Reporting: 規劃失敗 (graceful skip)
+    ComputationalAnalysis --> Reporting: 連續失敗超過閾值 (early abort)
     Reporting --> Error: 報告失敗
 
     Error --> Idle: 重置
@@ -330,6 +421,32 @@ try {
 
 ## 配置與擴展 (Configuration & Extension)
 
+### 搜索預算模型 (Search Budget Model)
+
+環境變數控制搜索資源分配：
+
+| 環境變數 | 預設值 | 說明 |
+|:---|:---:|:---|
+| `DEEP_RESEARCH_QUERIES_FIRST_ITERATION` | `8` | 第一輪迭代的搜索查詢數 |
+| `DEEP_RESEARCH_QUERIES_FOLLOWUP_ITERATION` | `5` | 後續迭代的搜索查詢數 |
+| `DEEP_RESEARCH_MAX_TOTAL_QUERIES` | `20` | 每次研究的最大搜索查詢總數 |
+| `DEEP_RESEARCH_URLS_PER_QUERY` | `3` | 每個查詢抓取的完整內容 URL 數 |
+
+### 沙箱與圖表配置
+
+| 環境變數 | 預設值 | 說明 |
+|:---|:---:|:---|
+| `SANDBOX_COMPUTE_TIMEOUT` | `60` | 沙箱計算超時 (秒) |
+| `SANDBOX_MAX_CHART_FAILURES` | `2` | 連續圖表失敗閾值，超過則早期中止 |
+
+### 研究數據儲存 (Research Data Storage)
+
+研究數據以 per-session 目錄儲存：
+```
+logs/research_data/{trace_id[:8]}_{timestamp}/
+  └── search_results.json    # 搜索結果的序列化子集
+```
+
 ### 提供者配置
 ```typescript
 interface DeepResearchOptions {
@@ -382,10 +499,12 @@ interface DeepResearchOptions {
 
 ## 總結 (Summary)
 
-Deep Research 採用**五階段串行架構**，通過智能協調 AI 和搜索服務，實現高質量的自動化研究。關鍵優勢：
+Deep Research 採用**七階段串行架構**，通過智能協調 AI、搜索服務和 Docker 沙箱，實現高質量的自動化研究。關鍵優勢：
 
 - **模組化設計** - 各階段獨立，易於維護
-- **容錯機制** - 單點失敗不影響整體 (AgentRuntime retry + ErrorClassifier)
+- **容錯機制** - 單點失敗不影響整體 (AgentRuntime retry + ErrorClassifier + early abort)
 - **實時反饋** - Streaming 提升用戶體驗
 - **可擴展性** - 輕鬆添加新的提供者
 - **Context Engineering** - Append-only context 保護 KV-Cache，錯誤保留實現隱式學習 (v3.1)
+- **計算分析** - 持久沙箱消除冷啟動，CJK 字體支援，圖表早期中止 (v3.2)
+- **報告品質** - Markdown pipe-table 強制、Figure 內嵌定位、per-session 數據儲存 (v3.2)

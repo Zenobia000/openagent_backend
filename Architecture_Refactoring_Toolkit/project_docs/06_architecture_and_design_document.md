@@ -2,9 +2,9 @@
 
 ---
 
-**Document Version:** `v2.2`
-**Last Updated:** `2026-02-16`
-**Status:** `Current (v3.0 Linus Refactored + v3.1 Context Engineering)`
+**Document Version:** `v2.3`
+**Last Updated:** `2026-02-23`
+**Status:** `Current (v3.0 Linus Refactored + v3.1 Context Engineering + v3.2 Persistent Sandbox & Report Quality)`
 
 ---
 
@@ -99,7 +99,7 @@ graph TB
         LLMSvc["Multi-Provider LLM<br/>OpenAI → Anthropic → Gemini<br/>src/services/llm"]
         KnowledgeSvc["Knowledge Service<br/>RAG pipeline<br/>src/services/knowledge"]
         SearchSvc["Search Service<br/>Multi-engine<br/>src/services/search"]
-        SandboxSvc["Sandbox Service<br/>Docker isolation<br/>src/services/sandbox"]
+        SandboxSvc["Sandbox Service<br/>Persistent REPL + Ephemeral Fallback<br/>src/services/sandbox"]
         BrowserSvc["Browser Service<br/>Web extraction<br/>src/services/browser"]
         ResearchSvc["Research Service<br/>Deep research pipeline<br/>src/services/research"]
         RepoSvc["Repo Service<br/>Git operations<br/>src/services/repo"]
@@ -456,8 +456,14 @@ The project strictly follows a unidirectional dependency structure: **API → Co
 
 #### Module: Sandbox (`services.sandbox`)
 
-- **Responsibility**: Isolated code execution in Docker containers.
-- **Implementation**: Create container → execute code → capture stdout/stderr → destroy container. Resource limits (CPU, memory) and timeout enforced.
+- **Responsibility**: Isolated code execution in Docker containers with persistent REPL support.
+- **Components**:
+  - `SandboxService`: Main entry point. Dispatches to persistent or ephemeral sandbox based on availability.
+  - `_PersistentSandbox`: Long-running Docker container with persistent Python REPL process. Eliminates cold start overhead by keeping the container alive with libraries pre-imported. Communicates via stdin/stdout JSON lines through Docker's `attach_socket` (multiplexed stream, `tty=False`). Thread-safe via lock-serialized `execute()` with a background daemon thread reading stdout into a `Queue`. Auto-restarts on container crash with fallback to ephemeral containers.
+  - `CodeSecurityFilter`: Blocks dangerous operations (file writes, subprocess, network) before code reaches the sandbox.
+  - `runner.py` (inside container): Supports `--persistent` flag for long-running REPL mode. Pre-imports numpy, pandas, matplotlib, seaborn. CJK font support via `fonts-noto-cjk` (Noto Sans CJK JP primary).
+- **Execution flow**: `_PersistentSandbox.execute()` → write JSON request to stdin → read JSON response from stdout → parse Docker multiplexed frame headers → extract result with stdout/stderr/figures.
+- **Configuration**: `SANDBOX_COMPUTE_TIMEOUT` env var (default 60s). Resource limits: 512MB memory, 50% CPU quota.
 
 ### 2.2 Non-Functional Requirements
 
@@ -469,6 +475,7 @@ The project strictly follows a unidirectional dependency structure: **API → Co
 | **System 1 Response (uncached)** | < 2s | Direct LLM call, async IO |
 | **System 2 Response** | < 10s | Multi-step processing, async IO |
 | **Agent Response** | < 60s | Multi-step research with retry |
+| **Sandbox Computation** | < 60s (configurable) | `SANDBOX_COMPUTE_TIMEOUT` env var, persistent REPL eliminates cold start |
 | **API P95 Latency** | < 300ms (excluding LLM) | FastAPI async, no blocking IO |
 | **Vector Retrieval** | < 150ms | Qdrant indexed search |
 
@@ -484,9 +491,19 @@ The project strictly follows a unidirectional dependency structure: **API → Co
 |:---|:---|:---|
 | **Authentication** | JWT Bearer tokens, role-based access | `src/auth/jwt.py`, `src/auth/dependencies.py` |
 | **Input Validation** | Pydantic models with strict type checking | `src/api/schemas.py` |
-| **Sandbox Isolation** | Docker containers with resource limits | `services.sandbox.service` |
+| **Sandbox Isolation** | Docker containers with resource limits, persistent REPL | `services.sandbox.service` (`_PersistentSandbox`) |
 | **Secret Management** | Environment variables, `.env` file | `python-dotenv`, `.env.example` |
 | **Error Masking** | Unified error responses, no stack trace leak | `src/api/errors.py` |
+
+#### Report Quality (Deep Research)
+
+| Aspect | Implementation | Details |
+|:---|:---|:---|
+| **Markdown Tables** | Pipe-table enforcement in report prompt | All tables must use `\| col \| col \|` syntax; prose/bullet substitutes forbidden |
+| **CJK Font Rendering** | `fonts-noto-cjk` in sandbox Docker image | Font chain: `Noto Sans CJK JP → Noto Sans CJK TC → Noto Sans CJK SC → DejaVu Sans` |
+| **Figure Inline Placement** | "Figure N" reference search + paragraph-end insertion | Charts embedded as base64 data URIs after the paragraph referencing them |
+| **Chart Early Abort** | `SANDBOX_MAX_CHART_FAILURES` (default 2) | Consecutive chart failures trigger early abort to prevent cascading timeouts |
+| **Per-Session Research Data** | `research_data/{trace_id}_{timestamp}/` | Search results saved in isolated per-session directories |
 
 #### Resilience
 
@@ -579,6 +596,18 @@ uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 - [x] ToolAvailabilityMask — logit masking for tool selection (~47 lines)
 - [x] Engine integration with feature flag gating (63 new tests, 0 regressions)
 - [x] Performance verified: <1ms/request overhead
+
+### v3.2: Persistent Sandbox & Report Quality (Completed)
+
+- [x] `_PersistentSandbox` — thread-safe Docker REPL, multiplexed stream, auto-restart + ephemeral fallback
+- [x] Chart planning pipeline — LLM generates chart specs from research synthesis (max 5 charts)
+- [x] Computational analysis — individual chart execution with configurable timeout (`SANDBOX_COMPUTE_TIMEOUT`)
+- [x] Early abort — consecutive failures tracked (`SANDBOX_MAX_CHART_FAILURES`), skip remaining on threshold
+- [x] CJK font support — `fonts-noto-cjk` in sandbox image, font chain in prompts
+- [x] Markdown table enforcement — pipe-table syntax mandated in report generation prompt
+- [x] Figure inline placement — "Figure N" reference search, paragraph-end insertion
+- [x] Per-session research data — `research_data/{trace_id}_{timestamp}/` directories
+- [x] Search budget model — configurable query limits via env vars (`DEEP_RESEARCH_QUERIES_*`)
 
 ### Phase 5+: Future Enhancements
 

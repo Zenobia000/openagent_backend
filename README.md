@@ -287,7 +287,7 @@ opencode_backend/
 ├── examples/              # 範例程式碼
 ├── scripts/               # 工具腳本
 ├── tests/                 # 測試套件
-├── docker/                # Docker 設定
+├── deploy/                # Docker 設定
 └── docs/                  # 完整文件
 ```
 
@@ -369,7 +369,22 @@ uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 docker-compose up -d    # 啟動所有服務（Qdrant、Backend、Frontend、Sandbox）
 ```
 
-### 6. API 使用
+### 6. 啟用 Docker Sandbox（可選）
+
+Sandbox 預設使用 local execution（無隔離）。如需 Docker 隔離執行：
+
+```bash
+# 1. 確保 Docker daemon 運行中（WSL2 需要 Docker Desktop 或 dockerd）
+docker info
+
+# 2. 建置 sandbox image
+cd deploy/sandbox && ./build.sh
+
+# 3. 在 .env 中啟用
+SANDBOX_ENABLED=true
+```
+
+### 7. API 使用
 
 ```bash
 # 取得 JWT token
@@ -481,7 +496,7 @@ uv run pytest tests/unit/ -v
 | **LLM（多供應商）** | 備援鏈：OpenAI → Anthropic → Gemini，結構化錯誤處理 |
 | **Knowledge（RAG）** | 文件上傳、索引、語意檢索（Qdrant + Cohere reranking） |
 | **Search** | 多引擎網路搜尋（Tavily、Serper、Brave、Exa、DuckDuckGo、SearXNG） |
-| **Sandbox** | Docker 隔離 Python/Bash 程式碼執行，支援持久化沙箱 |
+| **Sandbox** | Docker 隔離 Python/Bash 程式碼執行，支援持久化沙箱（見下方啟用步驟） |
 | **Deep Research** | 多步驟深度研究，含圖表生成與報告產出 |
 
 ---

@@ -28,7 +28,7 @@ This document ensures all developers can set up a consistent development environ
 | Service | Image | Port | Purpose |
 |:---|:---|:---|:---|
 | **Qdrant** | `qdrant/qdrant:latest` | `6333` | Vector DB for RAG retrieval |
-| **Sandbox** | `build from docker/sandbox/Dockerfile` | internal | Isolated code execution (persistent REPL + ephemeral fallback) |
+| **Sandbox** | `build from deploy/sandbox/Dockerfile` | internal | Isolated code execution (persistent REPL + ephemeral fallback) |
 | **Redis** | `redis:7-alpine` (optional) | `6379` | Distributed cache |
 
 ### 2.3 Core Python Packages
@@ -50,7 +50,7 @@ This document ensures all developers can set up a consistent development environ
 
 ### 2.4 Sandbox Container Dependencies
 
-The Docker sandbox image (`docker/sandbox/Dockerfile`) includes:
+The Docker sandbox image (`deploy/sandbox/Dockerfile`) includes:
 
 | Package | Version | Purpose |
 |:---|:---|:---|
@@ -187,7 +187,7 @@ python3 -m pytest tests/integration/test_context_engineering.py -o "addopts="
 | `pytest-cov` not installed | Use `-o "addopts="` to override pyproject.toml coverage flags |
 | Unicode crash in WSL2 | Fixed in `core/logger.py` (surrogate sanitization) |
 | Context Engineering not active | All CE flags default OFF in `config/cognitive_features.yaml`. Enable `context_engineering.enabled` master switch first, then individual flags |
-| CJK characters garbled in charts | Sandbox image includes `fonts-noto-cjk`. Rebuild: `cd docker/sandbox && ./build.sh` |
+| CJK characters garbled in charts | Sandbox image includes `fonts-noto-cjk`. Rebuild: `cd deploy/sandbox && ./build.sh` |
 | Sandbox cold start slow | Persistent sandbox enabled by default. Check Docker socket availability and container status |
 | pip timeout during Docker build | Dockerfile uses `--default-timeout=300`. For slow networks, build with `--network=host` |
 

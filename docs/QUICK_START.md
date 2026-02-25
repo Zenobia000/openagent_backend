@@ -104,7 +104,7 @@ opencode_backend/
 │   ├── unit/                      # 單元測試
 │   ├── integration/               # 整合測試
 │   └── e2e/                       # 端到端測試
-├── docker/
+├── deploy/
 │   ├── docker-compose.yml         # 完整堆疊編排
 │   ├── backend/Dockerfile         # 後端映像
 │   ├── frontend/                  # 前端 Nginx 映像

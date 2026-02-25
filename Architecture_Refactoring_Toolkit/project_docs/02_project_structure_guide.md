@@ -27,7 +27,7 @@ Provide a standardized, accurate map of the project's directory and file structu
 openagent_backend/
 ├── config/                     # Feature flag configuration
 │   └── cognitive_features.yaml
-├── docker/                     # Docker configs (Dockerfile, compose); runner.py supports --persistent flag for persistent REPL mode
+├── deploy/                     # Docker configs (Dockerfile, compose); runner.py supports --persistent flag for persistent REPL mode
 ├── docs/                       # Project-level documentation
 ├── logs/                       # Application logs (auto-created); research_data/{trace_id}_{timestamp}/search_results.json
 ├── plugins/                    # Plugin system (3 example plugins)

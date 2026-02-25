@@ -61,7 +61,7 @@ class SearchResponse(BaseModel):
 class SandboxExecuteRequest(BaseModel):
     code: str = Field(..., min_length=1)
     language: str = Field("python", pattern="^(python|bash)$")
-    timeout: int = Field(60, ge=1, le=120)
+    timeout: int = Field(60, ge=1, le=300)
     context: Optional[Dict[str, Any]] = None
 
 

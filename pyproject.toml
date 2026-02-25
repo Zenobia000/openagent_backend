@@ -33,6 +33,7 @@ dependencies = [
 
     # AI/LLM
     "openai>=1.0.0",
+    "cohere>=5.0.0",
 
     # Vector DB
     "qdrant-client>=1.7.0",
@@ -53,6 +54,10 @@ dependencies = [
     # MCP
     "mcp>=1.0.0",
 
+    # Knowledge/OCR
+    "pytesseract>=0.3.10",
+    "Pillow>=10.0.0",
+
     # Utilities
     "python-dotenv>=1.0.0",
     "structlog>=23.0.0",
@@ -72,29 +77,25 @@ dev = [
 # LLM 供應商（備援鏈）
 anthropic = ["anthropic>=0.34.0"]
 google = ["google-genai>=0.3.0"]
-# 知識庫相關
-cohere = ["cohere>=5.0.0"]
+# 知識庫進階
 docling = ["docling>=2.0.0"]
 knowledge = [
     "pymupdf>=1.23.0",
     "python-docx>=1.1.0",
     "pandas>=2.0.0",
-    "Pillow>=10.0.0",
     "numpy>=1.26.0",
 ]
-ocr = [
-    "pytesseract>=0.3.10",
-    "easyocr>=1.7.0",
-]
-# Docker 沙箱
+# EasyOCR (pytesseract fallback, pulls PyTorch ~2GB)
+easyocr = ["easyocr>=1.7.0"]
+# Docker sandbox
 docker = ["docker>=6.1.0"]
 # 生產環境（全部功能）
 production = [
-    "opencode-platform[anthropic,google,cohere,knowledge,docker]",
+    "opencode-platform[anthropic,google,knowledge]",
 ]
-# 完整安裝（生產 + 開發）
+# 完整安裝（生產 + 開發 + easyocr）
 all = [
-    "opencode-platform[production,dev,ocr]",
+    "opencode-platform[production,dev,easyocr]",
 ]
 
 [project.scripts]
@@ -112,7 +113,7 @@ include = [
     "/src",
     "/tests",
     "/docs",
-    "/docker",
+    "/deploy",
     "/frontend",
 ]
 

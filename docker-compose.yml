@@ -36,7 +36,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: docker/backend/Dockerfile
+      dockerfile: deploy/backend/Dockerfile
     container_name: opencode-backend
     ports:
       - "${API_PORT:-8000}:8000"
@@ -67,7 +67,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: docker/frontend/Dockerfile
+      dockerfile: deploy/frontend/Dockerfile
       args:
         - VITE_API_URL=/api
     container_name: opencode-frontend
@@ -80,7 +80,7 @@ services:
   # ============== Sandbox（程式碼執行）==============
   sandbox:
     build:
-      context: ./docker/sandbox
+      context: ./deploy/sandbox
       dockerfile: Dockerfile
     container_name: opencode-sandbox
     # 不暴露端口，由後端內部調用

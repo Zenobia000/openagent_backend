@@ -329,6 +329,19 @@ cp .env.example .env
 #   OPENAI_API_KEY, ANTHROPIC_API_KEY, 或 GEMINI_API_KEY
 ```
 
+### 安裝選項
+
+| 安裝指令 | 用途 |
+|---------|------|
+| `uv pip install -e ".[dev]"` | 開發環境（測試、linting） |
+| `uv pip install -e ".[production]"` | 生產環境（含 Anthropic、Gemini、Cohere、Knowledge、Docker） |
+| `uv pip install -e ".[all]"` | 全部功能（生產 + 開發 + OCR） |
+| `uv pip install -e ".[anthropic]"` | 僅 Anthropic LLM |
+| `uv pip install -e ".[google]"` | 僅 Gemini LLM |
+| `uv pip install -e ".[knowledge]"` | 文件解析（PyMuPDF、docx、pandas） |
+| `uv pip install -e ".[docling]"` | Docling（含 torch/CUDA，很大） |
+| `uv pip install -e ".[ocr]"` | OCR（pytesseract、easyocr） |
+
 ### 3. CLI 模式
 
 ```bash

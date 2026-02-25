@@ -206,7 +206,7 @@ Requirements:
 3. Structure with ## for main sections, ### for sub-sections
 4. Aim for 3000+ words with substantive analysis
 5. Include specific numbers, company names, statistics, and real-world examples where available
-6. When using tables, use standard Markdown pipe syntax with header and separator rows
+6. Use Markdown tables (pipe syntax) to present structured data: comparisons, feature matrices, metric summaries, timelines, risk/mitigation mappings, or any set of items sharing common attributes. Prefer a table over a bullet list whenever the data has 2+ comparable dimensions
 7. Cross-reference findings across different sections to build a cohesive narrative
 8. Prioritize Tier 1-2 sources for core claims. When citing weaker sources for key numbers, note the limitation
 9. Include a brief Methodology section near the end: research scope, sources reviewed, key limitations

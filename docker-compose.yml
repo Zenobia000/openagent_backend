@@ -79,6 +79,7 @@ services:
 
   # ============== Sandbox（程式碼執行）==============
   sandbox:
+    image: opencode-sandbox:latest
     build:
       context: ./deploy/sandbox
       dockerfile: Dockerfile

@@ -64,10 +64,7 @@ class DeepResearchProcessor(BaseProcessor):
         self.reporter = ReportGenerator(
             call_llm=self._call_llm,
             log_dir=getattr(self.logger, 'log_dir', 'logs'),
-            model_name=getattr(
-                self.llm_client, 'model',
-                getattr(self.llm_client, 'model_name', 'unknown')
-            ) if self.llm_client else 'unknown',
+            model_name=self._resolve_model_name(),
         )
         self.section_synth = SectionSynthesizer(self._call_llm)
 
@@ -75,6 +72,17 @@ class DeepResearchProcessor(BaseProcessor):
         self.event_callback = event_callback
         self.event_queue = self.streaming.event_queue
         self._streaming_enabled = False
+
+    def _resolve_model_name(self) -> str:
+        """Extract model name string from llm_client, safe for Mock objects."""
+        if not self.llm_client:
+            return 'unknown'
+        for attr in ('model', 'model_name'):
+            if hasattr(self.llm_client, attr):
+                val = getattr(self.llm_client, attr)
+                if isinstance(val, str):
+                    return val
+        return 'unknown'
 
     # ================================================================
     # Public API (unchanged)

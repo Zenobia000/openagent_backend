@@ -1,292 +1,236 @@
-# Changelog
+# 變更日誌
 
-All notable changes to OpenCode Platform will be documented in this file.
+本專案所有重要變更皆記錄於此檔案。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
+並遵循 [語意化版本控制](https://semver.org/spec/v2.0.0.html)。
+
+---
+
+## [3.2.0] - 2026-02-23
+
+### 持久化沙箱 + 圖表管線
+
+### ✨ 新增
+
+- **持久化沙箱**（`_PersistentSandbox`）：透過 Docker `attach_socket` 進行 stdin/stdout JSON 通訊
+- **圖表規劃管線**：每份深度研究報告最多生成 5 張圖表
+- **CJK 字體支援鏈**：Noto Sans CJK JP → TC → SC → DejaVu Sans
+- **搜尋預算模型**：智慧分配搜尋資源
+- **`SANDBOX_MAX_CHART_FAILURES`**：圖表失敗早期中止（預設 2 次）
+
+---
+
+## [3.1.0] - 2026-02-22
+
+### Context Engineering（Manus 對齊）
+
+### ✨ 新增
+
+**上下文工程元件**（`src/core/context/`）
+- `ContextManager`：僅追加上下文，KV-cache 友好
+- `TodoRecitation`：todo.md 背誦模式
+- `ErrorPreservation`：保留失敗嘗試在上下文中供重試
+- `TemplateRandomizer`：結構雜訊注入
+- `FileBasedMemory`：檔案系統記憶
+- `ToolAvailabilityMask`：Feature Flag 控制的工具遮罩（`src/core/routing/tool_mask.py`）
+
+所有元件皆 Feature Flag 控制，預設關閉。
+
+---
+
+## [3.0.0] - 2026-02-21
+
+### 死程式碼清理 + 單體分解
+
+### 🔥 移除
+
+**死程式碼清理**（約 2,555 行）
+- `services/browser/`（網頁瀏覽服務 — 無匯入者）
+- `services/research/`（研究服務 — 被 `processors/research/` 取代）
+- `services/repo/`（Git 操作 — 無匯入者）
+- `core/runtime/workflow.py`（WorkflowOrchestrator — 匯入損壞）
+- `services/llm/llm_service.py`（舊版 LLM 服務）
+- `knowledge/parser.py`（被 `multimodal_parser.py` 取代）
+- `sandbox/routes.py`（重複的沙箱路由）
+
+### ✨ 新增
+
+**DeepResearchProcessor 分解**
+- 2,173 行單體 → 7 個專注模組
+  - `processor.py`：薄編排層
+  - `planner.py`：研究規劃 + SERP 查詢生成
+  - `search_executor.py`：並行/競速多引擎搜尋
+  - `analyzer.py`：漸進式中間合成 + 批判分析
+  - `computation.py`：圖表規劃 + 沙箱程式碼執行
+  - `reporter.py`：最終報告撰寫 + 引用格式
+  - `streaming.py`：SSE 事件佇列
+
+**擴展系統**
+- MCP 客戶端管理器（stdio/SSE 傳輸）
+- A2A 客戶端管理器（本地/遠端代理）
+- 套件管理器（`packages/` 目錄）
+- 3 個範例外掛：weather、translator、stock-analyst
 
 ---
 
 ## [2.0.0] - 2026-02-14
 
-### 🎉 Major Release: Linus-Style Architecture Refactoring
+### Linus 風格架構重構
 
-This release represents a complete architectural overhaul following Linus Torvalds' coding philosophy. Code quality improved from **5/10 to 9/10** with zero breaking changes.
+程式碼品質從 **5/10 提升至 9/10**，零破壞性變更。
 
-### ✨ Added
+### ✨ 新增
 
-**Core Architecture**
-- **Modular Processor System**: Split monolithic `processor.py` (2611 lines) into 12 focused modules
-  - `processors/base.py` (173 lines)
-  - `processors/chat.py` (52 lines)
-  - `processors/knowledge.py` (200 lines)
-  - `processors/search.py` (276 lines)
-  - `processors/thinking.py` (198 lines)
-  - `processors/code.py` (76 lines)
-  - `processors/factory.py` (70 lines)
-  - `processors/research/` (3 files)
-  - 91.7% of files now ≤500 lines (Linus-approved)
+**核心架構**
+- **模組化處理器系統**：將 `processor.py`（2611 行）拆分為 12 個專注模組
+  - `processors/base.py`、`chat.py`、`knowledge.py`
+  - `search.py`、`thinking.py`、`code.py`
+  - `factory.py`
+  - `processors/research/`（3 個檔案）
 
-**Data Models**
-- **`models_v2.py`**: New frozen dataclass architecture
-  - `ProcessingMode` with data self-containment (no dictionary mappings)
-  - `Event` model with SSE serialization
-  - `Request`/`Response` models with full type safety
-  - 34 comprehensive tests (100% passing)
+**資料模型**
+- **`models_v2.py`**：凍結 dataclass 架構
+  - `ProcessingMode` 資料自包含（無字典映射）
+  - `Event` 模型 + SSE 序列化
+  - `Request`/`Response` 完整型別安全
 
-**Exception Hierarchy**
-- **Structured LLM Errors** (`services/llm/errors.py`)
-  - `LLMError` base class
-  - `ProviderError` (retryable)
-  - `ValidationError` (non-retryable)
-  - `OpenAIError`, `AnthropicError`, `GeminiError`
-  - 18 dedicated tests (100% passing)
+**例外層級**
+- **結構化 LLM 錯誤**（`services/llm/errors.py`）
+  - `LLMError` 基礎類別
+  - `ProviderError`（可重試）
+  - `ValidationError`（不可重試）
+  - `OpenAIError`、`AnthropicError`、`GeminiError`
 
-**Multi-Provider LLM**
-- Automatic fallback chain: OpenAI → Anthropic → Gemini
-- Exception-based error handling (no string checking)
-- 19 multi-provider tests (100% passing)
+**多供應商 LLM**
+- 自動備援鏈：OpenAI → Anthropic → Gemini
+- 例外式錯誤處理（無字串檢查）
 
-**Documentation**
-- Complete refactoring documentation in `docs/refactoring_v2/`
-  - `REFACTORING_COMPLETE.md`: Full summary and before/after comparison
-  - `VERIFICATION_REPORT.md`: All 11 acceptance criteria passed
-  - `api_baseline.md`: API contract documentation
-  - `behavior_baseline.md`: Behavior preservation guarantees
+### 🔥 移除
 
-### 🔥 Removed
+- **字串錯誤檢測**：刪除 `if result.startswith("[") and "Error]" in result` 模式
+- **字典映射特例**：移除 `COGNITIVE_MAPPING` 類別變數
+- **程式碼重複**：從約 5% 降至 <3%
 
-**Eliminated Anti-Patterns**
-- **String Error Detection**: Deleted error-prone pattern `if result.startswith("[") and "Error]" in result`
-  - Replaced with structured exception hierarchy
-  - Verified complete removal: `rg "startswith.*Error"` = 0 matches
+### 🐛 修復
 
-- **Dictionary Mapping Special Cases**: Removed `COGNITIVE_MAPPING` class variable
-  - Data now self-contained in `ProcessingMode` dataclass
-  - No runtime dictionary lookups
+- WSL2 Unicode 崩潰：`logger.py` 和 `main.py` 中的代理字元清理
+- 循環匯入問題：正確的模組組織
+- 測試不穩定：穩定的非同步測試 fixtures
 
-- **Code Duplication**: Reduced from ~5% to <3%
-  - Extracted common patterns to `BaseProcessor`
-  - Consolidated validation logic
+### 📊 改善
 
-### 🐛 Fixed
-
-- **Unicode Crashes in WSL2**: Surrogate character sanitization in `logger.py` and `main.py`
-- **Circular Import Issues**: Proper module organization eliminates import cycles
-- **Test Flakiness**: Stabilized async tests with proper fixtures
-
-### 📊 Improved
-
-**Code Quality Metrics**
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Architecture | 5/10 | 9/10 | +80% |
-| Data Structures | 4/10 | 9/10 | +125% |
-| Code Organization | 3/10 | 9/10 | +200% |
-| Error Handling | 4/10 | 9/10 | +125% |
-| Testability | 6/10 | 9/10 | +50% |
-| Maintainability | 4/10 | 9/10 | +125% |
-
-**Test Coverage**
-- Unit tests: 218 → 272 (+54 tests)
-- Coverage: 22% → 52% (+30 percentage points)
-- Pass rate: 97.3% → 97.8%
-
-**Linus Torvalds Standards Compliance**
-- ✅ Files ≤500 lines: 91.7% (11/12 files)
-- ✅ Functions ≤50 lines: 95%+
-- ✅ Cyclomatic complexity ≤10: 100%
-- ✅ Indentation ≤3 levels: 100%
-- ✅ Code duplication <5%: <3%
-- ✅ String error detection: 0 occurrences
-- ✅ Dictionary mappings: Eliminated
-
-### 🔧 Changed
-
-**Backward Compatibility**
-- `processor.py` now acts as compatibility shim (re-exports from `processors/`)
-- All existing imports continue to work
-- Zero breaking changes verified through baseline tests
-
-### 🚨 Breaking Changes
-
-**None** - 100% backward compatibility maintained
-
-### 📚 Documentation
-
-- Updated `README.md` with refactoring achievements
-- Updated `QUICK_START.md` with new architecture
-- Added 7-phase refactoring WBS in `REFACTORING_WBS_V2_LINUS.md`
+**測試覆蓋率**
+- 單元測試：218 → 272（+54 測試）
+- 覆蓋率：22% → 52%（+30 百分點）
 
 ---
 
 ## [1.5.0] - 2026-01-15
 
-### ✨ Added
+### ✨ 新增
 
-**Cognitive Architecture**
-- Dual runtime system (ModelRuntime + AgentRuntime)
-- ComplexityAnalyzer for automatic mode routing
-- Response caching for System 1 (chat, knowledge)
-- CognitiveMetrics for per-level tracking
+**認知架構**
+- 雙執行時系統（ModelRuntime + AgentRuntime）
+- ComplexityAnalyzer 自動模式路由
+- System 1 回應快取
+- CognitiveMetrics 每層級追蹤
 
 **Feature Flags**
-- YAML-driven configuration (`config/cognitive_features.yaml`)
-- Master switch for all cognitive features
-- Granular control: cache, routing, metrics
+- YAML 驅動設定（`config/cognitive_features.yaml`）
+- 主開關 + 細粒度控制
 
-**Services**
-- Multi-engine search (DuckDuckGo, Wikipedia, arXiv)
-- Deep research workflows with SSE streaming
-- Knowledge base with Qdrant vector DB
+**服務**
+- 多引擎搜尋
+- 深度研究工作流程 + SSE 串流
+- Qdrant 向量資料庫知識庫
 
-### 🐛 Fixed
+### 🐛 修復
 
-- Memory leaks in long-running processes
-- Timeout handling in LLM clients
-- Race conditions in async workflows
+- 長時間執行程序的記憶體洩漏
+- LLM 客戶端逾時處理
+- 非同步工作流程的競態條件
 
 ---
 
 ## [1.0.0] - 2025-12-01
 
-### 🎉 Initial Release
+### 初始發布
 
-**Core Features**
-- FastAPI-based REST API
-- 6 processing modes (chat, knowledge, search, code, thinking, research)
-- JWT authentication
-- SSE streaming support
-- Docker sandbox for code execution
+**核心功能**
+- FastAPI REST API
+- 6 種處理模式（chat、knowledge、search、code、thinking、research）
+- JWT 認證
+- SSE 串流支援
+- Docker 沙箱程式碼執行
 
-**LLM Integration**
-- OpenAI GPT-4o support
-- Anthropic Claude integration
-- Streaming response generation
+**LLM 整合**
+- OpenAI GPT-4o 支援
+- Anthropic Claude 整合
+- 串流回應生成
 
-**API Endpoints**
-- `/api/v1/chat` - Synchronous chat
-- `/api/v1/chat/stream` - Streaming chat
-- `/api/v1/documents/upload` - Document upload
-- `/api/v1/search` - Semantic search
-- `/api/v1/sandbox/execute` - Code execution
-
-**Documentation**
-- Complete README with quick start
-- API documentation at `/docs`
-- Example scripts
+**API 端點**
+- `/api/v1/chat` — 同步聊天
+- `/api/v1/chat/stream` — 串流聊天
+- `/api/v1/documents/upload` — 文件上傳
+- `/api/v1/search` — 語意搜尋
+- `/api/v1/sandbox/execute` — 程式碼執行
 
 ---
 
-## Version Comparison
+## 版本比較
+
+### [3.x] vs [2.0.0]
+
+**架構改善**
+- 移除 2,555 行死程式碼
+- DeepResearchProcessor 分解為 7 個模組
+- 新增 Context Engineering 層（6 個元件）
+- 新增 MCP/A2A 擴展系統
+- 新增持久化沙箱 + 圖表管線
 
 ### [2.0.0] vs [1.5.0]
 
-**Lines of Code**
-- Reduced largest file from 2611 → 1516 lines (-42%)
-- Average file size: 280 → 189 lines (-32%)
-
-**Test Coverage**
-- Total tests: 218 → 272 (+24.8%)
-- Coverage: 22% → 52% (+136%)
-
-**Code Quality**
-- Overall: 5/10 → 9/10 (+80%)
-- Maintainability Index: 42 → 78 (+85%)
-
-**Performance** (unchanged)
-- System 1 latency: ~45ms
-- System 2 latency: ~1.2s
-- Cache hit rate: 78%
-
-### [1.5.0] vs [1.0.0]
-
-**New Features**
-- +1 runtime type (AgentRuntime)
-- +1 cognitive level (Agent)
-- +Feature flags system
-
-**Performance**
-- 78% cache hit rate (System 1)
-- 3x faster for cached queries
+**程式碼品質**
+- 最大檔案從 2611 → 1516 行（-42%）
+- 平均檔案大小：280 → 189 行（-32%）
+- 整體品質：5/10 → 9/10（+80%）
 
 ---
 
-## Upgrade Guides
+## 升級指南
 
-### Upgrading from 1.x to 2.0
+### 從 2.x 升級至 3.x
 
-**No action required** - 100% backward compatible
+**無需動作** — 100% 向後相容
 
-All existing code continues to work:
+死程式碼移除不影響任何公開 API。新增的 Context Engineering 與 MCP/A2A 功能皆透過 Feature Flag 控制，預設關閉。
+
+### 從 1.x 升級至 2.0
+
+**無需動作** — 100% 向後相容
+
 ```python
-# Old import still works
-from src.core.processor import ProcessorFactory
-
-# New import also available
+# 舊匯入仍然可用
 from src.core.processors.factory import ProcessorFactory
-```
 
-**Optional Migration** (recommended for new code):
-```python
-# Old: Use enum (still supported)
-from src.core.models import ProcessingMode
-mode = ProcessingMode.CHAT
-
-# New: Use dataclass (preferred)
+# 新匯入（推薦）
 from src.core.models_v2 import Modes
 mode = Modes.CHAT
 ```
 
 ---
 
-## Security Updates
+## 連結
 
-### [2.0.0]
-- Updated all dependencies to latest versions
-- Patched potential LLM injection vectors
-- Enhanced input validation
-
-### [1.5.0]
-- Fixed JWT token expiry edge case
-- Updated cryptography package
-
-### [1.0.0]
-- Initial security baseline
-- JWT authentication implementation
-- Docker sandbox isolation
+- [GitHub Releases](https://github.com/Zenobia000/openagent_backend/releases)
+- [文件](docs/)
 
 ---
 
-## Deprecation Notices
-
-### Current (2.0.0)
-
-**No deprecations** - All features fully supported
-
-### Planned Deprecations
-
-**3.0.0 (Q4 2026)**
-- `src/core/models.py` (ProcessingMode enum) → Use `models_v2.py` dataclass
-- `src/core/processor.py` (compatibility shim) → Import from `processors/` directly
-
-**Migration period**: 6 months warning before removal
-
----
-
-## Links
-
-- [GitHub Releases](https://github.com/your-org/openagent_backend/releases)
-- [Documentation](https://docs.opencode.ai)
-- [Migration Guides](https://docs.opencode.ai/migration)
-
----
-
-**Legend**:
-- ✨ Added: New features
-- 🔧 Changed: Changes in existing functionality
-- 🐛 Fixed: Bug fixes
-- 🔥 Removed: Removed features
-- 🚨 Breaking Changes: Breaking changes
-- 📚 Documentation: Documentation changes
-- 🔒 Security: Security fixes
+**圖例**：
+- ✨ 新增：新功能
+- 🔧 變更：現有功能變更
+- 🐛 修復：Bug 修復
+- 🔥 移除：移除的功能
+- 📊 改善：效能或品質改善

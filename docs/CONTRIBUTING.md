@@ -1,202 +1,165 @@
-# Contributing to OpenCode Platform
+# 為 OpenCode Platform 做出貢獻
 
-Thank you for your interest in contributing to OpenCode Platform! We welcome contributions from the community.
+感謝您有興趣為 OpenCode Platform 做出貢獻！我們歡迎社群的貢獻。
 
-## 📋 Table of Contents
+## 📋 目錄
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Workflow](#development-workflow)
-- [Coding Standards](#coding-standards)
-- [Testing Guidelines](#testing-guidelines)
-- [Pull Request Process](#pull-request-process)
-- [Community](#community)
-
----
-
-## Code of Conduct
-
-This project adheres to a code of conduct. By participating, you are expected to uphold this code.
-
-### Our Standards
-
-- **Be Respectful**: Treat everyone with respect and consideration
-- **Be Collaborative**: Work together constructively
-- **Be Professional**: Focus on technical merit, not personal attacks
-- **Be Inclusive**: Welcome contributors from all backgrounds
-
-### Unacceptable Behavior
-
-- Harassment, discrimination, or offensive comments
-- Personal attacks or trolling
-- Publishing others' private information
-- Any conduct that would be considered inappropriate in a professional setting
-
-**Reporting**: Email conduct@opencode.ai for any concerns.
+- [行為準則](#行為準則)
+- [開始](#開始)
+- [開發工作流程](#開發工作流程)
+- [編碼標準](#編碼標準)
+- [測試準則](#測試準則)
+- [Pull Request 流程](#pull-request-流程)
+- [社群](#社群)
 
 ---
 
-## Getting Started
+## 行為準則
 
-### Prerequisites
+### 我們的標準
 
-- **Python** 3.10 or higher
-- **Git** for version control
-- **Docker** (optional, for testing sandbox features)
-- **GitHub account**
+- **尊重**：以尊重和體貼對待每個人
+- **合作**：建設性地合作
+- **專業**：專注於技術價值，而非人身攻擊
+- **包容**：歡迎來自所有背景的貢獻者
 
-### Fork and Clone
+---
+
+## 開始
+
+### 前置需求
+
+- **Python** 3.11 或更高版本
+- **uv**（推薦的套件管理器）
+- **Git**
+- **Docker**（選用，用於測試沙箱功能）
+
+### Fork 並 Clone
 
 ```bash
-# Fork the repository on GitHub
-# Then clone your fork
+# 在 GitHub 上 Fork 專案
+# 然後 clone 你的 fork
 git clone https://github.com/YOUR_USERNAME/openagent_backend.git
 cd openagent_backend
 
-# Add upstream remote
-git remote add upstream https://github.com/your-org/openagent_backend.git
+# 新增 upstream remote
+git remote add upstream https://github.com/Zenobia000/openagent_backend.git
 ```
 
-### Development Environment Setup
+### 開發環境設定
 
 ```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# 安裝 uv（如尚未安裝）
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+# 建立虛擬環境
+uv venv --python 3.11
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install pre-commit hooks
-pip install pre-commit
-pre-commit install
+# 安裝相依套件（含開發工具）
+uv pip install -e ".[dev]"
 
-# Copy environment template
+# 複製環境變數範本
 cp .env.example .env
-# Edit .env and add your API keys
+# 編輯 .env 並新增你的 API key
 ```
 
-### Verify Installation
+### 驗證安裝
 
 ```bash
-# Run tests
-pytest tests/ -v
+# 執行測試
+uv run pytest tests/ -v -o "addopts="
 
-# Start CLI
+# 啟動 CLI
 python main.py
 
-# Start API server
+# 啟動 API 伺服器
 cd src && python -c "
 import uvicorn
 from api.routes import create_app
-from core.engine import RefactoredEngine
-from services.llm.openai_client import OpenAILLMClient
-import os
-
-llm = OpenAILLMClient(api_key=os.getenv('OPENAI_API_KEY'))
-engine = RefactoredEngine(llm_client=llm)
-app = create_app(engine=engine)
-uvicorn.run(app, host='0.0.0.0', port=8000)
+uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 "
 ```
 
 ---
 
-## Development Workflow
+## 開發工作流程
 
-### 1. Create a Feature Branch
+### 1. 建立 Feature Branch
 
 ```bash
-# Update your fork
+# 更新你的 fork
 git fetch upstream
 git checkout main
 git merge upstream/main
 
-# Create feature branch
+# 建立 feature branch
 git checkout -b feature/your-feature-name
-# or
+# 或
 git checkout -b fix/bug-description
 ```
 
-### Branch Naming Convention
+### Branch 命名慣例
 
-- `feature/` - New features
-- `fix/` - Bug fixes
-- `docs/` - Documentation updates
-- `refactor/` - Code refactoring
-- `test/` - Test additions or fixes
-- `chore/` - Maintenance tasks
+- `feature/` — 新功能
+- `fix/` — Bug 修復
+- `docs/` — 文件更新
+- `refactor/` — 程式碼重構
+- `test/` — 測試新增或修復
+- `chore/` — 維護任務
 
-### 2. Make Your Changes
+### 2. 提交變更
 
-Follow our [Coding Standards](#coding-standards) and ensure all tests pass.
-
-### 3. Commit Your Changes
-
-We use [Conventional Commits](https://www.conventionalcommits.org/):
+我們使用 [Conventional Commits](https://www.conventionalcommits.org/)：
 
 ```bash
-# Format: <type>(<scope>): <subject>
-
-git commit -m "feat(processors): add custom processor registration API"
-git commit -m "fix(llm): resolve timeout in multi-provider fallback"
-git commit -m "docs(readme): add performance benchmarks section"
-git commit -m "test(router): add complexity analyzer edge cases"
+git commit -m "feat(processors): 新增自訂處理器註冊 API"
+git commit -m "fix(llm): 修復多供應商備援中的逾時"
+git commit -m "docs(readme): 新增效能基準章節"
 ```
 
-**Commit Types**:
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation only
-- `style`: Code style (formatting, no logic change)
-- `refactor`: Code refactoring
-- `test`: Adding or updating tests
-- `chore`: Maintenance tasks
-
-### 4. Push and Create PR
-
-```bash
-git push origin feature/your-feature-name
-```
-
-Then create a Pull Request on GitHub.
+**提交類型**：
+- `feat`：新功能
+- `fix`：Bug 修復
+- `docs`：僅文件
+- `style`：程式碼風格（格式化，無邏輯變更）
+- `refactor`：程式碼重構
+- `test`：新增或更新測試
+- `chore`：維護任務
 
 ---
 
-## Coding Standards
+## 編碼標準
 
-### Linus Torvalds Philosophy
+### Linus Torvalds 哲學
 
-We follow Linus Torvalds' principles for clean, maintainable code:
+我們遵循 Linus Torvalds 的原則，撰寫乾淨、可維護的程式碼：
 
-**1. Good Taste - Eliminate Special Cases**
+**1. 好品味 — 消除特例**
 ```python
-# ❌ Bad - Special cases
+# ❌ 不好 — 特例
 if mode == "chat":
     level = "system1"
 elif mode == "search":
     level = "system2"
-elif mode == "deep_research":
-    level = "agent"
 
-# ✅ Good - Data self-containment
+# ✅ 好 — 資料自包含
 @dataclass(frozen=True)
 class ProcessingMode:
     name: str
-    cognitive_level: str  # Data contains its own metadata
+    cognitive_level: str
 
 mode = ProcessingMode("chat", "system1")
-level = mode.cognitive_level  # No special cases
+level = mode.cognitive_level  # 無特例
 ```
 
-**2. Simplicity - Functions ≤50 lines**
+**2. 簡潔 — 函數 ≤50 行**
 ```python
-# ❌ Bad - 200-line monster function
+# ❌ 不好 — 200 行怪獸函數
 def process_everything(request):
-    # ... 200 lines of mixed concerns
+    # ... 200 行混合關注點
 
-# ✅ Good - Small, focused functions
+# ✅ 好 — 小而專注的函數
 def process(request):
     validated = validate_request(request)
     mode = select_mode(validated)
@@ -204,18 +167,9 @@ def process(request):
     return format_response(result)
 ```
 
-**3. No Deep Nesting - Indentation ≤3 levels**
+**3. 無深層巢狀 — 縮排 ≤3 層**
 ```python
-# ❌ Bad - 5 levels of indentation
-def bad_function():
-    if condition1:
-        if condition2:
-            for item in items:
-                if item.valid:
-                    if item.process():
-                        ...  # 5 levels deep
-
-# ✅ Good - Early returns, flat structure
+# ✅ 好 — 提前返回，扁平結構
 def good_function():
     if not condition1:
         return
@@ -227,365 +181,135 @@ def good_function():
         item.process()
 ```
 
-### Python Style Guide
+### Python 風格指南
 
-- **PEP 8 Compliance**: Use `black` for formatting
-- **Line Length**: Maximum 100 characters
-- **Type Hints**: All functions must have type annotations
-- **Docstrings**: Use Google-style docstrings
+- **PEP 8 合規**：使用 `black` 格式化
+- **行長度**：最多 100 字元
+- **型別提示**：所有函數必須有型別註解
+- **Docstrings**：使用 Google 風格
 
-```python
-def process_request(
-    request: Request,
-    mode: ProcessingMode,
-    context: Optional[ProcessingContext] = None
-) -> Response:
-    """Process a request using specified mode.
+### 檔案組織
 
-    Args:
-        request: The incoming request object
-        mode: Processing mode to use
-        context: Optional processing context
-
-    Returns:
-        Response object with results
-
-    Raises:
-        ValidationError: If request is invalid
-        ProcessorError: If processing fails
-    """
-    pass
-```
-
-### File Organization
-
-- **Files ≤500 lines**: Split into multiple files if exceeded
-- **Single Responsibility**: One class/concept per file
-- **Consistent Naming**:
-  - Files: `snake_case.py`
-  - Classes: `PascalCase`
-  - Functions/Variables: `snake_case`
-  - Constants: `UPPER_SNAKE_CASE`
-
-### Import Order
-
-```python
-# 1. Standard library
-import os
-from typing import Optional, Dict
-
-# 2. Third-party
-from fastapi import FastAPI
-from pydantic import BaseModel
-
-# 3. Local imports
-from src.core.models import Request, Response
-from src.services.llm import OpenAIClient
-```
+- **檔案 ≤500 行**：超過則拆分為多個檔案
+- **單一職責**：每個檔案一個類別/概念
+- **一致的命名**：
+  - 檔案：`snake_case.py`
+  - 類別：`PascalCase`
+  - 函數/變數：`snake_case`
+  - 常數：`UPPER_SNAKE_CASE`
 
 ---
 
-## Testing Guidelines
+## 測試準則
 
-### Test Coverage Requirements
+### 測試覆蓋率要求
 
-- **New Features**: ≥80% coverage
-- **Bug Fixes**: Add regression test
-- **Refactoring**: Maintain existing coverage
+- **新功能**：≥80% 覆蓋率
+- **Bug 修復**：新增迴歸測試
+- **重構**：維持現有覆蓋率
 
-### Running Tests
+### 執行測試
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# 執行所有測試
+uv run pytest tests/ -v -o "addopts="
 
-# Run specific test file
-pytest tests/unit/test_models_v2.py -v
+# 執行特定測試檔案
+uv run pytest tests/unit/test_models_v2.py -v -o "addopts="
 
-# Run with coverage
-pytest tests/ --cov=src --cov-report=html
+# 含覆蓋率
+uv run pytest tests/ --cov=src --cov-report=html -o "addopts="
 
-# Run only fast tests (skip integration)
-pytest tests/unit/ -v
+# 僅快速測試（跳過整合）
+uv run pytest tests/unit/ -v -o "addopts="
 ```
 
-### Writing Tests
-
-**Unit Tests** (fast, isolated):
-```python
-def test_processing_mode_creation():
-    """Test ProcessingMode dataclass creation."""
-    mode = ProcessingMode(
-        name="chat",
-        cognitive_level="system1",
-        runtime_type=RuntimeType.MODEL,
-        description="Chat mode"
-    )
-
-    assert mode.name == "chat"
-    assert mode.cognitive_level == "system1"
-    assert mode.runtime_type == RuntimeType.MODEL
-```
-
-**Integration Tests** (with real services):
-```python
-def test_multi_provider_fallback(openai_client, anthropic_client):
-    """Test fallback chain when primary provider fails."""
-    multi = MultiProviderLLMClient(
-        providers=[openai_client, anthropic_client]
-    )
-
-    # Simulate OpenAI failure
-    openai_client.should_fail = True
-
-    result = multi.generate("Test prompt")
-    assert result.provider == "Anthropic"  # Fallback worked
-```
-
-**End-to-End Tests** (full system):
-```python
-def test_auto_mode_routing_e2e(test_client):
-    """Test auto mode correctly routes simple query to System 1."""
-    response = test_client.post("/api/v1/chat", json={
-        "query": "Hello",
-        "mode": "auto"
-    })
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["selected_mode"] == "chat"
-    assert data["cognitive_level"] == "system1"
-```
-
-### Test Naming Convention
+### 測試命名慣例
 
 ```python
-# Pattern: test_<what>_<condition>_<expected>
-
+# 模式：test_<什麼>_<條件>_<預期>
 def test_router_simple_query_selects_system1():
     pass
 
 def test_processor_invalid_input_raises_validation_error():
     pass
-
-def test_cache_expired_entry_returns_none():
-    pass
 ```
 
 ---
 
-## Pull Request Process
+## Pull Request 流程
 
-### Before Submitting
+### 提交前
 
-- [ ] All tests pass (`pytest tests/ -v`)
-- [ ] Code coverage ≥80% for new code
-- [ ] Code formatted with `black` (`black src/ tests/`)
-- [ ] Type checking passes (`mypy src/`)
-- [ ] No linting errors (`flake8 src/`)
-- [ ] Documentation updated (if needed)
-- [ ] CHANGELOG.md updated (if user-facing change)
+- [ ] 所有測試通過（`uv run pytest tests/ -v -o "addopts="`）
+- [ ] 新程式碼覆蓋率 ≥80%
+- [ ] 使用 `black` 格式化（`black src/ tests/`）
+- [ ] 型別檢查通過（`mypy src/`）
+- [ ] 無 linting 錯誤
+- [ ] 文件已更新（如需要）
+- [ ] CHANGELOG.md 已更新（如使用者可見的變更）
 
-### PR Title Format
+### PR 標題格式
 
-Use Conventional Commits format:
-
+使用 Conventional Commits 格式：
 ```
-feat(processors): add custom processor registration API
-fix(llm): resolve timeout in multi-provider fallback
-docs(readme): add performance benchmarks section
+feat(processors): 新增自訂處理器註冊 API
+fix(llm): 修復多供應商備援中的逾時
 ```
 
-### PR Description Template
+### 審查流程
 
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
-
-## How Has This Been Tested?
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] Manual testing
-
-## Checklist
-- [ ] My code follows the project's coding standards
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
-```
-
-### Review Process
-
-1. **Automated Checks**: CI/CD pipeline runs tests, linting, type checking
-2. **Code Review**: Maintainer reviews code (typically 1-3 business days)
-3. **Feedback**: Address review comments by pushing new commits
-4. **Approval**: Once approved, maintainer will merge
-
-### After Merge
-
-- Delete your feature branch
-- Update your fork's main branch
-- Check if your contribution is listed in [CONTRIBUTORS.md](CONTRIBUTORS.md)
+1. **自動檢查**：CI/CD 管線執行測試、linting、型別檢查
+2. **程式碼審查**：維護者審查程式碼（通常 1-3 個工作天）
+3. **回饋**：透過推送新提交回應審查意見
+4. **核准**：核准後由維護者合併
 
 ---
 
-## Project Structure for Contributors
+## 貢獻者專案結構
 
 ```
-openagent_backend/
+opencode_backend/
 ├── src/
-│   ├── core/                 # Core engine logic
-│   │   ├── engine.py         # Main engine
-│   │   ├── router.py         # Request routing
-│   │   ├── models_v2.py      # Data models (add new modes here)
-│   │   ├── processors/       # Add custom processors here
-│   │   │   ├── base.py       # Extend this for new processors
-│   │   │   └── factory.py    # Register processors here
-│   │   └── runtime/          # Runtime implementations
-│   ├── services/             # External services
-│   │   ├── llm/              # Add new LLM providers here
-│   │   ├── knowledge/        # RAG implementation
-│   │   └── search/           # Search integrations
+│   ├── core/                 # 核心引擎邏輯
+│   │   ├── engine.py         # 主引擎
+│   │   ├── router.py         # 請求路由
+│   │   ├── models_v2.py      # 資料模型（在此新增模式）
+│   │   ├── processors/       # 在此新增自訂處理器
+│   │   │   ├── base.py       # 繼承此類別建立新處理器
+│   │   │   └── factory.py    # 在此註冊處理器
+│   │   ├── context/          # Context Engineering 元件
+│   │   └── runtime/          # 執行時實作
+│   ├── services/             # 外部服務
+│   │   ├── llm/              # 在此新增 LLM 供應商
+│   │   ├── knowledge/        # RAG 實作
+│   │   ├── search/           # 搜尋整合
+│   │   └── sandbox/          # 沙箱服務
 │   └── api/                  # REST API
-│       └── routes.py         # Add new endpoints here
+│       └── routes.py         # 在此新增端點
+├── packages/                 # 在此新增 MCP/A2A 外掛
 ├── tests/
-│   ├── unit/                 # Add unit tests here
-│   ├── integration/          # Add integration tests here
-│   └── e2e/                  # Add end-to-end tests here
-└── docs/                     # Documentation
-```
-
-### Common Contribution Areas
-
-**1. Adding a New LLM Provider**
-
-Location: `src/services/llm/`
-
-```python
-# 1. Create new provider file
-# src/services/llm/cohere_client.py
-
-from .base import LLMProvider
-from .errors import ProviderError
-
-class CohereLLMClient(LLMProvider):
-    def generate(self, prompt: str, **kwargs) -> str:
-        # Implementation
-        pass
-
-# 2. Register in multi_provider.py
-providers = [
-    OpenAIClient(),
-    AnthropicClient(),
-    GeminiClient(),
-    CohereLLMClient(),  # Add here
-]
-
-# 3. Add tests
-# tests/unit/test_cohere_client.py
-```
-
-**2. Adding a Custom Processor**
-
-Location: `src/core/processors/`
-
-```python
-# 1. Create processor file
-# src/core/processors/translation.py
-
-from .base import BaseProcessor
-from ..models import ProcessingMode, RuntimeType
-
-class TranslationProcessor(BaseProcessor):
-    def process(self, request):
-        # Implementation
-        pass
-
-# 2. Register in factory.py
-TRANSLATION = ProcessingMode(
-    name="translation",
-    cognitive_level="system1",
-    runtime_type=RuntimeType.MODEL,
-    description="Language translation"
-)
-
-_processors = {
-    # ...
-    ProcessingMode.TRANSLATION: TranslationProcessor,
-}
-
-# 3. Add tests
-# tests/unit/test_translation_processor.py
-```
-
-**3. Adding a New API Endpoint**
-
-Location: `src/api/routes.py`
-
-```python
-# Add endpoint
-@app.post("/api/v1/translate")
-async def translate_text(
-    request: TranslateRequest,
-    current_user: str = Depends(get_current_user)
-):
-    """Translate text between languages."""
-    result = engine.process(Request(
-        query=request.text,
-        mode="translation",
-        user_id=current_user
-    ))
-    return result
-
-# Add tests
-# tests/integration/test_api.py
-def test_translate_endpoint_success(test_client):
-    response = test_client.post("/api/v1/translate", json={
-        "text": "Hello",
-        "target_lang": "es"
-    })
-    assert response.status_code == 200
+│   ├── unit/                 # 在此新增單元測試
+│   ├── integration/          # 在此新增整合測試
+│   └── e2e/                  # 在此新增端到端測試
+└── docs/                     # 文件
 ```
 
 ---
 
-## Community
+## 社群
 
-### Communication Channels
+### 溝通管道
 
-- **GitHub Discussions**: [Questions & Ideas](https://github.com/your-org/openagent_backend/discussions)
-- **GitHub Issues**: [Bug Reports & Feature Requests](https://github.com/your-org/openagent_backend/issues)
-- **Email**: dev@opencode.ai
+- **GitHub Discussions**：[問題與想法](https://github.com/Zenobia000/openagent_backend/discussions)
+- **GitHub Issues**：[Bug 回報與功能請求](https://github.com/Zenobia000/openagent_backend/issues)
 
-### Getting Help
+### 取得幫助
 
-- Read the [README.md](README.md) and [documentation](https://docs.opencode.ai)
-- Search [existing issues](https://github.com/your-org/openagent_backend/issues)
-- Ask in [GitHub Discussions](https://github.com/your-org/openagent_backend/discussions)
-- Join our community meetings (announced in Discussions)
-
-### Recognition
-
-All contributors are recognized in:
-- [CONTRIBUTORS.md](CONTRIBUTORS.md)
-- GitHub contributor graph
-- Release notes (for significant contributions)
+- 閱讀 [README.md](../README.md) 和文件
+- 搜尋[現有 issues](https://github.com/Zenobia000/openagent_backend/issues)
+- 在 [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions) 中提問
 
 ---
 
-## Questions?
-
-If you have questions about contributing, feel free to:
-- Open a [Discussion](https://github.com/your-org/openagent_backend/discussions)
-- Email: dev@opencode.ai
-
-Thank you for contributing to OpenCode Platform! 🎉
+感謝您為 OpenCode Platform 做出貢獻！

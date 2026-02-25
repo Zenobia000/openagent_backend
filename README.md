@@ -5,36 +5,32 @@
 <h1 align="center">OpenCode Platform</h1>
 
 <p align="center">
-  <strong>Cognitive AI Engine | Dual Runtime Architecture | RAG Knowledge Base | Code Sandbox</strong>
+  <strong>認知 AI 引擎 | 雙執行時架構 | RAG 知識庫 | 程式碼沙箱 | MCP/A2A 擴展</strong>
 </p>
 
 <p align="center">
-  <a href="#-key-features">Features</a> &bull;
-  <a href="#-quick-demo">Demo</a> &bull;
-  <a href="#architecture">Architecture</a> &bull;
-  <a href="#quick-start">Quick Start</a> &bull;
-  <a href="#-performance-benchmarks">Performance</a> &bull;
-  <a href="#-comparison-with-alternatives">Comparison</a> &bull;
-  <a href="#-roadmap">Roadmap</a> &bull;
-  <a href="#-contributing">Contributing</a> &bull;
-  <a href="#-faq">FAQ</a>
+  <a href="#-主要特色">特色</a> &bull;
+  <a href="#-快速示範">示範</a> &bull;
+  <a href="#架構">架構</a> &bull;
+  <a href="#快速開始">快速開始</a> &bull;
+  <a href="#-效能指標">效能</a> &bull;
+  <a href="#-與其他框架比較">比較</a> &bull;
+  <a href="#-路線圖">路線圖</a> &bull;
+  <a href="#-貢獻">貢獻</a> &bull;
+  <a href="#-常見問題">FAQ</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-green.svg" alt="Python" />
-  <img src="https://img.shields.io/badge/fastapi-0.128+-009688.svg" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/tests-272%2F278_passing_(97.8%25)-brightgreen.svg" alt="Tests" />
-  <img src="https://img.shields.io/badge/coverage-52%25-green.svg" alt="Coverage" />
-  <img src="https://img.shields.io/badge/code_quality-9%2F10-blue.svg" alt="Code Quality" />
+  <img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python" />
+  <img src="https://img.shields.io/badge/fastapi-0.108+-009688.svg" alt="FastAPI" />
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License" />
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/your-org/openagent_backend?style=social" alt="GitHub Stars" />
-  <img src="https://img.shields.io/github/forks/your-org/openagent_backend?style=social" alt="GitHub Forks" />
-  <img src="https://img.shields.io/github/issues/your-org/openagent_backend" alt="GitHub Issues" />
-  <img src="https://img.shields.io/github/issues-pr/your-org/openagent_backend" alt="Pull Requests" />
-  <img src="https://img.shields.io/github/last-commit/your-org/openagent_backend" alt="Last Commit" />
+  <img src="https://img.shields.io/github/stars/Zenobia000/openagent_backend?style=social" alt="GitHub Stars" />
+  <img src="https://img.shields.io/github/forks/Zenobia000/openagent_backend?style=social" alt="GitHub Forks" />
+  <img src="https://img.shields.io/github/issues/Zenobia000/openagent_backend" alt="GitHub Issues" />
+  <img src="https://img.shields.io/github/last-commit/Zenobia000/openagent_backend" alt="Last Commit" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
 
@@ -42,108 +38,101 @@
   <img src="https://img.shields.io/badge/LLM-OpenAI%20%7C%20Anthropic%20%7C%20Gemini-blueviolet.svg" alt="Multi-Provider LLM" />
   <img src="https://img.shields.io/badge/architecture-System1%20%7C%20System2%20%7C%20Agent-orange.svg" alt="Cognitive Architecture" />
   <img src="https://img.shields.io/badge/docker-ready-blue.svg?logo=docker" alt="Docker Ready" />
-  <img src="https://img.shields.io/badge/k8s-compatible-326CE5.svg?logo=kubernetes" alt="Kubernetes" />
 </p>
 
 ---
 
-## Overview
+## 概覽
 
-**OpenCode Platform** is a cognitive AI processing engine built on a 3-tier architecture inspired by dual-process theory:
+**OpenCode Platform** 是一個基於三層認知架構的 AI 處理引擎，靈感來自雙歷程理論：
 
-- **System 1** (Fast) -- Cached, low-latency responses for chat and knowledge retrieval
-- **System 2** (Analytical) -- Deep reasoning for search, code generation, and thinking tasks
-- **Agent** (Autonomous) -- Stateful, multi-step workflows with retry and error recovery
+- **System 1**（快速）— 快取、低延遲的聊天與知識檢索回應
+- **System 2**（分析）— 深度推理的搜尋、程式碼生成與思考任務
+- **Agent**（自主）— 具狀態管理、多步驟工作流程與錯誤恢復
 
-The engine uses a Router to classify request complexity, then dispatches to the appropriate runtime (ModelRuntime or AgentRuntime) for execution.
-
----
-
-## ✨ Key Features
-
-### 🧠 Cognitive Architecture
-- **Dual-Process Theory Implementation**: Inspired by human cognition with System 1 (fast, intuitive), System 2 (analytical), and Agent (autonomous) levels
-- **Smart Routing**: ComplexityAnalyzer automatically selects optimal runtime based on query complexity
-- **Multi-Level Caching**: System 1 responses cached for instant retrieval (78% hit rate in production)
-- **Feature Flags**: YAML-driven configuration enables zero-risk deployment and A/B testing
-
-### 🔄 Multi-Provider LLM Resilience
-- **Automatic Fallback Chain**: OpenAI → Anthropic → Gemini with 99.5% availability
-- **Zero String Checking**: Structured exception hierarchy eliminates error-prone string parsing
-- **Cost Optimization**: Intelligent provider selection based on complexity and availability
-- **Streaming Support**: SSE (Server-Sent Events) for real-time response streaming
-
-### 🏗️ Production-Ready Architecture
-- **Modular Design**: 12 specialized processors, 91.7% of files ≤500 lines (Linus-approved)
-- **Battle-Tested**: 272/278 tests passing (97.8%), 52% code coverage
-- **Linus-Style Quality**: Code quality improved from 5/10 → 9/10 through systematic refactoring
-- **Zero Breaking Changes**: 100% backward compatibility maintained via compatibility shims
-
-### 🚀 Developer Experience
-- **FastAPI Integration**: Auto-generated interactive docs at `/docs`
-- **Dual Interfaces**: CLI for development, REST API for production
-- **Type Safety**: Full Python type hints with Pydantic validation
-- **Comprehensive Services**: RAG knowledge base, web search, code sandbox, research workflows
+引擎使用 Router 分類請求複雜度，然後分派至適當的執行時（ModelRuntime 或 AgentRuntime）進行處理。
 
 ---
 
-## 🎯 Use Cases
+## ✨ 主要特色
 
-### Perfect For
+### 認知架構
+- **雙歷程理論實作**：System 1（快速直覺）、System 2（分析推理）、Agent（自主代理）
+- **智慧路由**：ComplexityAnalyzer 自動依查詢複雜度選擇最佳執行時
+- **多層快取**：System 1 回應快取，即時檢索
+- **Feature Flags**：YAML 驅動設定，零風險部署
 
-**🤖 AI Application Developers**
-- Need a cognitive AI engine with built-in complexity routing
-- Want multi-provider LLM resilience without manual retry logic
-- Require production-ready error handling and observability
+### 多供應商 LLM 韌性
+- **自動備援鏈**：OpenAI → Anthropic → Gemini
+- **結構化例外處理**：例外層級架構，消除字串錯誤檢測
+- **串流支援**：SSE（Server-Sent Events）即時回應串流
 
-**🔬 Researchers & Academics**
-- Exploring dual-process AI architectures
-- Testing cognitive task classification algorithms
-- Benchmarking LLM provider performance and fallback strategies
+### 生產就緒架構
+- **模組化設計**：專門化處理器，Linus 風格程式碼品質
+- **MCP 整合**：Model Context Protocol 外部工具伺服器
+- **A2A 協定**：Agent-to-Agent 多代理委派
+- **Context Engineering**：Manus 對齊的上下文工程（v3.1）
 
-**🏢 Enterprise Teams**
-- Building internal AI assistants with RAG + search + code execution
-- Need feature-flagged deployment for gradual rollout
-- Require multi-tenancy and isolation (planned for Q4 2026)
+### 開發者體驗
+- **FastAPI 整合**：自動生成互動式文件 `/docs`
+- **雙介面**：CLI 開發模式、REST API 生產模式
+- **型別安全**：完整 Python type hints + Pydantic 驗證
+- **外掛系統**：MCP/A2A 套件管理器，可擴展的外掛架構
 
-### Real-World Examples
+---
 
-**💬 Customer Support Bot**
+## 🎯 使用情境
+
+### 適用對象
+
+**AI 應用開發者**
+- 需要內建複雜度路由的認知 AI 引擎
+- 想要多供應商 LLM 韌性，無需手動重試邏輯
+- 需要生產就緒的錯誤處理與可觀測性
+
+**研究人員與學術界**
+- 探索雙歷程 AI 架構
+- 測試認知任務分類演算法
+- 基準測試 LLM 供應商效能與備援策略
+
+**企業團隊**
+- 建構內部 AI 助手，整合 RAG + 搜尋 + 程式碼執行
+- 需要 Feature Flag 部署，漸進式上線
+- 透過 MCP/A2A 協定整合外部工具與代理
+
+### 實際範例
+
+**對話助手**
 ```python
-# Auto mode routes simple questions to System 1 (fast, cached)
-# Complex issues to System 2 (analytical reasoning)
+# Auto 模式將簡單問題路由至 System 1（快速、快取）
+# 複雜問題路由至 System 2（分析推理）
 response = engine.process(Request(
-    query="How do I reset my password?",  # → System 1
-    mode="auto"
-))
-
-response = engine.process(Request(
-    query="Why does feature X behave differently in edge case Y?",  # → System 2
+    query="如何重設密碼？",  # → System 1
     mode="auto"
 ))
 ```
 
-**🔬 Research Assistant**
+**研究助理**
 ```python
-# Deep research mode for multi-step academic analysis
+# 深度研究模式，多步驟學術分析
 response = engine.process(Request(
-    query="Analyze the impact of transformer architecture on NLP progress 2017-2026",
-    mode="deep_research"  # → Agent runtime with stateful workflows
+    query="分析 Transformer 架構對 NLP 發展的影響 2017-2026",
+    mode="deep_research"  # → Agent runtime，具狀態工作流程
 ))
 ```
 
-**💻 Code Assistant**
+**程式碼助手**
 ```python
-# Code generation with sandbox execution and safety checks
+# 程式碼生成 + 沙箱執行 + 安全檢查
 response = engine.process(Request(
-    query="Write a function to calculate Fibonacci sequence and test it",
-    mode="code"  # → System 2 with sandbox
+    query="寫一個計算費氏數列的函數並測試它",
+    mode="code"  # → System 2 + 沙箱
 ))
 ```
 
 ---
 
-## Architecture
+## 架構
 
 ```
                          Request
@@ -151,17 +140,17 @@ response = engine.process(Request(
                            v
                    +---------------+
                    |   API Layer   |   FastAPI + JWT Auth + SSE Streaming
-                   |   (routes)    |   11 versioned endpoints
+                   |   (routes)    |   17 版本化端點
                    +-------+-------+
                            |
                            v
                 +----------+----------+
-                |  RefactoredEngine   |   Router + Dual Runtime dispatch
-                |  (Metrics, Flags)   |   Feature-flagged cognitive features
+                |  RefactoredEngine   |   Router + 雙執行時分派
+                |  (Metrics, Flags)   |   Feature Flag 認知特性
                 +----------+----------+
                            |
                     +------+------+
-                    |   Router    |   ComplexityAnalyzer (smart routing)
+                    |   Router    |   ComplexityAnalyzer (智慧路由)
                     +------+------+
                            |
               +------------+------------+
@@ -169,403 +158,412 @@ response = engine.process(Request(
      +--------v--------+      +--------v--------+
      |  ModelRuntime    |      |  AgentRuntime   |
      |  (System 1 + 2) |      |  (Agent level)  |
-     |  Stateless       |      |  Stateful       |
-     |  Cached          |      |  Retry + Recovery|
+     |  無狀態           |      |  有狀態          |
+     |  可快取           |      |  重試 + 恢復     |
      +--------+---------+      +--------+---------+
               |                         |
      +--------v--------+      +--------v--------+
-     | ProcessorFactory |      | WorkflowOrch.  |
-     | 12 Processors    |      | Multi-step     |
+     | ProcessorFactory |      | DeepResearch    |
+     | 模式處理器        |      | 多步驟研究       |
      +---------+--------+      +--------+--------+
                |                        |
                v                        v
      +---------+---------+    +---------+---------+
-     |   Services Layer  |    |   Services Layer  |
-     | LLM | RAG | Search|    | LLM | Research    |
-     | Sandbox | Browser |    | Browser | Repo    |
+     |   Services Layer  |    |   Extension Layer |
+     | LLM | RAG | Search|    | MCP | A2A         |
+     | Sandbox           |    | PackageManager    |
      +-------------------+    +-------------------+
 ```
 
-### Three Cognitive Levels
+### 三個認知層級
 
-| Level | Modes | Runtime | Characteristics |
-|-------|-------|---------|-----------------|
-| **System 1** | `chat`, `knowledge` | ModelRuntime | Fast, cacheable, low-latency |
-| **System 2** | `search`, `code`, `thinking` | ModelRuntime | Analytical, multi-step reasoning |
-| **Agent** | `deep_research` | AgentRuntime | Stateful workflows, retry, error recovery |
-
----
-
-## 📊 Performance
-
-**System 1 (Fast)**: 45ms avg | 78% cache hit | $0 for cached queries
-**System 2 (Analytical)**: 0.8-2.3s avg | No cache | Full reasoning
-**Agent (Autonomous)**: 8.5s avg | Multi-step workflows
-
-**Scalability**: 100 req/s (single instance) → 450 req/s (with cache) → 2000 req/s (K8s cluster)
-
-**Cost Savings**: 78% reduction via intelligent caching
-
-📖 **Full benchmarks, load tests, and optimization tips**: [Performance Guide](docs/PERFORMANCE.md)
+| 層級 | 模式 | 執行時 | 特性 |
+|------|------|--------|------|
+| **System 1** | `chat`, `knowledge` | ModelRuntime | 快速、可快取、低延遲 |
+| **System 2** | `search`, `code`, `thinking` | ModelRuntime | 分析、多步推理 |
+| **Agent** | `deep_research` | AgentRuntime | 有狀態工作流程、重試、錯誤恢復 |
 
 ---
 
-## 🔍 Why OpenCode?
+## 📊 效能指標
 
-**vs. LangChain**: Production API + automatic routing + built-in caching
-**vs. Haystack**: Beyond RAG - code execution, research workflows, multi-modal
-**vs. AutoGPT**: 78% cheaper + 10x faster for simple queries + smart routing
-
-📖 **Detailed comparison tables and migration guides**: [Comparison Guide](docs/COMPARISON.md)
+**System 1（快速）**：45ms 平均 | 可快取查詢
+**System 2（分析）**：0.8-2.3s 平均 | 完整推理
+**Agent（自主）**：8.5s 平均 | 多步驟工作流程
 
 ---
 
-## 🚀 Quick Demo
+## 🔍 與其他框架比較
 
-### One-Liner with Docker
+**vs. LangChain**：生產 API + 自動路由 + 內建快取
+**vs. Haystack**：不僅是 RAG — 程式碼執行、研究工作流程、多模態
+**vs. AutoGPT**：簡單查詢快 10 倍 + 智慧路由
 
-```bash
-docker run -e OPENAI_API_KEY=your-key -p 8000:8000 opencode/platform:latest
-```
+詳細比較表與遷移指南：[比較指南](docs/COMPARISON.md)
 
-Then visit: http://localhost:8000/docs
+---
 
-### Interactive CLI Demo
+## 🚀 快速示範
+
+### 互動式 CLI 示範
 
 ```bash
 $ python main.py
 
-🚀 OpenCode Platform - Interactive Mode
-Mode: auto (Router will select optimal processing level)
+🚀 OpenCode Platform - 互動模式
+模式：auto（Router 將選擇最佳處理層級）
 
-[auto]> What is the capital of France?
-🔄 Analyzing complexity... → System 1 (chat)
-⚡ Response from cache (12ms)
-💬 The capital of France is Paris.
+[auto]> 法國的首都是什麼？
+🔄 分析複雜度... → System 1 (chat)
+💬 法國的首都是巴黎。
 
-[auto]> Compare the economic systems of capitalism and socialism
-🔄 Analyzing complexity... → System 2 (thinking)
-🧠 Deep analysis mode (2.3s)
-📊 [Detailed comparative analysis follows...]
+[auto]> 比較資本主義和社會主義的經濟體系
+🔄 分析複雜度... → System 2 (thinking)
+🧠 深度分析模式
+📊 [詳細比較分析...]
 
 [auto]> /mode research
-✅ Switched to deep_research mode (Agent runtime)
+✅ 已切換至 deep_research 模式（Agent runtime）
 
-[research]> Analyze the impact of AI on employment 2020-2026
-🤖 Agent workflow initiated...
-📡 Step 1/5: Gathering sources...
-📡 Step 2/5: Analyzing trends...
-📡 Step 3/5: Synthesizing findings...
-📡 Step 4/5: Critical evaluation...
-📡 Step 5/5: Generating report...
-✅ Research complete (8.5s)
+[research]> 分析 AI 對就業的影響 2020-2026
+🤖 Agent 工作流程啟動...
+📡 步驟 1/5：蒐集資料來源...
+📡 步驟 2/5：分析趨勢...
+📡 步驟 3/5：綜合發現...
+📡 步驟 4/5：批判性評估...
+📡 步驟 5/5：生成報告...
+✅ 研究完成
 ```
 
-### API Example
+### API 範例
 
 ```bash
-# Get a token
+# 取得 token
 curl -X POST http://localhost:8000/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"username": "user", "password": "pass"}'
 
-# Chat with auto routing
+# 使用 auto 路由聊天
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query": "Explain quantum computing", "mode": "auto"}'
+  -d '{"query": "解釋量子計算", "mode": "auto"}'
 ```
-
-**Response:**
-```json
-{
-  "content": "Quantum computing leverages quantum mechanics...",
-  "metadata": {
-    "selected_mode": "thinking",
-    "cognitive_level": "system2",
-    "runtime": "ModelRuntime",
-    "complexity_score": 0.72,
-    "provider": "OpenAI",
-    "latency_ms": 2341,
-    "tokens_used": 1247,
-    "cached": false
-  }
-}
-```
-
 
 ---
 
-## Project Structure
+## 專案結構
 
 ```
-openagent_backend/
-├── main.py                # CLI entry point
+opencode_backend/
+├── main.py                # CLI 進入點
+├── pyproject.toml         # 專案元資料與相依套件
+├── config/
+│   ├── cognitive_features.yaml  # Feature Flag 設定
+│   ├── mcp_servers.yaml         # MCP 伺服器定義
+│   └── a2a_agents.yaml          # A2A 代理定義
 ├── src/
-│   ├── core/              # Engine + Router + Processors (12 modular files)
-│   ├── api/               # FastAPI + JWT + SSE streaming
-│   ├── services/          # LLM | Knowledge | Search | Sandbox
-│   └── auth/              # JWT authentication
-├── tests/                 # 272 tests (97.8% passing)
-├── examples/              # Working code samples
-└── docs/                  # Full documentation
+│   ├── core/              # 引擎 + 路由 + 處理器 + Context Engineering
+│   │   ├── engine.py      # RefactoredEngine
+│   │   ├── router.py      # DefaultRouter + ComplexityAnalyzer
+│   │   ├── models_v2.py   # 凍結 dataclass 資料模型
+│   │   ├── processors/    # 模式處理器
+│   │   │   ├── base.py, chat.py, knowledge.py
+│   │   │   ├── search.py, thinking.py, code.py
+│   │   │   ├── factory.py
+│   │   │   └── research/  # DeepResearchProcessor 子模組
+│   │   ├── runtime/       # ModelRuntime + AgentRuntime
+│   │   ├── context/       # Context Engineering（Manus 對齊）
+│   │   ├── mcp_client.py  # MCP 客戶端管理器
+│   │   ├── a2a_client.py  # A2A 客戶端管理器
+│   │   └── package_manager.py  # 外掛套件管理
+│   ├── api/               # FastAPI + JWT + SSE 串流
+│   ├── auth/              # JWT 認證
+│   └── services/          # LLM | Knowledge | Search | Sandbox
+├── packages/              # 可插拔擴展套件
+│   ├── weather/           # MCP 伺服器 — 天氣查詢
+│   ├── translator/        # MCP 伺服器 — 翻譯
+│   └── stock-analyst/     # A2A 代理 — 股票分析
+├── examples/              # 範例程式碼
+├── scripts/               # 工具腳本
+├── tests/                 # 測試套件
+├── docker/                # Docker 設定
+└── docs/                  # 完整文件
 ```
 
 ---
 
-## Quick Start
+## 快速開始
 
-### Prerequisites
+### 前置需求
 
-- **Python** 3.10+
-- **Docker** (optional, for sandbox and Qdrant)
+- **Python** 3.11+
+- **uv**（推薦的套件管理器）
+- **Docker**（選用，用於沙箱與 Qdrant）
 
-### 1. Environment Setup
+### 1. 安裝 uv
 
 ```bash
-cd openagent_backend
+# Linux/macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+# Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
-pip install -r requirements.txt
+### 2. 環境設定
 
+```bash
+cd opencode_backend
+
+# 建立虛擬環境並安裝相依套件
+uv venv --python 3.11
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
+
+uv pip install -e ".[dev]"
+
+# 設定環境變數
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY
+# 編輯 .env，至少設定一個 LLM API key：
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, 或 GEMINI_API_KEY
 ```
 
-### 2. CLI Mode
+### 3. CLI 模式
 
 ```bash
-python main.py          # Interactive chat
-python main.py test     # Run tests
-python main.py help     # Help
+python main.py          # 互動式聊天
+python main.py test     # 執行測試
+python main.py help     # 說明
 ```
 
-### 3. API Server
+### 4. API 伺服器
 
 ```bash
 cd src && python -c "
 import uvicorn
 from api.routes import create_app
-from core.engine import RefactoredEngine
-from services.llm.openai_client import OpenAILLMClient
-import os
-
-llm = OpenAILLMClient(api_key=os.getenv('OPENAI_API_KEY'))
-engine = RefactoredEngine(llm_client=llm)
-app = create_app(engine=engine)
-uvicorn.run(app, host='0.0.0.0', port=8000)
+uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 "
 ```
 
-- API docs: http://localhost:8000/docs
-- Health check: http://localhost:8000/health
+- API 文件：http://localhost:8000/docs
+- 健康檢查：http://localhost:8000/health
 
-### 4. API Usage
+### 5. Docker Compose（完整堆疊）
 
 ```bash
-# Get a JWT token
+docker-compose up -d    # 啟動所有服務（Qdrant、Backend、Frontend、Sandbox）
+```
+
+### 6. API 使用
+
+```bash
+# 取得 JWT token
 curl -X POST http://localhost:8000/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"username": "user", "password": "pass"}'
 
-# Chat
+# 聊天
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"query": "Hello", "mode": "chat"}'
+  -d '{"query": "你好", "mode": "chat"}'
 
-# Stream (SSE)
+# SSE 串流
 curl -X POST http://localhost:8000/api/v1/chat/stream \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"query": "Explain quantum computing", "mode": "thinking"}'
+  -d '{"query": "解釋量子計算", "mode": "thinking"}'
 ```
 
 ---
 
-## API Reference
+## API 端點
 
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/` | GET | No | Platform info |
-| `/health` | GET | No | Health check |
-| `/api/status` | GET | No | Engine status |
-| `/api/v1/auth/token` | POST | No | Get JWT token |
-| `/api/v1/chat` | POST | Yes | Sync chat |
-| `/api/v1/chat/stream` | POST | Yes | SSE streaming chat |
-| `/api/v1/documents/upload` | POST | Yes | Upload document |
-| `/api/v1/documents/status/{id}` | GET | Yes | Check upload status |
-| `/api/v1/search` | POST | Yes | Semantic search |
-| `/api/v1/sandbox/execute` | POST | Yes | Execute code |
-| `/api/v1/metrics` | GET | Yes | Cognitive metrics |
+| 端點 | 方法 | 認證 | 說明 |
+|------|------|------|------|
+| `/` | GET | 否 | 平台資訊 |
+| `/health` | GET | 否 | 健康檢查 |
+| `/api/status` | GET | 否 | 引擎狀態 |
+| `/api/v1/auth/token` | POST | 否 | 取得 JWT token |
+| `/api/v1/chat` | POST | 是 | 同步聊天 |
+| `/api/v1/chat/stream` | POST | 是 | SSE 串流聊天 |
+| `/api/v1/documents/upload` | POST | 是 | 上傳文件 |
+| `/api/v1/documents/status/{id}` | GET | 是 | 查詢上傳狀態 |
+| `/api/v1/search` | POST | 是 | 語意搜尋 |
+| `/api/v1/sandbox/execute` | POST | 是 | 執行程式碼 |
+| `/api/v1/metrics` | GET | 是 | 認知指標 |
+| `/api/v1/mcp/servers` | GET | 是 | 列出 MCP 伺服器 |
+| `/api/v1/mcp/tools` | GET | 是 | 列出 MCP 工具 |
+| `/api/v1/a2a/agents` | GET | 是 | 列出 A2A 代理 |
+| `/api/v1/packages` | GET | 是 | 列出已安裝套件 |
+| `/api/v1/packages/{id}/start` | POST | 是 | 啟動套件 |
+| `/api/v1/packages/{id}/stop` | POST | 是 | 停止套件 |
 
-Full interactive docs available at `/docs` when the server is running.
+伺服器運行時可在 `/docs` 查看完整互動式文件。
 
 ---
 
-## Processing Modes
+## 處理模式
 
-| Mode | Cognitive Level | Runtime | Description |
-|------|----------------|---------|-------------|
-| `chat` | System 1 | ModelRuntime | General conversation (cacheable) |
-| `knowledge` | System 1 | ModelRuntime | RAG knowledge retrieval (cacheable) |
-| `search` | System 2 | ModelRuntime | Web search with analysis |
-| `code` | System 2 | ModelRuntime | Code generation and execution |
-| `thinking` | System 2 | ModelRuntime | Deep reasoning and analysis |
-| `deep_research` | Agent | AgentRuntime | Multi-step research workflows |
-| `auto` | -- | Router decides | Automatic mode selection |
+| 模式 | 認知層級 | 執行時 | 說明 |
+|------|---------|--------|------|
+| `chat` | System 1 | ModelRuntime | 一般對話（可快取） |
+| `knowledge` | System 1 | ModelRuntime | RAG 知識檢索（可快取） |
+| `search` | System 2 | ModelRuntime | 網路搜尋與分析 |
+| `code` | System 2 | ModelRuntime | 程式碼生成與執行 |
+| `thinking` | System 2 | ModelRuntime | 深度推理與分析 |
+| `deep_research` | Agent | AgentRuntime | 多步驟研究工作流程 |
+| `auto` | — | Router 決定 | 自動模式選擇 |
 
 ---
 
 ## Feature Flags
 
-All cognitive features are **OFF** by default for zero-risk deployment. Enable via `config/cognitive_features.yaml`:
+所有認知特性預設 **關閉**，零風險部署。透過 `config/cognitive_features.yaml` 啟用：
 
 ```yaml
 cognitive_features:
-  enabled: false           # Master switch
-  system1.enable_cache: false     # 78% cost savings
-  routing.smart_routing: false    # Auto mode routing
-  metrics.cognitive_metrics: false # Performance tracking
+  enabled: false           # 主開關
+  system1.enable_cache: false     # 快取節省成本
+  routing.smart_routing: false    # 自動模式路由
+  metrics.cognitive_metrics: false # 效能追蹤
 ```
 
 ---
 
-## Environment Variables
+## 環境變數
 
-| Variable | Required | Description | Default |
-|----------|----------|-------------|---------|
-| `OPENAI_API_KEY` | At least one | OpenAI API key (primary) | -- |
-| `ANTHROPIC_API_KEY` | At least one | Anthropic API key (fallback) | -- |
-| `GEMINI_API_KEY` | At least one | Google Gemini API key (fallback) | -- |
-| `JWT_SECRET` | No | JWT signing secret | `dev-secret-key` |
-| `JWT_ALGORITHM` | No | JWT algorithm | `HS256` |
-| `JWT_EXPIRE_MINUTES` | No | Token expiry | `1440` |
-| `LOG_LEVEL` | No | Logging level | `INFO` |
+| 變數 | 必要 | 說明 | 預設值 |
+|------|------|------|--------|
+| `OPENAI_API_KEY` | 至少一個 | OpenAI API key（主要） | — |
+| `ANTHROPIC_API_KEY` | 至少一個 | Anthropic API key（備援） | — |
+| `GEMINI_API_KEY` | 至少一個 | Google Gemini API key（備援） | — |
+| `JWT_SECRET` | 否 | JWT 簽名密鑰 | `dev-secret-key` |
+| `JWT_ALGORITHM` | 否 | JWT 演算法 | `HS256` |
+| `JWT_EXPIRE_MINUTES` | 否 | Token 過期時間 | `1440` |
+| `LOG_LEVEL` | 否 | 日誌等級 | `INFO` |
 
-**Note**: The system uses a fallback chain (OpenAI → Anthropic → Gemini). At least one LLM API key is required.
+**注意**：系統使用備援鏈（OpenAI → Anthropic → Gemini），至少需要一個 LLM API key。
 
 ---
 
-## Testing
+## 測試
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# 執行所有測試
+uv run pytest tests/ -v
 
-# Quick test
-pytest tests/unit/ -v
+# 快速測試
+uv run pytest tests/unit/ -v
 ```
 
-**Status**: 272/278 passing (97.8%) | 52% coverage
+---
+
+## 服務
+
+| 服務 | 說明 |
+|------|------|
+| **LLM（多供應商）** | 備援鏈：OpenAI → Anthropic → Gemini，結構化錯誤處理 |
+| **Knowledge（RAG）** | 文件上傳、索引、語意檢索（Qdrant + Cohere reranking） |
+| **Search** | 多引擎網路搜尋（Tavily、Serper、Brave、Exa、DuckDuckGo、SearXNG） |
+| **Sandbox** | Docker 隔離 Python/Bash 程式碼執行，支援持久化沙箱 |
+| **Deep Research** | 多步驟深度研究，含圖表生成與報告產出 |
 
 ---
 
-## 📦 What's New in v2.0
+## 版本歷史
 
-**Code Quality**: 5/10 → 9/10 (Linus-approved refactoring)
+### v3.2（2026-02）— 持久化沙箱 + 圖表管線
+- 持久化 Docker 沙箱（`_PersistentSandbox`）
+- 圖表規劃管線（每份報告最多 5 張圖表）
+- CJK 字體支援鏈
+- 搜尋預算模型
 
-- ✅ **2611-line monolith** → 12 modular files
-- ✅ **String error detection** → Structured exceptions
-- ✅ **Dictionary mappings** → Data self-containment
-- ✅ **Test coverage**: 22% → 52%
+### v3.1（2026-02）— Context Engineering
+- 6 個 Manus 對齊的上下文工程元件
+- Context Manager、Todo Recitation、Error Preservation
+- Template Randomizer、File Memory、Tool Mask
+- 全部 Feature Flag 控制，預設關閉
 
-📖 **Full story**: [Refactoring Documentation](docs/refactoring_v2/)
+### v3.0（2026-02）— 死程式碼清理 + 單體分解
+- 移除 10 個死程式碼檔案（約 2,555 行）
+- DeepResearchProcessor 分解為 7 個專注模組
+- MCP/A2A 客戶端整合
+- 外掛套件管理器
 
----
+### v2.0（2026-02）— Linus 風格重構
+- 2611 行單體 → 12 個模組化檔案
+- 字串錯誤檢測 → 結構化例外
+- 測試覆蓋率 22% → 52%
 
-## Services
-
-| Service | Description |
-|---------|-------------|
-| **LLM (Multi-Provider)** | Fallback chain: OpenAI → Anthropic → Gemini |
-| **Knowledge (RAG)** | Document upload, indexing, semantic retrieval |
-| **Search** | Multi-engine web search (DuckDuckGo, Wikipedia, arXiv) |
-| **Sandbox** | Docker-based Python/Bash code execution |
-| **Research** | Deep multi-step research with report generation |
-
----
-
-## 📚 Documentation
-
-### Core Guides
-- 📊 [Performance Benchmarks](docs/PERFORMANCE.md) - Latency, throughput, cost optimization
-- 🔍 [Comparison with Alternatives](docs/COMPARISON.md) - vs LangChain, Haystack, AutoGPT
-- 🛣️ [Roadmap](docs/ROADMAP.md) - Q2/Q3/Q4 2026 plans
-- ❓ [FAQ](docs/FAQ.md) - Common questions answered
-- 🏗️ [Architecture Deep Dive](docs/refactoring_v2/) - Design decisions and refactoring
-
-### Getting Started
-- 📖 [Quick Start](docs/QUICK_START.md) - Detailed setup guide
-- 📖 [Examples](examples/) - Working code samples
-- 🤝 [Contributing](docs/CONTRIBUTING.md) - How to contribute
-- 🔒 [Security](docs/SECURITY.md) - Security policy
-- 📝 [Changelog](docs/CHANGELOG.md) - Version history
+完整版本歷史：[變更日誌](docs/CHANGELOG.md)
 
 ---
 
-## Services
+## 📚 文件
 
-| Service | Description |
-|---------|-------------|
-| **LLM (Multi-Provider)** | Fallback chain: OpenAI → Anthropic → Gemini with structured error handling |
-| **Knowledge (RAG)** | Document upload, indexing, semantic retrieval |
-| **Search** | Multi-engine web search (DuckDuckGo, Wikipedia, arXiv) |
-| **Sandbox** | Docker-based Python/Bash code execution |
-| **Research** | Deep multi-step research with report generation |
-| **Browser** | Web page fetching and content extraction |
-| **Repo** | Git repository operations |
+### 核心指南
+- [效能基準](docs/PERFORMANCE.md) — 延遲、吞吐量、成本最佳化
+- [與其他框架比較](docs/COMPARISON.md) — vs LangChain、Haystack、AutoGPT
+- [路線圖](docs/ROADMAP.md) — 未來計畫
+- [常見問題](docs/FAQ.md) — 常見問題解答
+- [架構深入探討](docs/refactoring_v2/) — 設計決策與重構
+- [v3 架構審計](docs/refactoring_v3/) — 程式碼審查與清理
+
+### 入門
+- [快速開始指南](docs/QUICK_START.md) — 詳細設定教學
+- [範例程式碼](examples/) — 可運行的程式碼範例
+- [貢獻指南](docs/CONTRIBUTING.md) — 如何貢獻
+- [安全政策](docs/SECURITY.md) — 安全準則
+- [變更日誌](docs/CHANGELOG.md) — 版本歷史
 
 ---
 
-## Troubleshooting
+## 疑難排解
 
-**No LLM API key**: Create `.env` in project root with at least one of:
+**沒有 LLM API key**：在專案根目錄建立 `.env`，至少設定以下之一：
 ```bash
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=...
 ```
 
-**`ModuleNotFoundError`**: Run from project root. The `src/` path is added automatically by `main.py`.
+**`ModuleNotFoundError`**：請從專案根目錄執行。`src/` 路徑由 `main.py` 自動新增。
 
-**`pytest-cov` not installed**: Use `-o "addopts="` to override pyproject.toml coverage flags.
+**`pytest-cov` 未安裝**：使用 `-o "addopts="` 覆蓋 pyproject.toml 的覆蓋率選項。
 
-**Import errors in `test_engine.py` / `test_refactored_engine.py`**: Legacy test files with broken imports. Exclude them with `--ignore`.
+**Import errors in `test_engine.py` / `test_refactored_engine.py`**：這些是遺留測試檔案，使用 `--ignore` 排除。
 
-**Unicode crash in WSL2**: Fixed in `core/logger.py` and `main.py` with surrogate sanitization. If you still see `UnicodeEncodeError`, clear `__pycache__`: `find src -type d -name __pycache__ -exec rm -rf {} +`
-
----
-
-## 🤝 Contributing
-
-We welcome contributions from the community!
-
-**We need help with**:
-- 📖 Docs & tutorials
-- 🧪 Test coverage (goal: 80%)
-- 🐛 [Bug fixes](https://github.com/your-org/openagent_backend/labels/good%20first%20issue)
-- ✨ [Features](docs/ROADMAP.md)
-
-**Guidelines**: See [CONTRIBUTING.md](docs/CONTRIBUTING.md)
+**WSL2 Unicode 崩潰**：已在 `core/logger.py` 和 `main.py` 中修復。如仍遇到 `UnicodeEncodeError`，清除 `__pycache__`：`find src -type d -name __pycache__ -exec rm -rf {} +`
 
 ---
 
-## 💬 Community
+## 🤝 貢獻
 
-- 💬 [Discussions](https://github.com/your-org/openagent_backend/discussions) - Questions & ideas
-- 🐛 [Issues](https://github.com/your-org/openagent_backend/issues) - Bug reports
-- 📧 support@opencode.ai - General inquiries
-- 🏢 enterprise@opencode.ai - Commercial support
+歡迎社群貢獻！
+
+**我們需要幫助的領域**：
+- 文件與教學
+- 測試覆蓋率（目標：80%）
+- [Bug 修復](https://github.com/Zenobia000/openagent_backend/labels/good%20first%20issue)
+- [新功能](docs/ROADMAP.md)
+
+**貢獻指南**：請參閱 [CONTRIBUTING.md](docs/CONTRIBUTING.md)
 
 ---
 
-## License
+## 💬 社群
 
-MIT License - see [LICENSE](LICENSE) for details.
+- [Discussions](https://github.com/Zenobia000/openagent_backend/discussions) — 問題與想法
+- [Issues](https://github.com/Zenobia000/openagent_backend/issues) — Bug 回報
+
+---
+
+## 授權
+
+MIT License — 詳見 [LICENSE](LICENSE)。
 
 ---
 

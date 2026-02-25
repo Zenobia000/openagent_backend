@@ -1,361 +1,143 @@
-# OpenCode Platform Roadmap
+# OpenCode Platform 路線圖
 
-> **Last Updated**: 2026-02-14
-> **Current Version**: 2.0.0
+> **最後更新**：2026-02-24
+> **目前版本**：3.2.0
 
-Our vision for OpenCode Platform development.
-
----
-
-## 🎯 Vision
-
-Build the most **intelligent**, **cost-efficient**, and **production-ready** AI processing platform with automatic complexity routing and multi-provider resilience.
+OpenCode Platform 的開發願景與規劃。
 
 ---
 
-## ✅ Completed
+## 🎯 願景
 
-### v2.0.0 (February 2026) - Linus-Style Refactoring
-
-**🏆 Major Milestone**: Code quality improved from 5/10 → 9/10
-
-- ✅ **Modular Processor Architecture**: Split 2611-line monolith into 12 files
-- ✅ **Structured Exception Hierarchy**: Eliminated string error detection
-- ✅ **Multi-Provider LLM**: OpenAI → Anthropic → Gemini fallback chain
-- ✅ **Data Self-Containment**: Frozen dataclasses, no dictionary mappings
-- ✅ **Test Coverage**: 22% → 52% (+30pp)
-- ✅ **Complete Documentation**: Refactoring docs, API baselines, verification reports
-
-### v1.5.0 (January 2026) - Cognitive Architecture
-
-- ✅ **Dual Runtime System**: ModelRuntime + AgentRuntime
-- ✅ **ComplexityAnalyzer**: Automatic mode routing
-- ✅ **Response Caching**: System 1 caching (78% hit rate)
-- ✅ **CognitiveMetrics**: Per-level tracking
-- ✅ **Feature Flags**: YAML-driven configuration
-
-### v1.0.0 (December 2025) - Initial Release
-
-- ✅ **FastAPI REST API**: 11 endpoints with JWT auth
-- ✅ **6 Processing Modes**: chat, knowledge, search, code, thinking, research
-- ✅ **SSE Streaming**: Real-time response streaming
-- ✅ **Docker Sandbox**: Safe code execution
-- ✅ **LLM Integration**: OpenAI, Anthropic support
+打造最**智慧**、**成本效益**、**生產就緒**的 AI 處理平台，具備自動複雜度路由、多供應商韌性與標準化擴展協定。
 
 ---
 
-## 🚀 Q2 2026 (April - June)
+## ✅ 已完成
 
-### Performance & Scalability
+### v3.2.0（2026 年 2 月）— 持久化沙箱 + 圖表管線
 
-- [ ] **Streaming LLM Support** (Priority: High)
-  - Full SSE streaming for all providers (OpenAI, Anthropic, Gemini)
-  - Token-by-token response generation
-  - Estimated: 4 weeks
+- ✅ **持久化 Docker 沙箱**：透過 `attach_socket` 的 stdin/stdout JSON 通訊
+- ✅ **圖表規劃管線**：每份報告最多 5 張圖表
+- ✅ **CJK 字體支援**：完整的中日韓字體鏈
+- ✅ **搜尋預算模型**：智慧搜尋資源分配
 
-- [ ] **Distributed Caching** (Priority: High)
-  - Redis cluster support for horizontal scaling
-  - Cache replication across instances
-  - Estimated: 2 weeks
+### v3.1.0（2026 年 2 月）— Context Engineering
 
-- [ ] **Connection Pooling** (Priority: Medium)
-  - Optimize LLM API connection reuse
-  - Reduce connection overhead
-  - Estimated: 1 week
+- ✅ **Manus 對齊上下文工程**：6 個元件
+- ✅ **Context Manager**：僅追加上下文，KV-cache 友好
+- ✅ **工具可用性遮罩**：Feature Flag 控制的工具選擇
+- ✅ **檔案記憶系統**：持久化代理記憶
 
-- [ ] **Async Optimization** (Priority: Medium)
-  - Reduce latency by 30% through async refactoring
-  - Non-blocking I/O throughout
-  - Estimated: 3 weeks
+### v3.0.0（2026 年 2 月）— 死程式碼清理 + 單體分解
 
-**Target**: System 1 latency 45ms → 30ms
+- ✅ **死程式碼移除**：移除 10 個檔案（約 2,555 行）
+- ✅ **DeepResearchProcessor 分解**：2,173 行 → 7 個專注模組
+- ✅ **MCP/A2A 擴展**：標準化工具與代理整合
+- ✅ **外掛系統**：3 個範例外掛（weather、translator、stock-analyst）
+- ✅ **套件管理器**：動態載入/啟動外掛
 
-### Extensibility
+### v2.0.0（2026 年 2 月）— Linus 風格重構
 
-- [ ] **Plugin System** (Priority: High)
-  - Custom processors via plugin API
-  - `ProcessorPlugin` interface
-  - Hot-reload support
-  - Estimated: 4 weeks
+- ✅ **模組化處理器架構**：2611 行單體拆分為 12 個檔案
+- ✅ **結構化例外層級**：消除字串錯誤檢測
+- ✅ **多供應商 LLM**：OpenAI → Anthropic → Gemini 備援鏈
+- ✅ **資料自包含**：凍結 dataclass，無字典映射
+- ✅ **測試覆蓋率**：22% → 52%（+30pp）
 
-- [ ] **Custom Routers** (Priority: Medium)
-  - Pluggable routing strategies beyond ComplexityAnalyzer
-  - User-defined routing logic
-  - Estimated: 2 weeks
+### v1.5.0（2026 年 1 月）— 認知架構
 
-- [ ] **Event Hooks** (Priority: Low)
-  - Pre/post-processing hooks for monitoring
-  - Request/response modification
-  - Estimated: 2 weeks
+- ✅ **雙執行時系統**：ModelRuntime + AgentRuntime
+- ✅ **ComplexityAnalyzer**：自動模式路由
+- ✅ **回應快取**：System 1 快取
+- ✅ **Feature Flags**：YAML 驅動設定
 
-### Observability
+### v1.0.0（2025 年 12 月）— 初始發布
 
-- [ ] **OpenTelemetry Integration** (Priority: High)
-  - Distributed tracing for all LLM calls
-  - Jaeger/Zipkin support
-  - Estimated: 3 weeks
-
-- [ ] **Prometheus Metrics** (Priority: High)
-  - Detailed metrics export for Grafana dashboards
-  - Per-mode, per-provider metrics
-  - Estimated: 2 weeks
-
-- [ ] **Request Tracing** (Priority: Medium)
-  - End-to-end trace IDs across all components
-  - Trace visualization
-  - Estimated: 2 weeks
-
-**Total Q2 Effort**: ~25 person-weeks
+- ✅ **FastAPI REST API**：端點 + JWT 認證
+- ✅ **6 種處理模式**：chat、knowledge、search、code、thinking、research
+- ✅ **SSE 串流**：即時回應串流
+- ✅ **Docker 沙箱**：安全程式碼執行
 
 ---
 
-## 🌟 Q3 2026 (July - September)
+## 🚀 Q2 2026（4 月 - 6 月）
 
-### Advanced AI Features
+### 效能與可擴展性
 
-- [ ] **Multi-Modal Support** (Priority: High)
-  - Image processing (vision models)
-  - Audio processing (speech-to-text, text-to-speech)
-  - Multi-modal prompting
-  - Estimated: 6 weeks
+- [ ] **分散式快取** — Redis 叢集支援水平擴展
+- [ ] **連線池化** — 最佳化 LLM API 連線重用
+- [ ] **非同步最佳化** — 透過非同步重構降低延遲
 
-- [ ] **Fine-Tuning Pipeline** (Priority: Medium)
-  - Custom model training for specialized processors
-  - Training data management
-  - Model versioning
-  - Estimated: 4 weeks
+### 可觀測性
 
-- [ ] **A/B Testing Framework** (Priority: Medium)
-  - Built-in experiment framework
-  - Statistical analysis
-  - Variant routing
-  - Estimated: 3 weeks
-
-- [ ] **Context Window Management** (Priority: High)
-  - Automatic chunking for large documents
-  - Smart context prioritization
-  - Context compression
-  - Estimated: 3 weeks
-
-### Cost Management
-
-- [ ] **Cost Analytics** (Priority: High)
-  - Per-request cost tracking with provider breakdown
-  - Cost attribution by user/team
-  - Cost forecasting
-  - Estimated: 3 weeks
-
-- [ ] **Budget Limits** (Priority: Medium)
-  - Automatic fallback to cheaper providers when budget exceeded
-  - Usage alerts and throttling
-  - Estimated: 2 weeks
-
-- [ ] **Token Estimation** (Priority: Medium)
-  - Pre-call token prediction to avoid surprises
-  - Cost preview before execution
-  - Estimated: 2 weeks
-
-- [ ] **Usage Reports** (Priority: Low)
-  - Daily/monthly cost summaries
-  - Optimization suggestions
-  - Estimated: 2 weeks
-
-### Infrastructure
-
-- [ ] **Kubernetes Operator** (Priority: High)
-  - Auto-scaling deployment with CRDs
-  - Declarative configuration
-  - Estimated: 4 weeks
-
-- [ ] **Helm Charts** (Priority: High)
-  - Production-ready K8s deployment templates
-  - Multi-environment support
-  - Estimated: 2 weeks
-
-- [ ] **Health Checks** (Priority: Medium)
-  - Advanced liveness/readiness probes
-  - Dependency health monitoring
-  - Estimated: 1 week
-
-**Total Q3 Effort**: ~32 person-weeks
+- [ ] **OpenTelemetry 整合** — 所有 LLM 呼叫的分散式追蹤
+- [ ] **Prometheus 指標** — Grafana 儀表板的詳細指標匯出
+- [ ] **請求追蹤** — 跨所有元件的端到端追蹤 ID
 
 ---
 
-## 🏢 Q4 2026 (October - December)
+## 🌟 Q3 2026（7 月 - 9 月）
 
-### Enterprise Features
+### 進階 AI 功能
 
-- [ ] **Multi-Tenancy** (Priority: Critical)
-  - Isolated user namespaces with resource quotas
-  - Tenant data separation
-  - Per-tenant configuration
-  - Estimated: 6 weeks
+- [ ] **多模態支援** — 影像處理（視覺模型）、音訊處理
+- [ ] **A/B 測試框架** — 內建實驗框架 + 統計分析
+- [ ] **上下文視窗管理** — 大型文件自動分塊 + 智慧優先排序
 
-- [ ] **Role-Based Access Control (RBAC)** (Priority: Critical)
-  - Fine-grained permissions (admin, user, viewer)
-  - API key management per role
-  - Estimated: 4 weeks
+### 成本管理
 
-- [ ] **Audit Logging** (Priority: High)
-  - Compliance-ready request logging
-  - Retention policies
-  - Log export (SIEM integration)
-  - Estimated: 3 weeks
+- [ ] **成本分析** — 每請求成本追蹤 + 供應商分解
+- [ ] **預算限制** — 超過預算時自動切換至較便宜的供應商
+- [ ] **使用報告** — 每日/每月成本摘要 + 最佳化建議
 
-- [ ] **SSO Integration** (Priority: High)
-  - SAML/OAuth2 for enterprise authentication
-  - Azure AD, Okta support
-  - Estimated: 3 weeks
+### 基礎設施
 
-### Integrations
-
-- [ ] **Database Connectors** (Priority: Medium)
-  - PostgreSQL, MongoDB, MySQL native support
-  - Query generation and execution
-  - Estimated: 4 weeks
-
-- [ ] **Voice Interface** (Priority: Medium)
-  - Speech-to-text integration (Whisper, Azure)
-  - Text-to-speech output (ElevenLabs, Azure)
-  - Estimated: 3 weeks
-
-- [ ] **Browser Automation** (Priority: Low)
-  - Playwright/Selenium for web scraping
-  - Visual element interaction
-  - Estimated: 3 weeks
-
-- [ ] **GraphQL API** (Priority: Low)
-  - Alternative to REST for flexible querying
-  - Schema-first design
-  - Estimated: 4 weeks
-
-### Additional Interfaces
-
-- [ ] **WebSocket Support** (Priority: Medium)
-  - Bidirectional streaming for interactive apps
-  - Real-time updates
-  - Estimated: 2 weeks
-
-- [ ] **gRPC API** (Priority: Low)
-  - High-performance binary protocol
-  - Service mesh integration
-  - Estimated: 3 weeks
-
-- [ ] **CLI Enhancements** (Priority: Low)
-  - Interactive TUI (Terminal UI) mode
-  - Rich formatting and progress bars
-  - Estimated: 2 weeks
-
-**Total Q4 Effort**: ~37 person-weeks
+- [ ] **Kubernetes Operator** — CRD 自動擴展部署
+- [ ] **Helm Charts** — 生產就緒 K8s 部署模板
 
 ---
 
-## 💡 Community Requested Features
+## 🏢 Q4 2026（10 月 - 12 月）
 
-Vote on [GitHub Discussions](https://github.com/your-org/openagent_backend/discussions/categories/feature-requests)
+### 企業功能
 
-### Top 10 Requests (as of 2026-02-14)
+- [ ] **多租戶** — 隔離的使用者命名空間 + 資源配額
+- [ ] **角色存取控制（RBAC）** — 細粒度權限（管理員、使用者、檢視者）
+- [ ] **稽核日誌** — 合規就緒的請求日誌 + 保留政策
+- [ ] **SSO 整合** — SAML/OAuth2（Azure AD、Okta）
 
-1. **Vector Database Integrations** (42 votes)
-   - Pinecone, Weaviate, Milvus support
-   - Status: Planned for Q3 2026
+### 整合
 
-2. **Workflow Orchestration** (38 votes)
-   - Visual workflow builder
-   - Status: Evaluating feasibility
-
-3. **Model Switching** (31 votes)
-   - Dynamic model selection per request
-   - Status: Planned for Q2 2026 (Plugin System)
-
-4. **Batch Processing** (27 votes)
-   - Async batch API for bulk operations
-   - Status: Planned for Q3 2026
-
-5. **Mobile SDK** (19 votes)
-   - React Native/Flutter client libraries
-   - Status: Under consideration
-
-6. **Email Integration** (17 votes)
-   - Email parsing and generation
-   - Status: Backlog
-
-7. **Slack Bot** (15 votes)
-   - Native Slack integration
-   - Status: Backlog
-
-8. **PDF Processing** (14 votes)
-   - Advanced PDF extraction and analysis
-   - Status: Planned for Q3 2026 (Multi-Modal)
-
-9. **Local Model Support** (12 votes)
-   - Ollama, LocalAI integration
-   - Status: Planned for Q2 2026
-
-10. **Scheduled Tasks** (11 votes)
-    - Cron-like task scheduling
-    - Status: Backlog
+- [ ] **資料庫連接器** — PostgreSQL、MongoDB 原生支援
+- [ ] **WebSocket 支援** — 雙向串流
+- [ ] **gRPC API** — 高效能二進位協定
 
 ---
 
-## 🔮 Future (2027+)
+## 🔮 未來（2027+）
 
-### Research & Innovation
+### 研究與創新
 
-- **Adaptive Routing** - ML-based complexity prediction
-- **Self-Improving Prompts** - Automatic prompt optimization
-- **Federated Learning** - Privacy-preserving model training
-- **Quantum Integration** - Quantum computing for optimization
-- **AGI Readiness** - Prepare for next-generation AI models
+- **自適應路由** — ML 基礎的複雜度預測
+- **自我改善提示** — 自動提示最佳化
+- **邊緣部署** — IoT 與邊緣裝置
 
-### Platform Expansion
+### 平台擴展
 
-- **Marketplace** - Community-contributed processors and plugins
-- **White-Label** - Customizable branding for enterprises
-- **Managed Service** - Fully hosted OpenCode Cloud
-- **Edge Deployment** - Run on IoT and edge devices
+- **市集** — 社群貢獻的處理器與外掛
+- **管理服務** — 完全託管的 OpenCode Cloud
 
 ---
 
-## 📊 Progress Tracking
+## 🤝 貢獻路線圖
 
-### Development Velocity
+有功能需求或想貢獻？
 
-| Quarter | Planned Features | Completed | Success Rate |
-|---------|-----------------|-----------|--------------|
-| Q4 2025 | 10 | 10 | 100% |
-| Q1 2026 | 15 | 14 | 93% |
-| Q2 2026 | 13 | TBD | - |
-| Q3 2026 | 14 | TBD | - |
-| Q4 2026 | 12 | TBD | - |
-
-### Resource Allocation
-
-| Area | Q2 | Q3 | Q4 |
-|------|----|----|-----|
-| **Performance** | 40% | 20% | 10% |
-| **Features** | 30% | 50% | 40% |
-| **Enterprise** | 10% | 10% | 40% |
-| **Infrastructure** | 20% | 20% | 10% |
+1. **投票現有功能**：[GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions)
+2. **提出新功能**：[提交 RFC](https://github.com/Zenobia000/openagent_backend/discussions/new)
+3. **實作功能**：請參閱 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
-## 🤝 Contributing to Roadmap
-
-Have a feature request or want to contribute?
-
-1. **Vote on Existing Features**: [GitHub Discussions](https://github.com/your-org/openagent_backend/discussions/categories/feature-requests)
-2. **Propose New Features**: [Submit RFC](https://github.com/your-org/openagent_backend/discussions/new?category=rfcs)
-3. **Implement Features**: See [CONTRIBUTING.md](CONTRIBUTING.md)
-
----
-
-## 📞 Questions?
-
-- 💬 [Roadmap Discussions](https://github.com/your-org/openagent_backend/discussions/categories/roadmap)
-- 📧 Email: roadmap@opencode.ai
-- 🗓️ Monthly roadmap review: First Friday of each month
-
----
-
-**Back to**: [README](README.md) | [Documentation](README.md#-documentation)
+**返回**：[README](../README.md) | [文件](../README.md#-文件)

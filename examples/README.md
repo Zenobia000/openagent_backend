@@ -6,20 +6,20 @@ This directory contains practical examples demonstrating key features of OpenCod
 
 ### Prerequisites
 
-1. **Python 3.10+** installed
-2. **Virtual environment** activated
-3. **Dependencies** installed: `pip install -r requirements.txt`
+1. **Python 3.11+** installed
+2. **uv** installed
+3. **Dependencies** installed: `uv pip install -e ".[dev]"`
 4. **API Keys** configured in `.env` file
 
 ### Setup
 
 ```bash
 # From project root
-cd openagent_backend
+cd opencode_backend
 
 # Activate virtual environment
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
 
 # Ensure .env file exists with API keys
 cp .env.example .env
@@ -275,8 +275,8 @@ After running these examples:
 ## 💬 Need Help?
 
 - 📚 [Full Documentation](https://docs.opencode.ai)
-- 💬 [GitHub Discussions](https://github.com/your-org/openagent_backend/discussions)
-- 🐛 [Report Issues](https://github.com/your-org/openagent_backend/issues)
+- 💬 [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions)
+- 🐛 [Report Issues](https://github.com/Zenobia000/openagent_backend/issues)
 - 📧 Email: support@opencode.ai
 
 ---

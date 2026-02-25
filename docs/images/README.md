@@ -264,7 +264,7 @@ docs/images/
 ## 🤝 Need Help?
 
 - 📧 Email: design@opencode.ai
-- 💬 [GitHub Discussions](https://github.com/your-org/openagent_backend/discussions)
+- 💬 [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions)
 - 🎨 Design assets needed? We can provide templates!
 
 ---

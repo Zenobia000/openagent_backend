@@ -1,171 +1,144 @@
-# Frequently Asked Questions (FAQ)
+# 常見問題（FAQ）
 
-> **Last Updated**: 2026-02-14
-> **Quick Links**: [General](#general) | [Technical](#technical) | [Performance](#performance) | [Security](#security) | [Contributing](#contributing)
+> **最後更新**：2026-02-24
+> **快速連結**：[一般](#一般問題) | [技術](#技術問題) | [效能](#效能問題) | [安全](#安全問題) | [貢獻](#貢獻問題)
 
-Common questions about OpenCode Platform.
-
----
-
-## General Questions
-
-### Why another AI framework when LangChain/Haystack exist?
-
-**Short Answer**: OpenCode focuses on **cognitive routing** and **production-readiness**, not just LLM chaining.
-
-**Key Differentiators**:
-- ✅ **Automatic complexity-based routing** - Not all tasks need expensive autonomous agents
-- ✅ **Built-in multi-provider fallback** - 99.5% availability out of the box
-- ✅ **Production API** - Auth, streaming, and feature flags included
-- ✅ **Linus-approved code quality** - 9/10 for long-term maintainability
-- ✅ **Cost optimization** - 78% savings via intelligent caching
-
-**When to use alternatives**: See [Comparison](COMPARISON.md)
+OpenCode Platform 常見問題。
 
 ---
 
-### Can I use it without Docker?
+## 一般問題
 
-**Yes!** Docker is **optional**.
+### 為什麼需要另一個 AI 框架？LangChain/Haystack 不夠嗎？
 
-**Required for**:
-- ✅ Code sandbox execution (`/api/v1/sandbox/execute`)
-- ✅ Qdrant vector database (knowledge service)
+**簡短回答**：OpenCode 專注於**認知路由**與**生產就緒性**，而非僅僅 LLM 串接。
 
-**Not required for**:
-- ✅ Chat, thinking, search modes
-- ✅ API server
-- ✅ CLI interface
-- ✅ Multi-provider LLM
+**主要差異化**：
+- ✅ **自動複雜度路由** — 不是所有任務都需要昂貴的自主代理
+- ✅ **內建多供應商備援** — 開箱即用
+- ✅ **生產 API** — 認證、串流、Feature Flags 內建
+- ✅ **MCP/A2A 擴展** — 標準化的工具與代理整合協定
+- ✅ **成本最佳化** — 透過智慧快取節省成本
 
-**Minimum Requirements**: Python 3.10+ only
-
----
-
-### Which LLM providers are supported?
-
-**Currently Supported**:
-- ✅ **OpenAI** - GPT-4o, GPT-4-turbo, GPT-3.5-turbo
-- ✅ **Anthropic** - Claude 3 Opus, Sonnet, Haiku
-- ✅ **Google Gemini** - Gemini Pro, Gemini Pro Vision
-
-**Planned (Q2 2026)**:
-- 🔜 Cohere
-- 🔜 Mistral AI
-- 🔜 Local models via Ollama
-
-**How it works**: Automatic fallback chain (OpenAI → Anthropic → Gemini)
+**何時使用替代方案**：請參閱 [比較指南](COMPARISON.md)
 
 ---
 
-### Is it production-ready?
+### 可以不用 Docker 嗎？
 
-**Yes.** Here's the evidence:
+**可以！** Docker 是**選用的**。
 
-| Metric | Value | Status |
-|--------|-------|--------|
-| **Tests** | 272/278 passing | 97.8% ✅ |
-| **Coverage** | 52% | Growing ✅ |
-| **Code Quality** | 9/10 (Linus-style) | ✅ |
-| **Breaking Changes** | 0 (100% backward compat) | ✅ |
-| **Feature Flags** | YAML-driven | Zero-risk deployment ✅ |
+**需要 Docker 的功能**：
+- ✅ 程式碼沙箱執行（`/api/v1/sandbox/execute`）
+- ✅ Qdrant 向量資料庫（知識服務）
 
-**Recommendation**: Start with feature flags OFF, enable gradually
+**不需要 Docker 的功能**：
+- ✅ 聊天、思考、搜尋模式
+- ✅ API 伺服器
+- ✅ CLI 介面
+- ✅ 多供應商 LLM
 
-**Production Users**: Contact enterprise@opencode.ai for case studies
-
----
-
-### What's the license?
-
-**MIT License** - free for commercial use.
-
-**You can**:
-- ✅ Use commercially
-- ✅ Modify the code
-- ✅ Distribute
-- ✅ Sublicense
-- ✅ Use in closed-source products
-
-**You must**:
-- ✅ Include the license notice
-
-**No warranty** - Use at your own risk
-
-See [LICENSE](../LICENSE) for full text.
+**最低需求**：Python 3.11+
 
 ---
 
-## Technical Questions
+### 支援哪些 LLM 供應商？
 
-### How does the Router classify request complexity?
+**目前支援**：
+- ✅ **OpenAI** — GPT-4o、GPT-4o-mini
+- ✅ **Anthropic** — Claude 4 Opus、Claude 4 Sonnet、Claude 3.5 Haiku
+- ✅ **Google Gemini** — Gemini Pro
 
-The `ComplexityAnalyzer` uses multiple heuristics:
+**運作方式**：自動備援鏈（OpenAI → Anthropic → Gemini）
+
+---
+
+### 已經準備好上線了嗎？
+
+**是的。** 證據如下：
+
+| 指標 | 值 | 狀態 |
+|------|----|----|
+| **Feature Flags** | YAML 驅動 | 零風險部署 ✅ |
+| **程式碼品質** | 9/10（Linus 風格） | ✅ |
+| **例外處理** | 結構化層級 | ✅ |
+| **擴展性** | MCP/A2A 協定 | ✅ |
+
+**建議**：從 Feature Flags 全部關閉開始，逐步啟用
+
+---
+
+### 授權是什麼？
+
+**MIT License** — 可商業使用。
+
+**你可以**：
+- ✅ 商業使用
+- ✅ 修改程式碼
+- ✅ 發行
+- ✅ 再授權
+- ✅ 用於閉源產品
+
+**你必須**：
+- ✅ 包含授權聲明
+
+詳見 [LICENSE](../LICENSE)。
+
+---
+
+## 技術問題
+
+### Router 如何分類請求複雜度？
+
+`ComplexityAnalyzer` 使用多種啟發式方法：
 
 ```python
 def analyze_complexity(self, query: str) -> float:
     score = 0.0
 
-    # 1. Query length (longer = more complex)
+    # 1. 查詢長度（越長 = 越複雜）
     if len(query) > 200:
         score += 0.3
 
-    # 2. Keywords detection
+    # 2. 關鍵字偵測
     analytical_keywords = ["analyze", "compare", "research", "evaluate"]
     if any(kw in query.lower() for kw in analytical_keywords):
         score += 0.4
 
-    # 3. Question depth (multi-part questions)
+    # 3. 問題深度（多部分問題）
     question_count = query.count("?")
     score += min(question_count * 0.2, 0.3)
-
-    # 4. Context length (if provided)
-    if len(context) > 500:
-        score += 0.2
 
     return min(score, 1.0)
 ```
 
-**Thresholds**:
-- `< 0.3` → System 1 (chat/knowledge)
-- `0.3 - 0.7` → System 2 (search/code/thinking)
-- `> 0.7` → Agent (deep_research)
+**閾值**：
+- `< 0.3` → System 1（chat/knowledge）
+- `0.3 - 0.7` → System 2（search/code/thinking）
+- `> 0.7` → Agent（deep_research）
 
-**Override**: Use explicit `mode` parameter to bypass router
+**覆寫**：使用明確的 `mode` 參數繞過路由
 
 ---
 
-### Can I add custom processors?
+### 可以新增自訂處理器嗎？
 
-**Yes!** Extend `BaseProcessor` and register:
+**可以！** 繼承 `BaseProcessor` 並註冊：
 
 ```python
 from src.core.processors.base import BaseProcessor
-from src.core.processors.factory import ProcessorFactory
-from src.core.models import ProcessingMode, RuntimeType
+from src.core.models_v2 import Modes
 
-# 1. Create custom processor
+# 1. 建立自訂處理器
 class TranslationProcessor(BaseProcessor):
     def process(self, request):
-        # Your logic here
         translated = self.llm_client.generate(
-            prompt=f"Translate to {request.context['target_lang']}: {request.query}"
+            prompt=f"翻譯至 {request.context['target_lang']}: {request.query}"
         )
         return Response(content=translated)
 
-# 2. Register with factory
-factory = ProcessorFactory(llm_client=llm)
-factory.register_processor(
-    ProcessingMode(
-        name="translation",
-        cognitive_level="system1",
-        runtime_type=RuntimeType.MODEL,
-        description="Language translation"
-    ),
-    TranslationProcessor
-)
-
-# 3. Use it
+# 2. 在 factory 中註冊
+# 3. 使用它
 result = engine.process(Request(
     query="Hello, world!",
     mode="translation",
@@ -173,19 +146,17 @@ result = engine.process(Request(
 ))
 ```
 
-**Full Guide**: Coming in Q2 2026 at `docs/tutorials/custom_processors.md`
-
 ---
 
-### How does multi-provider fallback work?
+### 多供應商備援如何運作？
 
-**Automatic retry chain** with exponential backoff:
+**自動重試鏈**與指數退避：
 
 ```python
 providers = [
-    OpenAIClient(),      # Primary (highest quality)
-    AnthropicClient(),   # Fallback 1
-    GeminiClient()       # Fallback 2
+    OpenAIClient(),      # 主要
+    AnthropicClient(),   # 備援 1
+    GeminiClient()       # 備援 2
 ]
 
 for provider in providers:
@@ -193,293 +164,186 @@ for provider in providers:
         return provider.generate(prompt)
     except ProviderError as e:
         if e.retryable and provider != providers[-1]:
-            logger.info(f"Provider {provider} failed, trying next")
-            continue  # Try next provider
+            continue  # 嘗試下一個供應商
         else:
-            raise  # Non-retryable or last provider
+            raise
 ```
 
-**Triggers fallback**:
-- ✅ Rate limit errors (HTTP 429)
-- ✅ Service unavailable (HTTP 503)
-- ✅ Timeout errors
+**觸發備援**：
+- ✅ 速率限制錯誤（HTTP 429）
+- ✅ 服務不可用（HTTP 503）
+- ✅ 逾時錯誤
 
-**Does NOT trigger fallback** (fails immediately):
-- ❌ Invalid API key (HTTP 401)
-- ❌ Invalid request (HTTP 400)
-- ❌ Content policy violation
-
-**Availability**: 99.5% (tested over 30 days)
+**不觸發備援**（立即失敗）：
+- ❌ 無效 API key（HTTP 401）
+- ❌ 無效請求（HTTP 400）
+- ❌ 內容政策違規
 
 ---
 
-### What's the difference between System 1 and System 2?
+### System 1 和 System 2 有什麼差別？
 
-Based on [dual-process theory](https://en.wikipedia.org/wiki/Dual_process_theory) from cognitive psychology:
+基於認知心理學的[雙歷程理論](https://en.wikipedia.org/wiki/Dual_process_theory)：
 
-| Aspect | System 1 | System 2 |
-|--------|----------|----------|
-| **Speed** | Fast (45-89ms avg) | Slower (0.8-2.3s avg) |
-| **Caching** | Yes (78% hit rate) | No |
-| **Use Case** | Chat, knowledge retrieval | Analysis, code, search |
-| **Complexity** | Low | Medium-High |
-| **Cost** | $0 (cached) or $0.01 | $0.01-0.02 |
-| **Example** | "What is Paris?" | "Compare Paris and London" |
+| 面向 | System 1 | System 2 |
+|------|----------|----------|
+| **速度** | 快速 | 較慢（0.8-2.3s 平均） |
+| **快取** | 是 | 否 |
+| **用途** | 聊天、知識檢索 | 分析、程式碼、搜尋 |
+| **複雜度** | 低 | 中-高 |
 
-**System 1**: Automatic, intuitive, fast
-**System 2**: Analytical, deliberate, slow
-
-**Agent**: Multi-step, autonomous workflows (System 2++)
+**System 1**：自動、直覺、快速
+**System 2**：分析、審慎、較慢
+**Agent**：多步驟、自主工作流程
 
 ---
 
-## Performance Questions
+## 效能問題
 
-### Can it handle 1000 requests/second?
+### 可以處理 1000 req/s 嗎？
 
-**With proper setup: Yes**
+**適當設定下：可以**
 
-| Configuration | Throughput | Notes |
-|--------------|-----------|-------|
-| **Single instance** | ~100 req/s | Limited by LLM API |
-| **Single instance + cache** | ~450 req/s | System 1 only |
-| **5 instances + cache** | ~2000 req/s | Kubernetes HPA |
+| 設定 | 吞吐量 | 備註 |
+|------|--------|------|
+| **單一實例** | ~100 req/s | 受 LLM API 限制 |
+| **單一實例 + 快取** | ~450 req/s | 僅 System 1 |
+| **5 實例 + 快取** | ~2000 req/s | Kubernetes HPA |
 
-**Bottleneck**: LLM API rate limits, not the platform
+**瓶頸**：LLM API 速率限制，而非平台本身
 
-**Recommended Production Setup**:
-```yaml
-# Kubernetes HorizontalPodAutoscaler
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: opencode-api
-spec:
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-```
-
-**See**: [Performance Benchmarks](PERFORMANCE.md)
+**詳見**：[效能基準](PERFORMANCE.md)
 
 ---
 
-### How much does it cost to run?
+### 運行成本多少？
 
-**Depends on LLM usage**. Example for 1000 requests/day:
+**取決於 LLM 使用量**。範例：每天 1000 請求
 
-**Without cache**:
+**無快取**：
 ```
-1000 requests × $0.01/request = $10/day = $300/month
-```
-
-**With System 1 cache (78% hit rate)**:
-```
-220 LLM requests × $0.01 = $2.20/day = $66/month
-Savings: $234/month (78%)
+1000 請求 × $0.01/請求 = $10/天 = $300/月
 ```
 
-**Infrastructure costs** (AWS example):
-- EC2 t3.medium: ~$30/month
-- Redis ElastiCache: ~$15/month
-- **Total**: ~$111/month (vs $345 without cache)
-
-**Cost Calculator**: Coming Q3 2026
+**啟用 System 1 快取**：
+```
+LLM 請求大幅減少，依快取命中率而定
+```
 
 ---
 
-### Is there a hosted/managed version?
+### 有託管/管理版本嗎？
 
-**Not yet.** Planned for Q4 2026.
+**尚未提供。**
 
-**Current Options**:
-- ✅ Self-host via Docker/Kubernetes
-- ✅ Contact enterprise@opencode.ai for managed deployment assistance
-
-**Why not now?**
-- Focus on core platform stability first
-- Want to ensure excellent self-hosting experience
-- Gathering feedback on enterprise requirements
+**目前選項**：
+- ✅ 透過 Docker/Kubernetes 自行部署
 
 ---
 
-## Security Questions
+## 安全問題
 
-### How are API keys stored?
+### API key 如何儲存？
 
-**Never in code or logs**. Only in:
+**絕不存在程式碼或日誌中**。只在：
 
-1. **Development**: `.env` file (never committed to git)
+1. **開發**：`.env` 檔案（絕不提交至 git）
+2. **生產**：Kubernetes secrets
+3. **環境變數**：執行時載入
+
+**安全功能**：
+- ✅ 所有日誌中已遮蔽
+- ✅ 不包含在錯誤訊息中
+- ✅ 不傳送至客戶端回應
+
+---
+
+### 程式碼執行安全嗎？
+
+**是的**，透過 Docker 沙箱隔離：
+
+- ✅ **隔離容器** — 無法存取主機系統
+- ✅ **無網路存取** — 無法連接外部服務
+- ✅ **資源限制** — CPU、記憶體、時間約束
+- ✅ **唯讀檔案系統** — 除 `/tmp` 目錄外
+- ✅ **非 root 使用者** — 以非特權使用者執行
+- ✅ **自動清理** — 執行後容器銷毀
+
+**詳見**：[SECURITY.md](SECURITY.md)
+
+---
+
+### 如何回報安全漏洞？
+
+**請勿**開啟公開 GitHub issue
+
+**請改為**：
+1. 寄送 Email 至 **security@opencode.ai**
+2. 包含：漏洞描述、重現步驟、潛在影響
+
+**回應時間**：
+- 確認：**48 小時**內
+- 初步評估：**5 個工作天**內
+
+---
+
+## 貢獻問題
+
+### 如何貢獻？
+
+**歡迎貢獻！** 請參閱 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+**我們需要幫助的領域**：
+1. **文件** — 教學、範例、翻譯
+2. **測試** — 測試覆蓋率（目標：80%）
+3. **Bug 修復** — 請參閱 [good first issue](https://github.com/Zenobia000/openagent_backend/labels/good%20first%20issue)
+4. **新功能** — 請參閱 [路線圖](ROADMAP.md)
+
+**快速開始**：
 ```bash
-# .env
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-2. **Production**: Kubernetes secrets
-```bash
-kubectl create secret generic opencode-secrets \
-  --from-literal=OPENAI_API_KEY=sk-... \
-  --from-literal=JWT_SECRET=$(openssl rand -hex 32)
-```
-
-3. **Environment Variables**: Loaded at runtime
-```python
-api_key = os.getenv("OPENAI_API_KEY")  # Never hardcoded
-```
-
-**Security Features**:
-- ✅ Redacted in all logs
-- ✅ Not included in error messages
-- ✅ Not sent to client in responses
-
----
-
-### Is code execution safe?
-
-**Yes**, with Docker sandbox isolation:
-
-**Safety Measures**:
-- ✅ **Isolated containers** - No access to host system
-- ✅ **No network access** - Cannot connect to external services
-- ✅ **Resource limits** - CPU, memory, time constraints
-- ✅ **Read-only filesystem** - Except `/tmp` directory
-- ✅ **Non-root user** - Processes run as unprivileged user
-- ✅ **Automatic cleanup** - Containers destroyed after execution
-
-**Example Configuration**:
-```python
-# Docker sandbox settings
-SANDBOX_CONFIG = {
-    "memory_limit": "512m",
-    "cpu_quota": 50000,  # 0.5 CPU
-    "timeout": 30,       # seconds
-    "network_disabled": True,
-    "read_only": True
-}
-```
-
-**What can't be done**:
-- ❌ Access host filesystem
-- ❌ Make network requests
-- ❌ Install packages
-- ❌ Run indefinitely
-
-**See**: [SECURITY.md](SECURITY.md)
-
----
-
-### How do I report security vulnerabilities?
-
-**DO NOT open public GitHub issues**
-
-**Instead**:
-1. Email: **security@opencode.ai**
-2. Include:
-   - Description of vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
-
-**Response Time**:
-- Acknowledgment: Within **48 hours**
-- Initial assessment: Within **5 business days**
-- Fix timeline: Depends on severity (see [SECURITY.md](SECURITY.md))
-
-**Credit**: Public recognition in release notes (unless you prefer anonymity)
-
----
-
-## Contributing Questions
-
-### How can I contribute?
-
-**We welcome contributions!** See [CONTRIBUTING.md](CONTRIBUTING.md)
-
-**Areas we need help**:
-1. **📖 Documentation** - Tutorials, examples, translations
-2. **🧪 Testing** - Test coverage (goal: 80%)
-3. **🐛 Bug Fixes** - See [good first issue](https://github.com/your-org/openagent_backend/labels/good%20first%20issue)
-4. **✨ Features** - Check [roadmap](ROADMAP.md)
-
-**Quick Start**:
-```bash
-# Fork and clone
+# Fork 並 clone
 git clone https://github.com/YOUR_USERNAME/openagent_backend.git
 
-# Setup dev environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+# 設定開發環境
+uv venv --python 3.11
+source .venv/bin/activate
+uv pip install -e ".[dev]"
 
-# Install pre-commit hooks
-pre-commit install
-
-# Run tests
-pytest tests/
-
-# Make changes and submit PR
+# 執行測試
+uv run pytest tests/
 ```
 
 ---
 
-### What's the code review process?
+### 程式碼審查流程是什麼？
 
-**Steps**:
-1. **Fork** and create feature branch
-2. **Make changes** with tests (≥80% coverage)
-3. **Submit PR** with clear description
-4. **Automated checks** - Tests, linting, type checking
-5. **Code review** by maintainers (1-3 days)
-6. **Merge** after approval
-
-**PR Requirements**:
-- ✅ All tests pass
-- ✅ Code coverage ≥80%
-- ✅ Follows [Linus philosophy](CONTRIBUTING.md#linus-torvalds-philosophy)
-- ✅ Type hints on all functions
-- ✅ Clear commit messages
+1. **Fork** 並建立 feature branch
+2. **修改** 並撰寫測試（≥80% 覆蓋率）
+3. **提交 PR** 附上清楚說明
+4. **自動檢查** — 測試、linting、型別檢查
+5. **程式碼審查** — 維護者審查（1-3 天）
+6. **合併**
 
 ---
 
-### Can I use this commercially?
+### 可以商業使用嗎？
 
-**Yes!** MIT License allows commercial use.
+**可以！** MIT License 允許商業使用。
 
-**No restrictions** on:
-- ✅ Commercial products
-- ✅ Closed-source applications
-- ✅ Selling services built on OpenCode
-- ✅ Modifying the code
-- ✅ Sublicensing
+**無限制**：
+- ✅ 商業產品
+- ✅ 閉源應用程式
+- ✅ 基於 OpenCode 販售服務
 
-**Only requirement**: Include license notice
+**唯一要求**：包含授權聲明
 
 ---
 
-## Still Have Questions?
+## 還有問題嗎？
 
-### Get Help
-
-- 💬 **GitHub Discussions**: [Ask Community](https://github.com/your-org/openagent_backend/discussions)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/your-org/openagent_backend/issues)
-- 📧 **Email**: support@opencode.ai
-- 📚 **Documentation**: [Full Docs](../README.md)
-
-### Popular Topics
-
-- [Getting Started](../README.md#quick-start)
-- [Examples](../examples/)
-- [Performance Tuning](PERFORMANCE.md)
-- [Deployment Guide](../docs/deployment/)
-- [Troubleshooting](../README.md#troubleshooting)
+- [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions) — 問題與想法
+- [GitHub Issues](https://github.com/Zenobia000/openagent_backend/issues) — Bug 回報
 
 ---
 
-**Back to**: [README](../README.md) | [Documentation](../README.md#-documentation)
+**返回**：[README](../README.md) | [文件](../README.md#-文件)

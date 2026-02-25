@@ -1,125 +1,157 @@
-# OpenCode Platform - Quick Start Guide
+# OpenCode Platform - 快速開始指南
 
-## System Status
+## 系統概覽
 
-- **Engine**: RefactoredEngine with Router + Dual Runtime dispatch
-- **API**: FastAPI with JWT auth, SSE streaming, 11 endpoints
-- **Architecture**: Cognitive 3-tier (System 1 / System 2 / Agent)
-- **LLM**: Multi-Provider fallback chain (OpenAI → Anthropic → Gemini)
-- **Data Models**: `models_v2.py` - frozen dataclasses, data self-containment
-- **Exception Hierarchy**: Structured LLM errors (retryable/non-retryable)
-- **Feature Flags**: YAML-driven, all flags default OFF for backward compatibility
-- **Tests**: 272/278 passing (97.8%), 52% coverage
-- **Code Quality**: Linus-style refactoring complete (9/10 rating)
+- **引擎**：RefactoredEngine + Router + 雙執行時分派
+- **API**：FastAPI + JWT 認證 + SSE 串流，17 個端點
+- **架構**：認知三層架構（System 1 / System 2 / Agent）
+- **LLM**：多供應商備援鏈（OpenAI → Anthropic → Gemini）
+- **資料模型**：`models_v2.py` — 凍結 dataclass，資料自包含
+- **例外層級**：結構化 LLM 錯誤（可重試/不可重試）
+- **Feature Flags**：YAML 驅動，所有標記預設關閉
+- **擴展**：MCP/A2A 外掛系統，可熱載入外部工具與代理
 
-## Project Structure
+## 專案結構
 
 ```
-openagent_backend/
-├── main.py                        # CLI entry point (default: auto mode)
+opencode_backend/
+├── main.py                        # CLI 進入點（預設：auto 模式）
+├── pyproject.toml                 # 專案元資料與相依套件
 ├── config/
-│   └── cognitive_features.yaml    # Feature flag config
+│   ├── cognitive_features.yaml    # Feature Flag 設定
+│   ├── mcp_servers.yaml           # MCP 伺服器定義
+│   └── a2a_agents.yaml            # A2A 代理定義
+├── packages/
+│   ├── weather/                   # MCP 伺服器 — 天氣查詢
+│   ├── translator/                # MCP 伺服器 — 翻譯
+│   └── stock-analyst/             # A2A 代理 — 股票分析
 ├── src/
-│   ├── core/                      # Core engine layer
-│   │   ├── engine.py              # RefactoredEngine (router + runtime dispatch)
+│   ├── core/                      # 核心引擎層
+│   │   ├── engine.py              # RefactoredEngine（路由 + 執行時分派）
 │   │   ├── router.py              # DefaultRouter + ComplexityAnalyzer
-│   │   ├── models.py              # Legacy models (backward compatibility)
-│   │   ├── models_v2.py           # NEW: Frozen dataclasses, ProcessingMode registry
-│   │   ├── processors/            # NEW: Modular processor architecture
-│   │   │   ├── base.py            # BaseProcessor (173 lines)
-│   │   │   ├── chat.py            # ChatProcessor (52 lines)
-│   │   │   ├── knowledge.py       # KnowledgeProcessor (200 lines)
-│   │   │   ├── search.py          # SearchProcessor (276 lines)
-│   │   │   ├── thinking.py        # ThinkingProcessor (198 lines)
-│   │   │   ├── code.py            # CodeProcessor (76 lines)
-│   │   │   ├── factory.py         # ProcessorFactory (70 lines)
-│   │   │   └── research/          # DeepResearchProcessor + config
-│   │   ├── processor.py           # Backward compatibility shim
-│   │   ├── feature_flags.py       # FeatureFlags (YAML-driven)
-│   │   ├── cache.py               # ResponseCache (TTL, eviction, stats)
-│   │   ├── metrics.py             # CognitiveMetrics (per-level tracking)
-│   │   ├── errors.py              # ErrorClassifier, retry, fallback
-│   │   ├── protocols.py           # Service/Router/Runtime protocols
-│   │   ├── runtime/               # Dual runtime system
-│   │   │   ├── model_runtime.py   # System 1+2 (stateless, cached)
-│   │   │   ├── agent_runtime.py   # Agent workflows (stateful, retry)
-│   │   │   └── workflow.py        # WorkflowOrchestrator
-│   │   ├── prompts.py             # 17 prompt templates
-│   │   └── logger.py              # Structured logging
-│   ├── api/                       # API layer
-│   │   ├── routes.py              # FastAPI app + all endpoints
-│   │   ├── schemas.py             # Pydantic request/response models
-│   │   ├── streaming.py           # SSE async generator bridge
-│   │   ├── errors.py              # APIError + error handlers
-│   │   └── middleware.py          # Request logging middleware
-│   ├── auth/                      # Authentication
-│   │   ├── jwt.py                 # JWT encode/decode (python-jose)
+│   │   ├── models_v2.py           # 凍結 dataclass，ProcessingMode 註冊表
+│   │   ├── processors/            # 模組化處理器架構
+│   │   │   ├── base.py            # BaseProcessor
+│   │   │   ├── chat.py            # ChatProcessor
+│   │   │   ├── knowledge.py       # KnowledgeProcessor
+│   │   │   ├── search.py          # SearchProcessor
+│   │   │   ├── thinking.py        # ThinkingProcessor
+│   │   │   ├── code.py            # CodeProcessor
+│   │   │   ├── factory.py         # ProcessorFactory
+│   │   │   └── research/          # DeepResearchProcessor 子模組
+│   │   │       ├── processor.py   # 編排器
+│   │   │       ├── planner.py     # 研究規劃
+│   │   │       ├── search_executor.py  # 並行搜尋
+│   │   │       ├── analyzer.py    # 漸進式分析
+│   │   │       ├── computation.py # 圖表生成 + 沙箱運算
+│   │   │       ├── reporter.py    # 報告產生
+│   │   │       └── streaming.py   # SSE 事件管理
+│   │   ├── context/               # Context Engineering（Manus 對齊）
+│   │   │   ├── context_manager.py # 僅追加上下文（KV-cache 友好）
+│   │   │   ├── todo_recitation.py # Todo 背誦模式
+│   │   │   ├── error_preservation.py  # 錯誤保留
+│   │   │   ├── template_randomizer.py # 結構雜訊注入
+│   │   │   └── file_memory.py     # 檔案系統記憶
+│   │   ├── routing/
+│   │   │   └── tool_mask.py       # 工具可用性遮罩
+│   │   ├── runtime/               # 雙執行時系統
+│   │   │   ├── model_runtime.py   # System 1+2（無狀態、可快取）
+│   │   │   └── agent_runtime.py   # Agent 工作流程（有狀態、重試）
+│   │   ├── mcp_client.py          # MCP 客戶端管理器
+│   │   ├── a2a_client.py          # A2A 客戶端管理器
+│   │   ├── package_manager.py     # 外掛套件管理
+│   │   ├── service_initializer.py # 服務初始化（優雅降級）
+│   │   ├── feature_flags.py       # FeatureFlags（YAML 驅動）
+│   │   ├── cache.py               # ResponseCache
+│   │   ├── metrics.py             # CognitiveMetrics
+│   │   ├── errors.py              # ErrorClassifier
+│   │   ├── prompts.py             # 提示模板
+│   │   ├── protocols.py           # 服務/路由/執行時協定
+│   │   └── logger.py              # 結構化日誌
+│   ├── api/                       # API 層
+│   │   ├── routes.py              # FastAPI 應用 + 所有端點
+│   │   ├── schemas.py             # Pydantic 請求/回應模型
+│   │   ├── streaming.py           # SSE 非同步產生器橋接
+│   │   ├── errors.py              # APIError + 錯誤處理器
+│   │   └── middleware.py          # 請求日誌中介層
+│   ├── auth/                      # 認證
+│   │   ├── jwt.py                 # JWT 編碼/解碼
 │   │   └── dependencies.py        # get_current_user FastAPI Depends
-│   └── services/                  # Service layer
-│       ├── llm/                   # Multi-Provider LLM
+│   └── services/                  # 服務層
+│       ├── llm/                   # 多供應商 LLM
 │       │   ├── base.py            # LLMProvider ABC
-│       │   ├── errors.py          # NEW: Exception hierarchy (LLMError, ProviderError, etc.)
-│       │   ├── openai_client.py   # OpenAI (GPT-4o)
-│       │   ├── anthropic_client.py # Anthropic (Claude)
+│       │   ├── errors.py          # 例外層級（LLMError, ProviderError 等）
+│       │   ├── openai_client.py   # OpenAI（GPT-4o）
+│       │   ├── anthropic_client.py # Anthropic（Claude）
 │       │   ├── gemini_client.py   # Gemini
-│       │   └── multi_provider.py  # Fallback chain (no string error detection)
-│       ├── knowledge/             # RAG knowledge base
-│       ├── search/                # Web search (multi-engine)
-│       ├── sandbox/               # Docker code execution
-│       ├── research/              # Deep research service
-│       ├── browser/               # Web browsing service
-│       └── repo/                  # Git operations
+│       │   └── multi_provider.py  # 備援鏈
+│       ├── knowledge/             # RAG 知識庫
+│       │   ├── service.py         # KnowledgeBaseService
+│       │   ├── indexer.py         # 文件分塊 + Qdrant 索引
+│       │   ├── retriever.py       # 語意檢索 + Cohere reranking
+│       │   └── multimodal_parser.py # 文件解析（docling）
+│       ├── search/                # 網路搜尋（多引擎）
+│       │   └── service.py         # Tavily, Serper, Brave, Exa, DuckDuckGo, SearXNG
+│       └── sandbox/               # Docker 程式碼執行
+│           └── service.py         # SandboxService（持久化 + 臨時沙箱）
+├── examples/
+│   ├── simple_chat.py             # 基本聊天範例
+│   ├── multi_provider.py          # 多 LLM 供應商範例
+│   └── code_sandbox.py            # 程式碼執行範例
+├── scripts/
+│   └── measure_kv_cache.py        # KV-cache 命中率量測
 ├── tests/
-│   ├── unit/                      # Unit tests
-│   │   ├── test_models_v2.py      # NEW: 34 tests (ProcessingMode, Event, Request/Response)
-│   │   ├── test_llm_errors.py     # NEW: 18 tests (exception hierarchy)
-│   │   ├── test_processors.py     # NEW: ProcessorFactory tests
-│   │   └── test_multi_provider.py # NEW: 19 tests (fallback chain)
-│   ├── integration/               # Integration tests (runtimes, API, SSE)
-│   └── e2e/                       # End-to-end tests (all modes)
+│   ├── unit/                      # 單元測試
+│   ├── integration/               # 整合測試
+│   └── e2e/                       # 端到端測試
+├── docker/
+│   ├── docker-compose.yml         # 完整堆疊編排
+│   ├── backend/Dockerfile         # 後端映像
+│   ├── frontend/                  # 前端 Nginx 映像
+│   └── sandbox/                   # 沙箱映像
 ├── docs/
-│   ├── refactoring_v2/            # NEW: Linus-style refactoring docs
-│   │   ├── REFACTORING_COMPLETE.md # Refactoring summary
-│   │   ├── VERIFICATION_REPORT.md  # Verification checklist (11/11 passed)
-│   │   ├── api_baseline.md         # API baseline
-│   │   └── behavior_baseline.md    # Behavior baseline
-│   ├── REFACTORING_WBS_V2_LINUS.md # WBS plan (7 phases complete)
-│   └── CODE_AUDIT_REPORT.md       # Code audit results
-└── .env                           # Environment variables
+│   ├── refactoring_v2/            # v2 Linus 風格重構文件
+│   └── refactoring_v3/            # v3 架構審計與清理
+└── .env                           # 環境變數
 ```
 
-## Quick Start
+## 快速開始
 
-### 1. Environment Setup
+### 1. 環境設定（使用 uv）
 
 ```bash
-cd openagent_backend
+cd opencode_backend
 
-python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+# 安裝 uv（如尚未安裝）
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-pip install -r requirements.txt
+# 建立虛擬環境並安裝相依套件
+uv venv --python 3.11
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
 
+uv pip install -e ".[dev]"
+
+# 設定環境變數
 cp .env.example .env
-# Edit .env — set at least one LLM API key:
-#   OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY
+# 編輯 .env — 至少設定一個 LLM API key：
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, 或 GEMINI_API_KEY
 ```
 
-### 2. CLI Mode
+### 2. CLI 模式
 
 ```bash
-# Interactive chat (default: auto mode, Router selects best mode)
+# 互動式聊天（預設：auto 模式，Router 選擇最佳模式）
 python main.py
 
-# Run tests
+# 執行測試
 python main.py test
 
-# Help
+# 說明
 python main.py help
 ```
 
-### 3. API Server Mode
+### 3. API 伺服器模式
 
 ```bash
 cd src && python -c "
@@ -129,50 +161,50 @@ uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 "
 ```
 
-Then visit:
-- API docs: http://localhost:8000/docs
-- Health check: http://localhost:8000/health
+然後造訪：
+- API 文件：http://localhost:8000/docs
+- 健康檢查：http://localhost:8000/health
 
-### 4. API Usage
+### 4. API 使用
 
 ```bash
-# Get a JWT token
+# 取得 JWT token
 curl -X POST http://localhost:8000/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"username": "user", "password": "pass"}'
 
-# Chat (with token)
+# 聊天（使用 token）
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"query": "Hello", "mode": "chat"}'
+  -d '{"query": "你好", "mode": "chat"}'
 
-# Stream (SSE)
+# SSE 串流
 curl -X POST http://localhost:8000/api/v1/chat/stream \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"query": "Explain quantum computing", "mode": "thinking"}'
+  -d '{"query": "解釋量子計算", "mode": "thinking"}'
 ```
 
-## Processing Modes
+## 處理模式
 
-| Mode | Cognitive Level | Runtime | Description |
-|------|----------------|---------|-------------|
-| `auto` | Router decides | Router decides | Automatic mode selection (default) |
-| `chat` | System 1 | ModelRuntime | General conversation (cacheable) |
-| `knowledge` | System 1 | ModelRuntime | RAG knowledge retrieval (cacheable) |
-| `search` | System 2 | ModelRuntime | Web search with analysis |
-| `code` | System 2 | ModelRuntime | Code generation and execution |
-| `thinking` | System 2 | ModelRuntime | Deep reasoning and analysis |
-| `deep_research` | Agent | AgentRuntime | Multi-step research workflows |
+| 模式 | 認知層級 | 執行時 | 說明 |
+|------|---------|--------|------|
+| `auto` | Router 決定 | Router 決定 | 自動模式選擇（預設） |
+| `chat` | System 1 | ModelRuntime | 一般對話（可快取） |
+| `knowledge` | System 1 | ModelRuntime | RAG 知識檢索（可快取） |
+| `search` | System 2 | ModelRuntime | 網路搜尋與分析 |
+| `code` | System 2 | ModelRuntime | 程式碼生成與執行 |
+| `thinking` | System 2 | ModelRuntime | 深度推理與分析 |
+| `deep_research` | Agent | AgentRuntime | 多步驟研究工作流程 |
 
-## Manual Test Inputs
+## 手動測試輸入
 
-Use these inputs to verify each cognitive level. In auto mode, observe the `auto -> xxx` output to confirm Router classification.
+使用以下輸入驗證各認知層級。在 auto 模式下，觀察 `auto -> xxx` 輸出以確認 Router 分類。
 
-### Auto Mode (Router auto-classification)
+### Auto 模式（Router 自動分類）
 
-Enter these directly at the `[auto]>` prompt and check which mode the Router selects:
+在 `[auto]>` 提示符下直接輸入以下內容，檢查 Router 選擇了哪個模式：
 
 ```
 你好
@@ -192,9 +224,6 @@ Enter these directly at the `[auto]>` prompt and check which mode the Router sel
 ```
 什麼是機器學習？用簡單的方式說明
 ```
-```
-幫我把這段英文翻譯成中文：The architecture follows a strict layered design.
-```
 
 ### System 1 — `/mode knowledge`
 
@@ -206,9 +235,6 @@ Enter these directly at the `[auto]>` prompt and check which mode the Router sel
 
 ```
 比較 REST API 和 GraphQL 的優缺點，哪種更適合微服務架構？
-```
-```
-為什麼遞迴演算法在某些情況下比迭代慢？請逐步推理
 ```
 
 ### System 2 — `/mode search`
@@ -229,73 +255,78 @@ Enter these directly at the `[auto]>` prompt and check which mode the Router sel
 深度研究台灣在全球 AI 供應鏈中的角色與未來發展方向
 ```
 
-### What to Observe
+### 觀察重點
 
-- **auto mode**: Check `auto -> xxx` in output — does Router classification match query intent?
-- **Cognitive level**: Output shows `system1`, `system2`, or `agent`
-- **LLM provider**: Output shows which provider handled the request (e.g., `OpenAI`, `MultiProvider[OpenAI,Anthropic]`)
-- **Processing time**: System 1 should be fastest, Agent slowest
-- **Token usage**: Higher for thinking/research modes
+- **auto 模式**：檢查輸出中的 `auto -> xxx` — Router 分類是否符合查詢意圖？
+- **認知層級**：輸出顯示 `system1`、`system2` 或 `agent`
+- **LLM 供應商**：輸出顯示哪個供應商處理了請求
+- **處理時間**：System 1 最快，Agent 最慢
+- **Token 使用量**：thinking/research 模式較高
 
-## API Endpoints
+## API 端點
 
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/` | GET | No | Platform info |
-| `/health` | GET | No | Health check |
-| `/api/status` | GET | No | Engine status |
-| `/api/v1/auth/token` | POST | No | Get JWT token |
-| `/api/v1/chat` | POST | Yes | Sync chat |
-| `/api/v1/chat/stream` | POST | Yes | SSE streaming chat |
-| `/api/v1/documents/upload` | POST | Yes | Upload document |
-| `/api/v1/documents/status/{id}` | GET | Yes | Check upload status |
-| `/api/v1/search` | POST | Yes | Semantic search |
-| `/api/v1/sandbox/execute` | POST | Yes | Execute code |
-| `/api/v1/metrics` | GET | Yes | Cognitive metrics |
+| 端點 | 方法 | 認證 | 說明 |
+|------|------|------|------|
+| `/` | GET | 否 | 平台資訊 |
+| `/health` | GET | 否 | 健康檢查 |
+| `/api/status` | GET | 否 | 引擎狀態 |
+| `/api/v1/auth/token` | POST | 否 | 取得 JWT token |
+| `/api/v1/chat` | POST | 是 | 同步聊天 |
+| `/api/v1/chat/stream` | POST | 是 | SSE 串流聊天 |
+| `/api/v1/documents/upload` | POST | 是 | 上傳文件 |
+| `/api/v1/documents/status/{id}` | GET | 是 | 查詢上傳狀態 |
+| `/api/v1/search` | POST | 是 | 語意搜尋 |
+| `/api/v1/sandbox/execute` | POST | 是 | 執行程式碼 |
+| `/api/v1/metrics` | GET | 是 | 認知指標 |
+| `/api/v1/mcp/servers` | GET | 是 | 列出 MCP 伺服器 |
+| `/api/v1/mcp/tools` | GET | 是 | 列出 MCP 工具 |
+| `/api/v1/a2a/agents` | GET | 是 | 列出 A2A 代理 |
+| `/api/v1/packages` | GET | 是 | 列出已安裝套件 |
+| `/api/v1/packages/{id}/start` | POST | 是 | 啟動套件 |
+| `/api/v1/packages/{id}/stop` | POST | 是 | 停止套件 |
 
 ## Feature Flags
 
-Edit `config/cognitive_features.yaml` to toggle features:
+編輯 `config/cognitive_features.yaml` 切換功能：
 
 ```yaml
 cognitive_features:
-  enabled: false          # Master switch
+  enabled: false          # 主開關
   system1:
-    enable_cache: false   # Response cache for CHAT/KNOWLEDGE
+    enable_cache: false   # CHAT/KNOWLEDGE 回應快取
   routing:
-    smart_routing: false  # Enable dual runtime dispatch
+    smart_routing: false  # 啟用雙執行時分派
   metrics:
-    cognitive_metrics: false  # Per-level request tracking
+    cognitive_metrics: false  # 每層級請求追蹤
 ```
 
-When all flags are OFF, the system behaves identically to pre-refactoring.
+所有標記關閉時，系統行為與重構前完全相同。
 
-## Tests
+## 測試
 
 ```bash
-# Run all tests (exclude known broken legacy tests)
-python3 -m pytest tests/ -o "addopts=" \
+# 執行所有測試（排除已知損壞的遺留測試）
+uv run pytest tests/ -o "addopts=" \
   --ignore=tests/unit/test_engine.py \
   --ignore=tests/unit/test_refactored_engine.py
 
-# Run by category
-python3 -m pytest tests/unit/ -o "addopts="           # Unit tests
-python3 -m pytest tests/integration/ -o "addopts="     # Integration tests
-python3 -m pytest tests/e2e/ -o "addopts="             # E2E tests
+# 依類別執行
+uv run pytest tests/unit/ -o "addopts="           # 單元測試
+uv run pytest tests/integration/ -o "addopts="     # 整合測試
+uv run pytest tests/e2e/ -o "addopts="             # 端到端測試
 
-# Run specific test files
-python3 -m pytest tests/unit/test_multi_provider.py -v -o "addopts="
-python3 -m pytest tests/integration/test_api.py -v -o "addopts="
+# 執行特定測試檔案
+uv run pytest tests/unit/test_multi_provider.py -v -o "addopts="
 ```
 
-## Troubleshooting
+## 疑難排解
 
-**No LLM API key**: Create `.env` in project root with at least one of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`.
+**沒有 LLM API key**：在專案根目錄建立 `.env`，至少設定 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY` 或 `GEMINI_API_KEY` 之一。
 
-**`ModuleNotFoundError`**: Make sure you run from project root. The `src/` path is added automatically by `main.py`.
+**`ModuleNotFoundError`**：請從專案根目錄執行。`src/` 路徑由 `main.py` 自動新增。
 
-**`pytest-cov` not installed**: Use `-o "addopts="` to override the pyproject.toml coverage flags.
+**`pytest-cov` 未安裝**：使用 `-o "addopts="` 覆蓋 pyproject.toml 的覆蓋率選項。
 
-**Import errors in `test_engine.py` / `test_refactored_engine.py`**: These are legacy test files with broken imports. Exclude them with `--ignore`.
+**`test_engine.py` / `test_refactored_engine.py` 匯入錯誤**：這些是遺留測試檔案，使用 `--ignore` 排除。
 
-**Unicode crash in WSL2**: Fixed in `core/logger.py` and `main.py` with surrogate sanitization. If you still see `UnicodeEncodeError`, clear `__pycache__`: `find src -type d -name __pycache__ -exec rm -rf {} +`
+**WSL2 Unicode 崩潰**：已在 `core/logger.py` 和 `main.py` 中修復。如仍遇到 `UnicodeEncodeError`，清除 `__pycache__`：`find src -type d -name __pycache__ -exec rm -rf {} +`

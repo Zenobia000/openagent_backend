@@ -1,366 +1,224 @@
-# Comparison with Alternatives
+# 與其他框架的比較
 
-> **Last Updated**: 2026-02-14
-> **Compared Frameworks**: LangChain, Haystack, AutoGPT, LlamaIndex
+> **最後更新**：2026-02-24
+> **比較框架**：LangChain、Haystack、AutoGPT、LlamaIndex
 
-How does OpenCode Platform compare to other AI frameworks?
+OpenCode Platform 與其他 AI 框架的比較。
 
 ---
 
-## 🔍 Quick Comparison Matrix
+## 🔍 快速比較矩陣
 
-| Feature | OpenCode | LangChain | Haystack | AutoGPT | LlamaIndex |
-|---------|----------|-----------|----------|---------|------------|
-| **Cognitive Routing** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Multi-Provider Fallback** | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ |
-| **Production API** | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ |
-| **Response Caching** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Code Execution** | ✅ | ❌ | ❌ | ✅ | ❌ |
-| **Cost Optimization** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Test Coverage** | 97.8% | ⚠️ | ⚠️ | ❌ | ⚠️ |
+| 功能 | OpenCode | LangChain | Haystack | AutoGPT | LlamaIndex |
+|------|----------|-----------|----------|---------|------------|
+| **認知路由** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **多供應商備援** | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ |
+| **生產 API** | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ |
+| **回應快取** | ✅ | ⚠️ | ❌ | ❌ | ❌ |
+| **程式碼執行** | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **MCP/A2A 擴展** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-Legend: ✅ Built-in | ⚠️ Partial/Manual | ❌ Not supported
+圖例：✅ 內建 | ⚠️ 部分/手動 | ❌ 不支援
 
 ---
 
 ## vs. LangChain
 
-### Feature Comparison
+### 功能比較
 
-| Feature | OpenCode Platform | LangChain |
-|---------|------------------|-----------|
-| **Cognitive Routing** | ✅ Built-in System 1/2/Agent | ❌ Manual chain construction |
-| **Multi-Provider Fallback** | ✅ Automatic with retries | ⚠️ Manual retry logic needed |
-| **Production API** | ✅ FastAPI + auth + streaming | ⚠️ Notebook/script focused |
-| **Structured Exceptions** | ✅ Hierarchy + retryable flag | ❌ Generic errors |
-| **Feature Flags** | ✅ YAML-driven deployment | ❌ Requires code changes |
-| **Response Caching** | ✅ Built-in for System 1 | ❌ Not included |
-| **Code Quality** | ✅ 9/10 (Linus-approved) | ⚠️ Variable quality |
-| **Deployment** | ✅ Docker + K8s ready | ⚠️ DIY |
-| **Observability** | ✅ Metrics + structured logs | ⚠️ Basic logging |
+| 功能 | OpenCode Platform | LangChain |
+|------|------------------|-----------|
+| **認知路由** | ✅ 內建 System 1/2/Agent | ❌ 手動建構鏈 |
+| **多供應商備援** | ✅ 自動重試 | ⚠️ 需手動重試邏輯 |
+| **生產 API** | ✅ FastAPI + 認證 + 串流 | ⚠️ 需搭配 LangServe 部署 |
+| **結構化例外** | ✅ 層級 + 可重試標記 | ⚠️ 改善中 |
+| **Feature Flags** | ✅ YAML 驅動部署 | ❌ 需程式碼變更 |
+| **回應快取** | ✅ 內建 System 1 | ⚠️ 有快取支援，需設定 |
+| **MCP/A2A** | ✅ 標準化協定 | ❌ 自訂整合 |
 
-### When to Use LangChain
+### 何時使用 LangChain
 
-**Choose LangChain if:**
-- ✅ You need extensive pre-built chains (100+ templates)
-- ✅ You want a large ecosystem of integrations
-- ✅ You're comfortable building production infrastructure yourself
-- ✅ You prefer notebook-driven development
+**選擇 LangChain 如果：**
+- ✅ 你需要大量預建鏈與模板
+- ✅ 你想要龐大的整合生態系
+- ✅ 你習慣自行建構生產基礎設施
+- ✅ 你需要 LangServe 部署
 
-**Choose OpenCode if:**
-- ✅ You need production-ready API out of the box
-- ✅ You want automatic complexity routing
-- ✅ You need cost optimization (78% savings via cache)
-- ✅ You prioritize code quality and maintainability
+**選擇 OpenCode 如果：**
+- ✅ 你需要開箱即用的生產 API
+- ✅ 你想要自動複雜度路由
+- ✅ 你需要透過快取最佳化成本
+- ✅ 你需要 MCP/A2A 標準化擴展
 
-### Code Comparison
+### 程式碼比較
 
-**LangChain** (Manual chain construction):
+**LangChain**：
 ```python
-from langchain import OpenAI, LLMChain, PromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 
-# Manual setup for each use case
-llm = OpenAI(temperature=0.7)
-prompt = PromptTemplate(...)
-chain = LLMChain(llm=llm, prompt=prompt)
+llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
+prompt = ChatPromptTemplate.from_template("{query}")
+chain = prompt | llm
 
-# No automatic routing
-result = chain.run(query)  # Always uses same chain
-
-# Manual error handling
-try:
-    result = chain.run(query)
-except Exception as e:
-    # Fallback logic here
-    pass
+# 無自動路由
+result = chain.invoke({"query": query})
 ```
 
-**OpenCode** (Automatic routing):
+**OpenCode**（自動路由）：
 ```python
 from core.engine import RefactoredEngine
-from core.models import Request
+from core.models_v2 import Request
 
 engine = RefactoredEngine(llm_client=llm)
 
-# Automatic routing: simple → System 1, complex → System 2
+# 自動路由：簡單 → System 1，複雜 → System 2
 result = engine.process(Request(query=query, mode="auto"))
-
-# Automatic multi-provider fallback
-# Automatic caching for System 1
-# Automatic metrics tracking
+# 自動多供應商備援 + 自動快取 + 自動指標追蹤
 ```
 
 ---
 
 ## vs. Haystack
 
-### Feature Comparison
+### 功能比較
 
-| Feature | OpenCode Platform | Haystack |
-|---------|------------------|----------|
-| **Cognitive Levels** | ✅ 3-tier (System 1/2/Agent) | ❌ Single pipeline model |
-| **Runtime Dispatch** | ✅ Dual (stateful + stateless) | ❌ Stateless only |
-| **Code Execution** | ✅ Docker sandbox + safety | ❌ Not supported |
-| **LLM Providers** | ✅ 3 providers with fallback | ⚠️ OpenAI-focused |
-| **Complexity Analysis** | ✅ Automatic routing | ❌ Manual pipeline selection |
-| **Test Coverage** | ✅ 97.8% (272 tests) | ⚠️ Limited coverage |
-| **RAG Focus** | ⚠️ One of many features | ✅ Primary focus |
-| **Search Integration** | ✅ Multi-engine | ✅ Extensive |
+| 功能 | OpenCode Platform | Haystack |
+|------|------------------|----------|
+| **認知層級** | ✅ 三層（System 1/2/Agent） | ❌ 單一管線模型 |
+| **執行時分派** | ✅ 雙（有狀態 + 無狀態） | ❌ 僅無狀態 |
+| **程式碼執行** | ✅ Docker 沙箱 + 安全 | ❌ 不支援 |
+| **RAG 焦點** | ⚠️ 多功能之一 | ✅ 主要焦點 |
+| **搜尋整合** | ✅ 多引擎 | ✅ 廣泛 |
 
-### When to Use Haystack
+### 何時使用 Haystack
 
-**Choose Haystack if:**
-- ✅ You're building primarily RAG/search applications
-- ✅ You need extensive document processing pipelines
-- ✅ You want semantic search as core feature
-- ✅ You're comfortable with pipeline-based architecture
+**選擇 Haystack 如果：**
+- ✅ 你主要建構 RAG/搜尋應用程式
+- ✅ 你需要廣泛的文件處理管線
+- ✅ 你習慣管線式架構
 
-**Choose OpenCode if:**
-- ✅ You need more than just RAG (code execution, research, etc.)
-- ✅ You want automatic task complexity routing
-- ✅ You need stateful agent workflows
-- ✅ You want production API with auth/streaming
+**選擇 OpenCode 如果：**
+- ✅ 你需要不僅是 RAG（程式碼執行、研究等）
+- ✅ 你想要自動任務複雜度路由
+- ✅ 你需要有狀態代理工作流程
 
 ---
 
 ## vs. AutoGPT
 
-### Feature Comparison
+### 功能比較
 
-| Feature | OpenCode Platform | AutoGPT |
-|---------|------------------|---------|
-| **Smart Routing** | ✅ Complexity analyzer | ❌ Always autonomous (slow) |
-| **Response Caching** | ✅ System 1 cache | ❌ No caching |
-| **Production API** | ✅ FastAPI + JWT auth | ❌ CLI only |
-| **Error Recovery** | ✅ Multi-provider fallback | ⚠️ Single provider |
-| **Cost Efficiency** | ✅ 78% savings via cache | ❌ High cost (no cache) |
-| **Deployment** | ✅ Docker + K8s ready | ⚠️ Manual setup |
-| **Autonomy** | ⚠️ Agent mode only | ✅ Fully autonomous |
-| **Speed** | ✅ Fast (System 1: 45ms) | ❌ Slow (always multi-step) |
+| 功能 | OpenCode Platform | AutoGPT |
+|------|------------------|---------|
+| **智慧路由** | ✅ 複雜度分析器 | ❌ 永遠自主（慢） |
+| **回應快取** | ✅ System 1 快取 | ❌ 無快取 |
+| **生產 API** | ✅ FastAPI + JWT | ❌ 僅 CLI |
+| **速度** | ✅ 快速（System 1） | ❌ 慢（永遠多步驟） |
+| **自主性** | ⚠️ 僅 Agent 模式 | ✅ 完全自主 |
 
-### Cost Comparison (1000 requests)
+### 何時使用 AutoGPT
 
-| Scenario | OpenCode | AutoGPT | Savings |
-|----------|----------|---------|---------|
-| **Simple queries** (80%) | $2.20 | $80.00 | **97% cheaper** |
-| **Complex queries** (20%) | $20.00 | $20.00 | Same |
-| **Total** | **$22.20** | **$100.00** | **78% cheaper** |
+**選擇 AutoGPT 如果：**
+- ✅ 你需要完全自主的代理處理*所有*任務
+- ✅ 你不在意較慢的回應時間
+- ✅ 成本不是主要考量
 
-### When to Use AutoGPT
-
-**Choose AutoGPT if:**
-- ✅ You need fully autonomous agents for *all* tasks
-- ✅ You're okay with slower response times
-- ✅ Cost is not a primary concern
-- ✅ You prefer CLI-based interaction
-
-**Choose OpenCode if:**
-- ✅ You want to optimize costs (78% savings)
-- ✅ You need fast responses for simple queries
-- ✅ You want production API with multiple interfaces
-- ✅ You need task-appropriate processing (not everything needs autonomy)
+**選擇 OpenCode 如果：**
+- ✅ 你想要最佳化成本
+- ✅ 你需要簡單查詢的快速回應
+- ✅ 你需要生產 API
+- ✅ 你需要任務適當的處理（不是所有事都需要自主性）
 
 ---
 
 ## vs. LlamaIndex
 
-### Feature Comparison
+### 功能比較
 
-| Feature | OpenCode Platform | LlamaIndex |
-|---------|------------------|------------|
-| **Data Indexing** | ⚠️ Basic (Qdrant) | ✅ Extensive |
-| **Query Engine** | ✅ Multi-mode | ⚠️ RAG-focused |
-| **Cognitive Routing** | ✅ System 1/2/Agent | ❌ No routing |
-| **Multi-Provider** | ✅ 3 with fallback | ⚠️ Limited |
-| **Production API** | ✅ Complete | ⚠️ DIY |
-| **Code Execution** | ✅ Sandbox | ❌ No |
-| **Caching** | ✅ Built-in | ❌ Manual |
+| 功能 | OpenCode Platform | LlamaIndex |
+|------|------------------|------------|
+| **資料索引** | ⚠️ 基本（Qdrant） | ✅ 廣泛 |
+| **查詢引擎** | ✅ 多模式 | ⚠️ RAG 焦點 |
+| **認知路由** | ✅ System 1/2/Agent | ❌ 無路由 |
+| **程式碼執行** | ✅ 沙箱 | ❌ 否 |
 
-### When to Use LlamaIndex
+### 何時使用 LlamaIndex
 
-**Choose LlamaIndex if:**
-- ✅ You're building data-centric applications
-- ✅ You need advanced indexing strategies
-- ✅ You want extensive data connector ecosystem
-- ✅ RAG is your primary use case
+**選擇 LlamaIndex 如果：**
+- ✅ 你建構資料為中心的應用程式
+- ✅ 你需要進階索引策略
+- ✅ RAG 是你的主要用途
 
-**Choose OpenCode if:**
-- ✅ You need more than just data querying
-- ✅ You want automatic task routing
-- ✅ You need production infrastructure
-- ✅ You want cost optimization
+**選擇 OpenCode 如果：**
+- ✅ 你需要不僅是資料查詢
+- ✅ 你想要自動任務路由
+- ✅ 你需要生產基礎設施
 
 ---
 
-## Architecture Philosophy Comparison
+## 架構哲學比較
 
-### LangChain: Chain-Based
-
-```
-Query → Chain 1 → Chain 2 → Chain 3 → Result
-```
-
-**Pros**: Flexible, composable
-**Cons**: Manual construction, no automatic optimization
-
-### Haystack: Pipeline-Based
+### LangChain：鏈式
 
 ```
-Query → Pipeline → [Node1 → Node2 → Node3] → Result
+查詢 → 鏈 1 → 鏈 2 → 鏈 3 → 結果
 ```
 
-**Pros**: Structured, reproducible
-**Cons**: Rigid, requires upfront design
+**優點**：靈活、可組合
+**缺點**：手動建構，無自動最佳化
 
-### AutoGPT: Fully Autonomous
-
-```
-Query → [Agent Loop: Plan → Execute → Reflect] → Result
-```
-
-**Pros**: Minimal setup, autonomous
-**Cons**: Slow, expensive, overkill for simple tasks
-
-### OpenCode: Cognitive Routing
+### Haystack：管線式
 
 ```
-Query → Router → {
-  System 1 (fast, cached) OR
-  System 2 (analytical) OR
-  Agent (autonomous)
-} → Result
+查詢 → 管線 → [節點1 → 節點2 → 節點3] → 結果
 ```
 
-**Pros**: Automatic optimization, cost-efficient, production-ready
-**Cons**: Less flexible than building custom chains
+**優點**：結構化、可重現
+**缺點**：剛性，需前期設計
+
+### AutoGPT：完全自主
+
+```
+查詢 → [代理迴圈：規劃 → 執行 → 反思] → 結果
+```
+
+**優點**：最少設定，自主
+**缺點**：慢、昂貴、簡單任務過度使用
+
+### OpenCode：認知路由
+
+```
+查詢 → Router → {
+  System 1（快速、快取）或
+  System 2（分析）或
+  Agent（自主）
+} → 結果
+```
+
+**優點**：自動最佳化、成本效益、生產就緒
+**缺點**：比自訂建構鏈靈活度較低
 
 ---
 
-## Use Case Decision Matrix
+## 使用情境決策矩陣
 
-| Your Need | Recommended Framework |
-|-----------|---------------------|
-| **RAG application only** | Haystack or LlamaIndex |
-| **Maximum flexibility** | LangChain |
-| **Full autonomy (cost not a concern)** | AutoGPT |
-| **Production API with auth/streaming** | **OpenCode** ⭐ |
-| **Cost optimization** | **OpenCode** ⭐ |
-| **Multi-modal (chat + code + research)** | **OpenCode** ⭐ |
-| **Fast simple queries + deep complex analysis** | **OpenCode** ⭐ |
-
----
-
-## Migration Guides
-
-### From LangChain
-
-**Before** (LangChain):
-```python
-from langchain import OpenAI, LLMChain
-
-llm = OpenAI(temperature=0.7)
-chain = LLMChain(llm=llm, prompt=prompt)
-result = chain.run("Your query")
-```
-
-**After** (OpenCode):
-```python
-from core.engine import RefactoredEngine
-from core.models import Request
-
-engine = RefactoredEngine(llm_client=llm)
-result = engine.process(Request(
-    query="Your query",
-    mode="auto"  # Automatic routing
-))
-```
-
-### From Haystack
-
-**Before** (Haystack):
-```python
-from haystack.pipelines import Pipeline
-
-pipeline = Pipeline()
-# Manual pipeline construction...
-result = pipeline.run(query="Your query")
-```
-
-**After** (OpenCode):
-```python
-from core.engine import RefactoredEngine
-
-engine = RefactoredEngine(llm_client=llm)
-result = engine.process(Request(
-    query="Your query",
-    mode="knowledge"  # RAG mode
-))
-```
+| 你的需求 | 推薦框架 |
+|---------|---------|
+| **僅 RAG 應用程式** | Haystack 或 LlamaIndex |
+| **最大靈活性** | LangChain |
+| **完全自主（成本不是考量）** | AutoGPT |
+| **生產 API + 認證 + 串流** | **OpenCode** |
+| **成本最佳化** | **OpenCode** |
+| **多模態（聊天 + 程式碼 + 研究）** | **OpenCode** |
+| **MCP/A2A 標準化擴展** | **OpenCode** |
 
 ---
 
-## Performance Comparison
+## 問題？
 
-### Latency (Simple Query)
-
-| Framework | Latency | Notes |
-|-----------|---------|-------|
-| **OpenCode** | **45ms** | With cache |
-| LangChain | 1.2s | No cache |
-| Haystack | 800ms | Pipeline overhead |
-| AutoGPT | 8s+ | Multi-step planning |
-| LlamaIndex | 600ms | Index lookup |
-
-### Throughput (Concurrent Requests)
-
-| Framework | Max req/s | Notes |
-|-----------|-----------|-------|
-| **OpenCode** | **450** | With cache |
-| LangChain | ~50 | Limited by LLM API |
-| Haystack | ~80 | Pipeline efficiency |
-| AutoGPT | ~5 | Serial execution |
-| LlamaIndex | ~70 | Index performance |
+- [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions)
 
 ---
 
-## Community & Ecosystem
-
-| Aspect | OpenCode | LangChain | Haystack | AutoGPT |
-|--------|----------|-----------|----------|---------|
-| **GitHub Stars** | Growing | 80k+ | 15k+ | 160k+ |
-| **Contributors** | 5+ | 1000+ | 200+ | 200+ |
-| **Integrations** | 7 | 100+ | 50+ | 20+ |
-| **Documentation** | ✅ Complete | ✅ Extensive | ✅ Good | ⚠️ Basic |
-| **Production Use** | ✅ Ready | ⚠️ DIY | ⚠️ DIY | ❌ Research |
-
----
-
-## Final Recommendation
-
-### Choose OpenCode Platform if you want:
-
-1. **🎯 Automatic Intelligence** - Router selects optimal processing level
-2. **💰 Cost Efficiency** - 78% savings via intelligent caching
-3. **🏗️ Production Ready** - API + auth + streaming + monitoring out of the box
-4. **🔄 Resilience** - Multi-provider fallback (99.5% availability)
-5. **📊 Observability** - Built-in metrics and structured logging
-6. **🚀 Fast Development** - From zero to production in minutes
-
-### Choose Alternatives if:
-
-- **LangChain**: You need maximum flexibility and 100+ pre-built integrations
-- **Haystack**: You're focused solely on RAG/search pipelines
-- **AutoGPT**: You need full autonomy and cost is not a concern
-- **LlamaIndex**: You're building data-heavy, index-centric applications
-
----
-
-## Questions?
-
-- 💬 [GitHub Discussions](https://github.com/your-org/openagent_backend/discussions)
-- 📧 Email: compare@opencode.ai
-- 📖 [Full Documentation](../README.md)
-
----
-
-**Back to**: [README](../README.md) | [Documentation](../README.md#-documentation)
+**返回**：[README](../README.md) | [文件](../README.md#-文件)

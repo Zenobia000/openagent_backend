@@ -29,13 +29,21 @@ Phase 3 ── Tier 3: 架構級增強 (3 tasks) ✅ COMPLETE (3.3 deferred)
 驗證 ── 跨 Phase 驗證 (1 task) ✅ COMPLETE
   └─ V.1 端對端品質對比測試            ✅ 5/5 PASS
 
-Phase 4 ── McKinsey-Grade 報告品質升級 (6 tasks) ✅ COMPLETE
+Phase 4 ── McKinsey-Grade 報告品質升級 (6 tasks) ✅ COMPLETE → ⚠️ PARTIALLY REVERSED (v3.3)
   ├─ P0-D Bug Fix (req_num + dead code)          ✅
-  ├─ P0-A McKinsey-grade prompt (MECE/Pyramid)    ✅
-  ├─ P1-D Chart Planning (always-on)              ✅
-  ├─ P1-E Per-Chart Code Generation               ✅
-  ├─ P1-F Inline Figure Embedding                 ✅
-  └─ P1-G Report Artifact Bundle                  ✅
+  ├─ P0-A McKinsey-grade prompt (MECE/Pyramid)    ✅ → ⚠️ SIMPLIFIED (23→10 rules, v3.3)
+  ├─ P1-D Chart Planning (always-on)              ✅ → ❌ REMOVED (v3.3)
+  ├─ P1-E Per-Chart Code Generation               ✅ → ❌ REMOVED (v3.3)
+  ├─ P1-F Inline Figure Embedding                 ✅ → ❌ REMOVED (v3.3)
+  └─ P1-G Report Artifact Bundle                  ✅ (simplified, kept)
+
+Phase 5 ── Pipeline Reengineering 去制式化 (6 tasks) ✅ COMPLETE
+  ├─ 5.1 移除 Domain Identification               ✅
+  ├─ 5.2 移除 Critical Analysis                   ✅
+  ├─ 5.3 移除 Chart Planning + Execution          ✅
+  ├─ 5.4 簡化 Report Prompt (23→10 rules)         ✅
+  ├─ 5.5 簡化 Section Synthesis Prompt             ✅
+  └─ 5.6 更新測試 mock side_effect 列表           ✅
 ```
 
 ---
@@ -647,6 +655,168 @@ All Phases ──→ V.1 (驗證)
 
 ---
 
+## Phase 5: Pipeline Reengineering — 去制式化
+
+> 目標：移除制式化框架（MECE/Pyramid/CEI/強制表格），信任 LLM 推理能力，簡化 pipeline，讓報告像人寫的研究報告而非模板填充。
+> 核心理念：模型思維能力已足夠強，不需要強 prompt 約束。保持靈活性，讓 LLM 自行發揮。
+> 來源：實際報告品質審計 — 發現 23 條制式規則導致機械化輸出（如 "這意味著" 52 次重複）
+
+---
+
+### 5.1 移除 Domain Identification
+
+| Item | Detail |
+|------|--------|
+| **Status** | [x] **Complete** (2026-02-25) |
+
+**改動**:
+- `processor.py`: 移除 `identify_research_domains()` 呼叫和 `domains=research_domains` 參數
+- `planner.py`: `generate_serp_queries()` 移除 `domains` 參數和 `domain_supplement` 邏輯
+- SERP prompt 已有 "Cover different aspects/domains proportionally"，足夠引導多角度
+
+**理由**: Domain Identification 是獨立 LLM call，但其輸出只是在 SERP prompt 中追加 domain 列表。這個功能可以直接合併到 SERP prompt 中。
+
+---
+
+### 5.2 移除 Critical Analysis
+
+| Item | Detail |
+|------|--------|
+| **Status** | [x] **Complete** (2026-02-25) |
+
+**改動**:
+- `processor.py`: 移除 `critical_analysis_stage()` 呼叫和 `critical_analysis` 變數
+- `reporter.py`: `write_final_report()` 移除 `critical_analysis` 參數
+- `reporter.py`: `build_academic_report_prompt()` 移除 critical analysis 注入區塊
+
+**理由**: Critical Analysis 的輸出（limitation analysis、contradiction identification）在實際報告中表現為機械化的公式段落。LLM 在報告生成時本身就有能力做批判性分析，不需要額外的 LLM call 強制注入。
+
+---
+
+### 5.3 移除 Chart Planning + Execution
+
+| Item | Detail |
+|------|--------|
+| **Status** | [x] **Complete** (2026-02-25) |
+
+**改動**:
+- `processor.py`: 移除 `plan_report_charts()` 和 `chart_specs` / `computational_result` 邏輯
+- `processor.py`: 移除 `ComputationEngine` import 和初始化
+- `reporter.py`: 移除 `computational_result` 參數、figure 內嵌邏輯、figure 儲存邏輯
+- `reporter.py`: `save_report_bundle()` 簡化（移除 figure 處理）
+
+**理由**: 圖表為了呈現而呈現（強制 3-5 張表、指定表格類型）。在沙箱環境不穩定的情況下，chart pipeline 經常失敗或產出品質低的圖表。LLM 可以在報告中自然地使用 Markdown 表格和文字描述來傳達數據分析。
+
+---
+
+### 5.4 簡化 Report Prompt (23→10 rules)
+
+| Item | Detail |
+|------|--------|
+| **Status** | [x] **Complete** (2026-02-25) |
+
+**移除的規則 (13 條)**:
+
+| 規則 | 移除原因 |
+|------|---------|
+| Executive Summary 固定格式 | 讓 LLM 自行組織開頭 |
+| MECE sub-sections | MBA 框架，非自然寫作 |
+| Pyramid Principle | 同上 |
+| So-What 強制（含固定句式） | 制式化根源（"這意味著" 52 次） |
+| CEI 段落結構 | 制式化根源 |
+| 3-5 張分析表格強制 | 為呈現而呈現 |
+| 強制表格類型 | 同上 |
+| 表格完整性 | 過度控制 |
+| 表達多樣性控制 | 微觀管理寫作風格 |
+| 強制競爭分析章節 | 不是每個主題都需要 |
+| Bull/Base/Bear 情境分析 | 不是每個主題都適用 |
+| Figure 排序規則 | charts 已移除 |
+| Critical analysis 整合 | critical analysis 已移除 |
+
+**保留的規則 (10 條)**: Inline citations, no references section, heading structure, 3000+ words, specific data, pipe-table syntax, cross-reference, Tier 1-2 source priority, methodology section, natural writing.
+
+---
+
+### 5.5 簡化 Section Synthesis Prompt
+
+| Item | Detail |
+|------|--------|
+| **Status** | [x] **Complete** (2026-02-25) |
+
+**改動**:
+- `prompts.py`: `get_section_synthesis_prompt()` 移除 "2000-3000 characters minimum" 硬性要求
+- 改為 "Be thorough — cover all substantive findings"
+- 簡化 JSON 輸出結構指引
+
+---
+
+### 5.6 更新測試 mock side_effect 列表
+
+| Item | Detail |
+|------|--------|
+| **Status** | [x] **Complete** (2026-02-25) |
+
+**改動**:
+- `test_deep_research_enhancement.py`: 所有 mock `side_effect` 從 11 項縮減到 8 項
+- `test_processors.py`: 所有 mock `side_effect` 從 11 項縮減到 8 項
+- 移除 `TestCriticalAnalysisAlwaysOn` 測試類
+- `TestReportPromptConstraints` 重寫為測試新的 10 條規則
+
+**最終測試結果**: 323 passed, 1 failed (pre-existing)
+
+---
+
+### Phase 5 影響分析
+
+| File | 改動類型 | 淨行數 |
+|------|---------|--------|
+| `processor.py` | 移除 3 階段 + 清理 imports | -30 |
+| `reporter.py` | 簡化 prompt, 移除 2 參數 | -50 |
+| `prompts.py` | 簡化 section synthesis prompt | -5 |
+| `planner.py` | 移除 domains 參數 | -15 |
+| `test_deep_research_enhancement.py` | 更新 mock lists | ~10 處 |
+| `test_processors.py` | 更新 mock lists | ~5 處 |
+
+**淨刪除約 100 行產品程式碼。**
+
+### LLM Call 變化
+
+| 階段 | v3.2 | v3.3 |
+|------|------|------|
+| Report Plan | 1 | 1 |
+| Domain Identification | 1 | **0** |
+| SERP Queries | 1 | 1 |
+| Search (model mode) | N | N |
+| Intermediate Synthesis | 1 | 1 |
+| Completeness Review | 1 | 1 |
+| Critical Analysis | 1 | **0** |
+| Chart Planning | 1 | **0** |
+| Chart Code Gen | 0-5 | **0** |
+| Section Classification | 1 | 1 |
+| Section Synthesis | N | N |
+| Final Report | 1 | 1 |
+| **Total (min-max)** | **~12-22** | **~9-16** |
+
+---
+
+## Summary Metrics (Updated)
+
+| Metric | Phase 1 後 | Phase 2 後 | Phase 3 後 | Phase 4 後 | Phase 5 後 |
+|--------|-----------|-----------|-----------|-----------|-----------|
+| 資訊保留率 | 30%+ (from 0.33%) | 40%+ | 60%+ | 60%+ | ~16% (section-aware) |
+| 合成策略 | 一次性 | 漸進式 | 漸進式 + 跨域 | 漸進式 + 跨域 | 漸進式 + 階層式 |
+| 報告字數 | 2000-3000 | 3000-5000 | 5000+ | 5000+ | 3000+ (flexible) |
+| 表格數 | 3+ | 3+ | 5+ | 3-5 analytical | flexible (LLM decides) |
+| 表格類型 | listing | listing | listing | analytical (MECE) | natural (LLM decides) |
+| 圖表數 | 0 | 0 | 0 | 2-4 per report | 0 (removed) |
+| Artifact | flat .md | flat .md | flat .md | bundle (dir) | bundle (simplified) |
+| LLM calls | ~9 | ~10 | ~11 | ~12-22 | ~9-16 |
+| Prompt 規則 | 6 | 6 | 6 | 23 | 10 |
+| 預估品質分 | 6.5/10 | 8/10 | 9/10 | 9.5/10 (理論) | 8/10 (實際, 去制式化) |
+
+---
+
 *WBS generated: 2026-02-18*
 *Phase 4 added: 2026-02-18*
-*Source: gap_analysis_google_vs_openagent.md, gap_analysis_report_quality_v2.md*
+*Phase 5 added: 2026-02-25*
+*Source: gap_analysis_google_vs_openagent.md, gap_analysis_report_quality_v2.md, pipeline reengineering plan*

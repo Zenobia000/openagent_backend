@@ -328,16 +328,16 @@ class TestDeepResearchProcessor:
 
         mock_llm_client.generate.side_effect = [
             "Research plan for quantum computing",                    # 1. plan
-            '{"domains": [{"name": "physics", "weight": 0.5, "search_angles": ["qubits"]}, {"name": "engineering", "weight": 0.5, "search_angles": ["hardware"]}]}',  # 2. domain identification
             '''```json\n[
                 {"query": "quantum computing basics", "researchGoal": "understand fundamentals", "priority": 1},
                 {"query": "quantum applications", "researchGoal": "explore use cases", "priority": 2}
-            ]\n```''',                                                # 3. SERP (2 queries)
-            "Search result on quantum basics",                        # 4. model search q1
-            "Search result on quantum applications",                  # 5. model search q2
-            '{"synthesis": "Quantum computing uses qubits for parallel computation", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 6. synthesis
-            '{"is_sufficient": true, "overall_coverage": 90, "sections": [], "priority_gaps": []}',  # 7. review
-            "Critical analysis of quantum computing findings",        # 8. critical analysis
+            ]\n```''',                                                # 2. SERP (2 queries)
+            "Search result on quantum basics",                        # 3. model search q1
+            "Search result on quantum applications",                  # 4. model search q2
+            '{"synthesis": "Quantum computing uses qubits for parallel computation", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 5. synthesis
+            '{"is_sufficient": true, "overall_coverage": 90, "sections": [], "priority_gaps": []}',  # 6. review
+            '{"mapping": {"Research Findings": [0, 1]}}',            # 7. section classification
+            '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',  # 8. section synthesis
             "Final comprehensive report on quantum computing",        # 9. final report
         ]
 
@@ -348,7 +348,6 @@ class TestDeepResearchProcessor:
         mock_logger['progress'].assert_any_call("task-list", "start")
         mock_logger['progress'].assert_any_call("search-task", "start", {"name": "quantum computing basics"})
         mock_logger['progress'].assert_any_call("intermediate-synthesis", "start")
-        mock_logger['progress'].assert_any_call("critical-analysis", "start")
         mock_logger['progress'].assert_any_call("final-report", "start")
 
         assert isinstance(result, str) and len(result) > 0
@@ -361,12 +360,12 @@ class TestDeepResearchProcessor:
 
         mock_llm_client.generate.side_effect = [
             "Plan",                                                   # 1. plan
-            '{"domains": []}',                                        # 2. domain identification
-            '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',  # 3. SERP
-            "Search result from model",                               # 4. model search
-            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 5. synthesis
-            '{"is_sufficient": true}',                                # 6. review
-            "Critical analysis result",                               # 7. critical analysis
+            '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',  # 2. SERP
+            "Search result from model",                               # 3. model search
+            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 4. synthesis
+            '{"is_sufficient": true}',                                # 5. review
+            '{"mapping": {"Research Findings": [0]}}',                # 6. section classification
+            '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',  # 7. section synthesis
             "Final research report",                                  # 8. final report
         ]
 
@@ -385,12 +384,12 @@ class TestDeepResearchProcessor:
 
         mock_llm_client.generate.side_effect = [
             "Plan",                                                   # 1. plan
-            '{"domains": []}',                                        # 2. domain identification
-            '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',  # 3. SERP
-            "Search result from model",                               # 4. model search
-            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 5. synthesis
-            '{"is_sufficient": true}',                                # 6. review
-            "Critical analysis result",                               # 7. critical analysis
+            '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',  # 2. SERP
+            "Search result from model",                               # 3. model search
+            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 4. synthesis
+            '{"is_sufficient": true}',                                # 5. review
+            '{"mapping": {"Research Findings": [0]}}',                # 6. section classification
+            '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',  # 7. section synthesis
             "Final research report",                                  # 8. final report
         ]
 
@@ -414,12 +413,12 @@ class TestDeepResearchProcessor:
 
         mock_llm_client.generate.side_effect = [
             "Plan",                                                   # 1. plan
-            '{"domains": []}',                                        # 2. domain identification
-            "Invalid JSON",                                           # 3. SERP → fallback to 1 default query
-            "Model search result",                                    # 4. model search
-            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 5. synthesis
-            '{"is_sufficient": true}',                                # 6. review
-            "Critical analysis result",                               # 7. critical analysis
+            "Invalid JSON",                                           # 2. SERP → fallback to 1 default query
+            "Model search result",                                    # 3. model search
+            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 4. synthesis
+            '{"is_sufficient": true}',                                # 5. review
+            '{"mapping": {"Research Findings": [0]}}',                # 6. section classification
+            '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',  # 7. section synthesis
             "Final report",                                           # 8. final report
         ]
 
@@ -544,12 +543,12 @@ class TestProcessorIntegration:
             if mode == Modes.DEEP_RESEARCH:
                 mock_llm_client.generate.side_effect = [
                     "Plan",
-                    '{"domains": []}',
                     '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',
                     "Search result from model",
                     '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',
                     '{"is_sufficient": true}',
-                    "Critical analysis result",
+                    '{"mapping": {"Research Findings": [0]}}',
+                    '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',
                     "Final research report"
                 ]
             else:

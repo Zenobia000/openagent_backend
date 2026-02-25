@@ -117,9 +117,9 @@ class SearchEngineConfig:
                 self.enable_batch_parallel = True
         elif self.parallel_strategy == "hybrid":
             if self.enable_race_mode is None:
-                self.enable_race_mode = True
+                self.enable_race_mode = _env_bool("SEARCH_ENABLE_RACE_MODE", True)
             if self.enable_batch_parallel is None:
-                self.enable_batch_parallel = True
+                self.enable_batch_parallel = _env_bool("SEARCH_ENABLE_BATCH_PARALLEL", True)
         else:
             if self.enable_race_mode is None:
                 self.enable_race_mode = _env_bool("SEARCH_ENABLE_RACE_MODE", False)

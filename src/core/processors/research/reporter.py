@@ -8,7 +8,6 @@ Extracted from DeepResearchProcessor (~500 lines).
 
 import re
 import json
-import base64
 from datetime import datetime
 from pathlib import Path
 from collections import Counter
@@ -64,9 +63,9 @@ class ReportGenerator:
     async def write_final_report(self, context: ProcessingContext,
                                  search_results: List[Dict],
                                  report_plan: str,
-                                 critical_analysis: Optional[str] = None,
-                                 computational_result: Optional[Dict[str, Any]] = None,
-                                 synthesis: str = None) -> str:
+                                 synthesis: str = None,
+                                 language: str = None,
+                                 evidence_index: Optional[List[Dict]] = None) -> str:
         """Generate final academic-style report with categorized references."""
         self.logger.progress("final-report", "start")
 
@@ -92,7 +91,8 @@ class ReportGenerator:
         enhanced_prompt = self.build_academic_report_prompt(
             report_plan, research_context, references_list,
             context.request.query,
-            critical_analysis, computational_result
+            language=language,
+            evidence_index=evidence_index,
         )
 
         self.logger.reasoning("綜合所有研究結果，生成最終報告...", streaming=True)
@@ -104,7 +104,7 @@ class ReportGenerator:
 
         final_report = self.format_report_with_categorized_references(
             report_body, cited_refs, uncited_refs, context,
-            critical_analysis is not None, citation_stats, computational_result
+            citation_stats=citation_stats,
         )
 
         self.logger.info(
@@ -164,9 +164,9 @@ class ReportGenerator:
 
     def build_academic_report_prompt(self, plan: str, context: str,
                                      references: List[Dict], requirement: str,
-                                     critical_analysis: Optional[str] = None,
-                                     computational_result: Optional[Dict[str, Any]] = None) -> str:
-        """Build academic-format report prompt with critical analysis and computation."""
+                                     language: str = None,
+                                     evidence_index: Optional[List[Dict]] = None) -> str:
+        """Build report prompt — streamlined guidelines, trust model reasoning."""
         ref_summary = "\n".join([
             f"[{ref['id']}] {ref['title']}"
             for ref in references
@@ -183,114 +183,48 @@ Research Context and Findings:
 Available References:
 {ref_summary}"""
 
-        if critical_analysis:
+        if evidence_index:
+            evidence_lines = []
+            for e in evidence_index[:50]:
+                sources = ", ".join(f"[{sid}]" for sid in e.get("source_ids", []))
+                conf = e.get("confidence", "medium").capitalize()
+                evidence_lines.append(f"- \"{e.get('claim', '')}\" -> cite {sources} ({conf})")
+            evidence_block = "\n".join(evidence_lines)
             prompt += f"""
 
-Critical Analysis (Multi-Perspective Thinking):
-{critical_analysis}
+Evidence Citation Index (pre-verified claim-source mappings):
+{evidence_block}
 
-IMPORTANT: Integrate the insights from the critical analysis throughout your report.
-Use the multi-perspective thinking to enrich your conclusions and provide more nuanced views."""
+INSTRUCTION: Use the evidence index above for accurate inline citations.
+Each claim has been verified against specific sources — cite them using the exact [N] reference numbers provided."""
 
         prompt += f"""
 
 Requirements:
-
-=== STRUCTURE (MECE + Pyramid Principle) ===
-1. Open with Executive Summary (3-5 bullet conclusions FIRST, then supporting evidence below)
-2. Structure every section using MECE: sub-sections must be mutually exclusive and collectively exhaustive — no overlaps, no gaps
-3. Each section follows the Pyramid Principle: state the conclusion/claim as the section heading, then provide supporting evidence underneath
-4. Every factual claim ends with a So-What: "This means..." or "The implication is..." — never leave raw data without interpretation
-
-=== ANALYTICAL DEPTH (Claim-Evidence-Implication) ===
-5. Every analytical paragraph follows CEI: Claim (one sentence) → Evidence (data, citations) → Implication (so-what for the reader)
-6. Cross-domain synthesis is mandatory: connect findings from different fields (e.g., regulatory changes → business model impact → technology response)
-7. Include forward-looking analysis with specific trend predictions (2-5 year horizon with quantified estimates)
-
-=== TABLES (Analytical, Not Listing) ===
-8. Include 3-5 ANALYTICAL tables. Each table MUST have a "So-What" interpretation paragraph immediately after it. BANNED table types: simple feature lists, timeline-only tables, raw data dumps
-9. Required analytical table types (use at least 2): Cross-tabulation matrix (rows vs columns with scores/ratings), Comparative scoring matrix (weighted criteria evaluation), Decomposition waterfall (breaking totals into components), Risk-impact quadrant (2x2 or 3x3 matrix with strategic implications)
-10-TABLE. MANDATORY: All tables MUST use standard Markdown pipe syntax. Example:
-| Criterion | Option A | Option B | Score |
-|-----------|----------|----------|-------|
-| data      | data     | data     | data  |
-Do NOT describe tables in prose. Do NOT use bullet lists as table substitutes. Render every table as a proper Markdown pipe table with header row and separator row.
-
-=== QUANTIFICATION ===
-10. Every market claim must include specific numbers: market size ($B), growth rate (CAGR%), adoption rate (%), company names with revenue/headcount
-11. Use inline citations [1], [2], [3] for every factual claim — minimum 15 unique citations across the report
-12. DO NOT include a references section in your output (it will be added separately)
-
-=== OUTPUT STANDARDS ===
-13. Aim for 3000+ words with deep analysis, not surface-level summarization
-14. Structure with ## for main sections, ### for sub-sections
-15. Write in professional analytical tone — BANNED vague phrases: "重要的是", "值得注意的是", "眾所周知" — replace with specific analytical claims
-16. Include specific company names, product names, statistics, and real-world examples
-
-=== TABLE COMPLETENESS ===
-17. MANDATORY: Every cell in every table MUST contain a completed value. BANNED: "=?", "TBD", "N/A", empty cells, incomplete formulas. If a calculation is shown, compute and display the final number.
-
-=== EXPRESSION DIVERSITY ===
-18. BANNED: Using the same transitional phrase more than 3 times in the entire report. Specifically BANNED repetitive templates: "這意味著", "值得注意的是", "重要的是". Instead, vary by context: "戰略含義在於...", "對 [role] 而言，這重新定義了...", "此發現挑戰了...", "淨效應是...", "董事會應將此視為..."
-
-=== COMPETITIVE LANDSCAPE (Mandatory Section) ===
-19. MUST include a dedicated competitive analysis section covering: key players (with names, revenue, market share), competitive positioning, barriers to entry, value chain analysis. Apply at least one strategic framework: Porter's Five Forces, SWOT, or Value Chain Analysis.
-
-=== SOURCE QUALITY AWARENESS ===
-20. Prioritize Tier 1-2 sources for core claims. When citing Tier 4-5 sources for key numbers, add explicit caveat: "（來源為行業博客/廠商白皮書，建議交叉驗證）". Every core market-sizing claim needs at least 2 independent sources or an explicit single-source warning.
-
-=== SCENARIO ANALYSIS ===
-21. For any investment or strategic recommendation, include Bull/Base/Bear scenario analysis with quantified ranges (market size, ROI, timeline). Format as a 3-column comparison table.
-
-=== METHODOLOGY TRANSPARENCY ===
-22. Include a brief Methodology section near the end: research scope, number of sources reviewed, source language distribution, key limitations, and what was excluded from analysis.
-
-=== FIGURE ORDERING ===
-23. Figures MUST be numbered sequentially (Figure 1, Figure 2, ...) in order of first appearance. Each figure reference MUST appear in the same paragraph or section where its data is discussed — never cluster figures together."""
-
-        req_num = 24
-        if critical_analysis:
-            prompt += f"""
-{req_num}. Incorporate critical analysis insights to provide balanced, multi-perspective conclusions
-{req_num + 1}. Address potential limitations, counterarguments, or alternative interpretations
-{req_num + 2}. Demonstrate analytical depth beyond surface-level findings"""
-            req_num += 3
-
-        if computational_result:
-            stdout = computational_result.get('stdout', '')
-            figure_count = len(computational_result.get('figures', []))
-            prompt += f"""
-
-Computational Analysis Results:
-The following quantitative analysis was performed programmatically:
-
-Output:
-{stdout}
-
-Number of charts/figures generated: {figure_count}
-
-IMPORTANT: Integrate these computational findings into your report:
-- Reference specific numbers, calculations, and statistical results from the output
-- If charts were generated, reference them as "Figure 1", "Figure 2", etc. INLINE within the relevant analysis section's paragraph (e.g., "As shown in Figure 1, the market share distribution reveals...")
-- Do NOT create a separate section for figures/charts — embed each figure reference naturally in the section where its data is discussed
-- Explain what the computational analysis reveals in plain language"""
-
-            prompt += f"""
-{req_num}. Integrate computational analysis results with specific numbers and findings
-{req_num + 1}. Reference generated figures as "Figure 1", "Figure 2" etc. where relevant"""
-
-        prompt += f"""
+1. Use inline citations [1], [2], [3] for factual claims throughout the report
+2. DO NOT include a references section in your output (it will be added separately)
+3. Structure with ## for main sections, ### for sub-sections
+4. Aim for 3000+ words with substantive analysis
+5. Include specific numbers, company names, statistics, and real-world examples where available
+6. When using tables, use standard Markdown pipe syntax with header and separator rows
+7. Cross-reference findings across different sections to build a cohesive narrative
+8. Prioritize Tier 1-2 sources for core claims. When citing weaker sources for key numbers, note the limitation
+9. Include a brief Methodology section near the end: research scope, sources reviewed, key limitations
+10. Write naturally and analytically — avoid repetitive templates or formulaic paragraph structures
 
 User's Research Question:
 {requirement}"""
+
+        lang_instruction = ""
+        if language:
+            lang_instruction = f"\n- CRITICAL: Write the ENTIRE report in {language}. All headings, body text, table content, and analysis MUST be in {language}."
 
         prompt += f"""
 
 IMPORTANT:
 - Use citations [1] to [{len(references)}] naturally throughout the text
 - Make the report comprehensive and detailed (aim for 3000+ words)
-- Structure with clear headings using ## for main sections
-- Write in professional, academic tone
+- Structure with clear headings using ## for main sections{lang_instruction}
 
 Generate the report body (without references section):
 """
@@ -347,9 +281,7 @@ Generate the report body (without references section):
                                                   cited_refs: List[Dict],
                                                   uncited_refs: List[Dict],
                                                   context: ProcessingContext = None,
-                                                  has_critical_analysis: bool = False,
-                                                  citation_stats: Dict = None,
-                                                  computational_result: Optional[Dict[str, Any]] = None) -> str:
+                                                  citation_stats: Dict = None) -> str:
         """Format report with categorized references and citation statistics."""
         references_section = "\n\n---\n\n"
 
@@ -412,63 +344,19 @@ Generate the report body (without references section):
                 )
 
         references_section += f"\n### 分析模式\n"
-        modes = ["深度研究"]
-        if has_critical_analysis:
-            modes.append("批判性思考")
-        if computational_result:
-            fig_count = len(computational_result.get("figures", []))
-            modes.append(f"計算分析 ({fig_count} figures)")
-        references_section += f"- **研究模式**: {' + '.join(modes)}\n"
+        references_section += f"- **研究模式**: 深度研究\n"
 
         references_section += f"\n---\n"
         references_section += f"*Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n"
-        references_section += f"*Powered by OpenCode Deep Research Engine"
+        references_section += f"*Powered by OpenCode Deep Research Engine*"
 
-        if has_critical_analysis:
-            references_section += f" with Critical Analysis*"
-        else:
-            references_section += f"*"
-
-        # Embed figures inline where "Figure N" is referenced in text
-        overflow_figures = ""
-        if computational_result and computational_result.get("figures"):
-            figure_specs = computational_result.get("figure_specs", [])
-            for i, fig_base64 in enumerate(computational_result["figures"], 1):
-                spec = figure_specs[i - 1] if i - 1 < len(figure_specs) else {}
-                title = spec.get("title", f"Figure {i}")
-                insight = spec.get("insight", "")
-
-                figure_md = f"\n\n**Figure {i}: {title}**\n\n"
-                figure_md += f"![Figure {i}: {title}](data:image/png;base64,{fig_base64})\n\n"
-                if insight:
-                    figure_md += f"*{insight}*\n\n"
-
-                inserted = False
-                fig_ref_pattern = re.compile(
-                    rf'Figure\s+{i}\b', re.IGNORECASE
-                )
-                match = fig_ref_pattern.search(report_body)
-                if match:
-                    para_end = report_body.find('\n\n', match.end())
-                    if para_end == -1:
-                        para_end = len(report_body)
-                    else:
-                        para_end += 1
-                    report_body = (
-                        report_body[:para_end] + figure_md + report_body[para_end:]
-                    )
-                    inserted = True
-
-                if not inserted:
-                    overflow_figures += figure_md
-
-        full_report = f"{report_body}{overflow_figures}{references_section}"
+        full_report = f"{report_body}{references_section}"
 
         # Save report as structured bundle
         if context:
             try:
                 save_path = self.save_report_bundle(
-                    full_report, context, computational_result, cited_refs
+                    full_report, context, cited_refs
                 )
                 if save_path:
                     self.logger.info(
@@ -484,9 +372,8 @@ Generate the report body (without references section):
         return full_report
 
     def save_report_bundle(self, full_report: str, context: ProcessingContext,
-                           computational_result: Optional[Dict[str, Any]] = None,
                            cited_refs: List[Dict] = None) -> Optional[str]:
-        """Save report as a structured bundle: report.md + metadata.json + figures/."""
+        """Save report as a structured bundle: report.md + metadata.json."""
         log_dir = self.log_dir or getattr(self.logger, 'log_dir', 'logs')
         trace_id = context.request.trace_id
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -496,24 +383,8 @@ Generate the report body (without references section):
         bundle_dir = reports_dir / bundle_name
         bundle_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Save figures as individual PNG files + replace base64 inline
-        report_for_bundle = full_report
-        if computational_result and computational_result.get("figures"):
-            figures_dir = bundle_dir / "figures"
-            figures_dir.mkdir(exist_ok=True)
-            for i, fig_b64 in enumerate(computational_result["figures"], 1):
-                fig_bytes = base64.b64decode(fig_b64)
-                (figures_dir / f"figure_{i}.png").write_bytes(fig_bytes)
-                report_for_bundle = re.sub(
-                    rf'!\[Figure {i}[^\]]*\]\(data:image/png;base64,[A-Za-z0-9+/=]+\)',
-                    f'![Figure {i}](figures/figure_{i}.png)',
-                    report_for_bundle,
-                )
+        (bundle_dir / "report.md").write_text(full_report, encoding="utf-8")
 
-        (bundle_dir / "report.md").write_text(report_for_bundle, encoding="utf-8")
-
-        # 2. Save metadata.json
-        figure_specs = (computational_result or {}).get("figure_specs", [])
         metadata = {
             "query": context.request.query if context.request else "N/A",
             "mode": "deep_research",
@@ -523,13 +394,6 @@ Generate the report body (without references section):
             "tokens": context.response.metadata.get("total_tokens", {}),
             "citations": {
                 "cited_count": len(cited_refs) if cited_refs else 0,
-            },
-            "figures": {
-                "count": (
-                    len(computational_result.get("figures", []))
-                    if computational_result else 0
-                ),
-                "titles": [s.get("title", "") for s in figure_specs],
             },
             "stages": context.response.metadata.get("stages", []),
         }

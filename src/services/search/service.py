@@ -53,6 +53,8 @@ class WebSearchService:
         self.tavily_key = os.getenv("TAVILY_API_KEY")
         self.serpapi_key = os.getenv("SERPAPI_KEY")
         self.serper_key = os.getenv("SERPER_API_KEY")
+        self.brave_key = os.getenv("BRAVE_API_KEY")
+        self.exa_key = os.getenv("EXA_API_KEY")
         self._session: Optional[aiohttp.ClientSession] = None
         
     async def initialize(self) -> None:
@@ -80,7 +82,11 @@ class WebSearchService:
         """獲取 HTTP session"""
         if self._session is None or self._session.closed:
             timeout = aiohttp.ClientTimeout(total=30)
-            self._session = aiohttp.ClientSession(timeout=timeout)
+            # Raise max header size: some sites send Set-Cookie >8KB (aiohttp default 8190)
+            self._session = aiohttp.ClientSession(
+                timeout=timeout,
+                max_field_size=16384,
+            )
         return self._session
     
     async def close(self):
@@ -96,43 +102,50 @@ class WebSearchService:
         self,
         query: str,
         max_results: int = 5,
-        search_type: str = "general"
+        search_type: str = "general",
+        provider: Optional[str] = None,
     ) -> List[SearchResult]:
         """
-        執行網路搜尋
-        
+        Execute web search with explicit provider routing.
+
         Args:
-            query: 搜尋關鍵字
-            max_results: 最大結果數
-            search_type: 搜尋類型
-            
-        Returns:
-            搜尋結果列表
+            query: Search keywords
+            max_results: Maximum number of results
+            search_type: Search type
+            provider: Override provider name (tavily/serper/serpapi/brave/duckduckgo).
+                      If None, uses the default provider from initialize().
         """
         await self.initialize()
-        
+
+        effective = provider or self.provider
+
         try:
-            if self.provider == "tavily":
+            if effective == "tavily":
                 results = await self._search_tavily(query, max_results, search_type)
-            elif self.provider == "serper":
+            elif effective == "serper":
                 results = await self._search_serper(query, max_results)
-            elif self.provider == "serpapi":
+            elif effective == "serpapi":
                 results = await self._search_serpapi(query, max_results)
+            elif effective == "brave":
+                results = await self._search_brave(query, max_results)
+            elif effective == "exa":
+                results = await self._search_exa(query, max_results, search_type)
+            elif effective == "duckduckgo":
+                results = await self._search_duckduckgo_html(query, max_results)
             else:
-                # 多引擎並行模式
                 results = await self._search_multi_engine(query, max_results)
-            
+
             if results:
                 return results
-                
+
         except Exception as e:
-            logger.error(f"❌ 搜尋失敗: {e}")
-        
-        # Fallback: 多引擎模式
-        if self.provider != "multi":
-            logger.info("🔄 Fallback to multi-engine search")
+            logger.error(f"Search failed ({effective}): {e}")
+
+        # Fallback: multi-engine mode
+        if effective != "multi":
+            logger.info(f"Fallback to multi-engine search (primary {effective} failed)")
             return await self._search_multi_engine(query, max_results)
-        
+
         return []
     
     async def _search_multi_engine(
@@ -368,15 +381,103 @@ class WebSearchService:
         except Exception as e:
             logger.error(f"❌ SerpAPI 搜尋失敗: {e}")
         return []
-    
+
+    async def _search_brave(
+        self,
+        query: str,
+        max_results: int = 5
+    ) -> List[SearchResult]:
+        """Brave Search API"""
+        if not self.brave_key:
+            logger.warning("Brave API key not configured")
+            return []
+        try:
+            session = await self._get_session()
+            params = {"q": query, "count": max_results}
+            headers = {
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": self.brave_key,
+            }
+            async with session.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params=params, headers=headers,
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    results = []
+                    for r in data.get("web", {}).get("results", []):
+                        results.append(SearchResult(
+                            title=r.get("title", ""),
+                            url=r.get("url", ""),
+                            snippet=r.get("description", ""),
+                            source="Brave",
+                        ))
+                    logger.info(f"Brave found {len(results)} results")
+                    return results
+                else:
+                    error = await resp.text()
+                    logger.error(f"Brave API error ({resp.status}): {error}")
+        except Exception as e:
+            logger.error(f"Brave search failed: {e}")
+        return []
+
+    async def _search_exa(
+        self,
+        query: str,
+        max_results: int = 5,
+        search_type: str = "general",
+    ) -> List[SearchResult]:
+        """Exa neural search API (https://api.exa.ai)"""
+        if not self.exa_key:
+            logger.warning("Exa API key not configured")
+            return []
+        try:
+            session = await self._get_session()
+            exa_type = os.getenv("EXA_SEARCH_TYPE", "auto")
+            payload = {
+                "query": query,
+                "numResults": max_results,
+                "type": exa_type,
+                "contents": {"text": {"maxCharacters": int(os.getenv("EXA_MAX_CHARACTERS", "20000"))}},
+            }
+            headers = {
+                "Content-Type": "application/json",
+                "x-api-key": self.exa_key,
+            }
+            async with session.post(
+                "https://api.exa.ai/search",
+                json=payload, headers=headers,
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    results = []
+                    for r in data.get("results", []):
+                        results.append(SearchResult(
+                            title=r.get("title", ""),
+                            url=r.get("url", ""),
+                            snippet=r.get("text", "")[:500],
+                            source="Exa",
+                            published_date=r.get("publishedDate"),
+                        ))
+                    logger.info(f"Exa found {len(results)} results")
+                    return results
+                else:
+                    error = await resp.text()
+                    logger.error(f"Exa API error ({resp.status}): {error}")
+        except Exception as e:
+            logger.error(f"Exa search failed: {e}")
+        return []
+
     # ═══════════════════════════════════════════════════════════════
     # 網頁內容抓取
     # ═══════════════════════════════════════════════════════════════
     
     # Binary extensions that cannot be decoded as text
+    # Note: .pdf is NOT here — handled by _fetch_pdf_url()
     _BINARY_EXTENSIONS = frozenset({
         '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
-        '.pdf', '.zip', '.rar', '.7z', '.gz', '.tar',
+        '.zip', '.rar', '.7z', '.gz', '.tar',
         '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp',
         '.mp3', '.mp4', '.avi', '.mov', '.wav',
         '.exe', '.dll', '.so', '.bin',
@@ -389,8 +490,12 @@ class WebSearchService:
             logger.warning(f"⏭️ URL too long ({len(url.encode('utf-8'))} bytes), skipping: {url[:80]}...")
             return None
 
-        # Guard: skip known binary file extensions
+        # PDF: download + extract text via PyMuPDF
         parsed_path = urlparse(url).path.lower()
+        if parsed_path.endswith('.pdf'):
+            return await self._fetch_pdf_url(url, timeout=30)
+
+        # Guard: skip known binary file extensions
         if any(parsed_path.endswith(ext) for ext in self._BINARY_EXTENSIONS):
             logger.warning(f"⏭️ Binary file skipped: {url[:80]}...")
             return None
@@ -407,6 +512,8 @@ class WebSearchService:
                 if resp.status == 200:
                     # Guard: skip binary Content-Type responses
                     content_type = resp.headers.get('Content-Type', '')
+                    if 'application/pdf' in content_type:
+                        return await self._fetch_pdf_url(url, timeout=30)
                     if not any(t in content_type for t in ('text/', 'application/json', 'application/xml', 'application/xhtml')):
                         logger.warning(f"⏭️ Non-text content ({content_type}), skipping: {url[:80]}...")
                         return None
@@ -443,6 +550,74 @@ class WebSearchService:
         
         return None
     
+    async def _fetch_pdf_url(self, url: str, timeout: int = 30,
+                             max_size_mb: int = 20) -> Optional[str]:
+        """Download PDF from URL and extract text with PyMuPDF.
+
+        Returns None gracefully if PyMuPDF is not installed or extraction fails.
+        """
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            logger.debug("PyMuPDF not installed, skipping PDF: %s", url[:80])
+            return None
+
+        import tempfile
+        import os as _os
+
+        tmp_path = None
+        try:
+            session = await self._get_session()
+            async with session.get(
+                url,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                content_length = resp.headers.get('Content-Length')
+                if content_length and int(content_length) > max_size_mb * 1024 * 1024:
+                    logger.warning(f"⏭️ PDF too large ({content_length} bytes): {url[:80]}")
+                    return None
+                pdf_bytes = await resp.read()
+
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+                tmp.write(pdf_bytes)
+                tmp_path = tmp.name
+
+            doc = fitz.open(tmp_path)
+            max_pages = min(len(doc), 30)
+            text_parts = []
+            for i in range(max_pages):
+                page_text = doc[i].get_text("text").strip()
+                if page_text:
+                    text_parts.append(page_text)
+            doc.close()
+
+            full_text = "\n\n".join(text_parts)
+            if len(full_text) > 15000:
+                full_text = full_text[:15000] + "...[PDF content truncated]"
+
+            if full_text:
+                logger.info(
+                    f"📄 PDF extracted: {urlparse(url).netloc} "
+                    f"({len(full_text)} chars, {max_pages} pages)"
+                )
+            return full_text or None
+
+        except asyncio.TimeoutError:
+            logger.warning(f"⏭️ PDF download timeout: {url[:80]}")
+            return None
+        except Exception as e:
+            logger.warning(f"⏭️ PDF extraction failed ({e}): {url[:80]}")
+            return None
+        finally:
+            if tmp_path:
+                try:
+                    _os.unlink(tmp_path)
+                except OSError:
+                    pass
+
     async def fetch_multiple(self, urls: List[str], max_concurrent: int = 3) -> Dict[str, str]:
         """並行抓取多個網頁"""
         logger.info(f"📥 開始抓取 {len(urls)} 個網頁...")

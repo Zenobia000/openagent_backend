@@ -2,15 +2,21 @@
 
 ---
 
-**文件版本:** `v1.2`
-**最後更新:** `2026-02-23`
-**狀態:** `已批准 (Updated for v3.0 + Context Engineering + Persistent Sandbox & Report Quality)`
+**文件版本:** `v2.0`
+**最後更新:** `2026-02-25`
+**狀態:** `已批准 (v3.3 Pipeline Reengineering — 去制式化)`
 
 ---
 
 ## 執行摘要 (Executive Summary)
 
-Deep Research 是一個 AI 驅動的研究助手，採用**七階段串行處理模式**，通過智能協調多個 AI、搜索服務提供者和 Docker 沙箱來完成深度研究任務。v3.2 新增圖表規劃 (Chart Planning) 和計算分析 (Computational Analysis) 兩個階段。
+Deep Research 是一個 AI 驅動的研究助手，採用**五階段串行處理模式**，通過智能協調多個 AI 和搜索服務提供者來完成深度研究任務。
+
+**v3.3 變更 (Pipeline Reengineering)**:
+- 移除 Domain Identification、Critical Analysis、Chart Planning/Execution 三個階段
+- 新增 Section-Aware Hierarchical Synthesis 階段
+- 報告 prompt 從 23 條制式規則簡化為 10 條靈活指引
+- LLM calls 從 ~12-22 降至 ~9-16
 
 ### 架構定位 (v3.0+)
 
@@ -56,65 +62,62 @@ sequenceDiagram
     end
 
     rect rgb(245, 255, 245)
-        Note right of DR: Phase 3: 查詢生成
+        Note right of DR: Phase 3: 查詢生成 + 搜索迴圈
         DR->>AI: generateSERPQuery(plan)
         activate AI
         AI-->>AI: 分解為子問題
         AI-->>DR: [{query, researchGoal}...]
         deactivate AI
-        DR->>UI: onMessage("serp-query", tasks)
-    end
 
-    rect rgb(255, 240, 245)
-        Note right of DR: Phase 4: 並行搜索
-        loop 每個搜索任務
-            DR->>Search: createSearchProvider(query)
-            activate Search
-            Search-->>DR: {sources, images}
-            deactivate Search
+        loop 搜索迴圈 (max iterations)
+            loop 每個搜索任務
+                DR->>Search: search(query)
+                activate Search
+                Search-->>DR: {sources, images}
+                deactivate Search
+                DR->>AI: processSearchResult(sources)
+                activate AI
+                AI-->>DR: 總結與分析
+                deactivate AI
+                DR->>UI: onMessage("search-task", learning)
+            end
 
-            DR->>AI: processSearchResult(sources)
+            DR->>AI: intermediateSynthesis(results, prev_synthesis)
             activate AI
-            AI-->>DR: 總結與分析
+            AI-->>DR: {synthesis, section_coverage, knowledge_gaps}
             deactivate AI
 
-            DR->>UI: onMessage("search-task", learning)
-            UI->>User: 即時顯示進度
+            DR->>AI: completenessReview(synthesis, plan)
+            activate AI
+            AI-->>DR: {is_sufficient, priority_gaps}
+            deactivate AI
+
+            Note right of DR: 若不足則生成 follow-up queries 繼續迴圈
         end
     end
 
     rect rgb(255, 250, 230)
-        Note right of DR: Phase 4.5: 圖表規劃
-        DR->>AI: planCharts(synthesis, plan)
+        Note right of DR: Phase 4: Section-Aware Hierarchical Synthesis
+        DR->>AI: classifyResultsToSections(plan, results)
         activate AI
-        AI-->>AI: 分析研究數據
-        AI-->>AI: 生成圖表規格 (max 5)
-        AI-->>DR: [{title, type, data_source, code}...]
+        AI-->>DR: {section -> result_ids mapping}
         deactivate AI
-        DR->>UI: onMessage("chart-planning", specs)
-    end
 
-    rect rgb(245, 235, 255)
-        Note right of DR: Phase 4.6: 計算分析
-        participant SB as Sandbox (Docker)
-        loop 每個圖表規格
-            DR->>SB: execute_python(chart_code)
-            activate SB
-            SB-->>DR: {stdout, figures: [base64_png]}
-            deactivate SB
-            DR->>UI: onMessage("chart-result", figure)
-            Note right of DR: Early abort after N consecutive failures
+        par 每個 section 並行合成
+            DR->>AI: synthesizeSection(section, filtered_results)
+            activate AI
+            AI-->>DR: {synthesis, evidence_index, key_data_points}
+            deactivate AI
         end
     end
 
     rect rgb(240, 240, 255)
         Note right of DR: Phase 5: 報告生成
-        DR->>AI: writeFinalReport(learnings, figures)
+        DR->>AI: writeFinalReport(synthesis, plan, evidence_index)
         activate AI
-        AI-->>AI: 整合所有資訊 + 圖表
-        AI-->>AI: 生成結構化報告 (mandatory pipe-tables)
-        AI-->>AI: 內嵌 Figure N 引用
-        AI-->>DR: 完整報告 (markdown + inline figures)
+        AI-->>AI: 整合所有 section synthesis
+        AI-->>AI: 生成結構化報告 (10 條靈活指引)
+        AI-->>DR: 完整報告 (markdown)
         deactivate AI
 
         DR->>UI: onMessage("final-report", report)
@@ -126,7 +129,7 @@ sequenceDiagram
 
 ## 詳細流程步驟 (Detailed Process Steps)
 
-### 📍 Step 1: 研究啟動 (Research Initiation)
+### Step 1: 研究啟動 (Research Initiation)
 
 ```typescript
 // 入口點: src/utils/deep-research/index.ts:537
@@ -144,11 +147,11 @@ async start(
 - `enableReferences`: 是否包含參考文獻
 - `enableFileFormatResource`: 是否生成資源文件
 
-### 📍 Step 2: 研究計劃生成 (Report Plan Generation)
+### Step 2: 研究計劃生成 (Report Plan Generation)
 
-```typescript
-// src/utils/deep-research/index.ts:112
-async writeReportPlan(query: string): Promise<string>
+```python
+# src/core/processors/research/planner.py
+async def write_report_plan(self, context: ProcessingContext) -> str:
 ```
 
 **處理流程:**
@@ -157,57 +160,26 @@ async writeReportPlan(query: string): Promise<string>
 3. 使用 streaming 實時返回內容
 4. 發送進度事件: `onMessage("report-plan", content)`
 
-**輸出範例:**
-```markdown
-# 研究計劃：量子計算的最新進展
+### Step 3: 搜索迴圈 (Search Loop)
 
-## 研究目標
-- 了解量子計算的基本原理
-- 探索當前的應用領域
-- 分析技術挑戰和限制
-- 展望未來發展趨勢
+搜索迴圈包含四個子步驟，可迭代執行直到研究充分或達到最大迭代數：
 
-## 研究範圍
-1. 理論基礎
-2. 硬件發展
-3. 軟件和算法
-4. 產業應用
-5. 未來展望
+#### 3a. SERP 查詢生成
+
+```python
+# src/core/processors/research/planner.py
+async def generate_serp_queries(
+    self, context: ProcessingContext, plan: str,
+    search_config: SearchEngineConfig = None,
+    language: str = None
+) -> List[Dict]:
 ```
 
-### 📍 Step 3: SERP 查詢生成 (Search Query Generation)
+基於研究計劃生成 5-8 個搜索查詢，每個包含 `query`、`researchGoal`、`priority`。
 
-```typescript
-// src/utils/deep-research/index.ts:150
-async generateSERPQuery(
-  reportPlan: string
-): Promise<DeepResearchSearchTask[]>
-```
+> **v3.3 變更**: 移除了 `domains` 參數。Domain-aware 搜索策略已合併到 SERP prompt 中（"Cover different aspects/domains proportionally"），不再需要獨立的 Domain Identification LLM call。
 
-**處理流程:**
-1. 基於研究計劃生成 5-7 個搜索查詢
-2. 每個查詢包含具體的研究目標
-3. 返回結構化的任務陣列
-
-**輸出格式:**
-```typescript
-interface DeepResearchSearchTask {
-  query: string;         // 搜索查詢
-  researchGoal: string;  // 研究目標
-}
-```
-
-### 📍 Step 4: 並行搜索執行 (Parallel Search Execution)
-
-```typescript
-// src/utils/deep-research/index.ts:189
-async runSearchTask(
-  tasks: DeepResearchSearchTask[],
-  enableReferences = true
-): Promise<SearchTask[]>
-```
-
-**執行策略:**
+#### 3b. 搜索執行
 
 ```mermaid
 flowchart TD
@@ -232,103 +204,102 @@ flowchart TD
     G --> H[返回處理結果]
 ```
 
-**並行處理特點:**
-- 使用 `for await` 循環順序處理任務
-- 每個任務獨立執行，失敗不影響其他
-- 實時 streaming 返回結果
-- 自動去重和排序
-
-### 📍 Step 4.5: 圖表規劃 (Chart Planning)
+#### 3c. Intermediate Synthesis
 
 ```python
-# src/core/processors/research/processor.py
-async def _plan_charts(
+# src/core/processors/research/analyzer.py
+async def intermediate_synthesis(
+    self, context: ProcessingContext, report_plan: str,
+    wave_results: List[Dict], previous_synthesis: Optional[str] = None
+) -> Dict[str, Any]:
+```
+
+整合本波搜尋結果與前波理解，輸出 JSON:
+```json
+{
+  "synthesis": "整合後的理解...",
+  "section_coverage": {"section_name": {"status": "covered|partial|missing"}},
+  "knowledge_gaps": ["gap1", "gap2"],
+  "cross_domain_links": ["link1"]
+}
+```
+
+#### 3d. Completeness Review
+
+```python
+# src/core/processors/research/analyzer.py
+async def completeness_review(
+    self, context: ProcessingContext, report_plan: str,
+    synthesis: str, section_coverage: Dict, iteration: int
+) -> Tuple[bool, Dict]:
+```
+
+章節級評估 — 每個 section 的覆蓋率和深度，整體是否足夠。不足時生成 `priority_gaps` 驅動 follow-up queries。
+
+### Step 4: Section-Aware Hierarchical Synthesis
+
+```python
+# src/core/processors/research/section_synthesizer.py
+class SectionSynthesizer:
+    async def build_hierarchical_context(
+        self, context, report_plan, search_results,
+        language=None
+    ) -> Dict:
+```
+
+**處理流程:**
+1. `parse_sections(report_plan)` — 從報告大綱解析出所有 section 標題
+2. `classify_results_to_sections(context, sections, search_results)` — 1 LLM call 將搜尋結果按章節分類
+3. `synthesize_section(context, section, filtered_results)` — N 個並行 LLM call，每個 section 獨立合成
+
+**輸出:**
+```python
+{
+    "section_context": "## Section 1\n{synthesis}\n\n## Section 2\n...",
+    "evidence_index": [
+        {"claim": "...", "source_ids": [1, 3], "confidence": "high"},
+        ...
+    ]
+}
+```
+
+> **v3.3 新增**: 此階段解決了「漸進式摘要資訊漏斗」問題 — 傳統的單一 synthesis 將 ~70K chars 壓縮到 ~3.5K (0.7% 保留率)。Section-aware synthesis 讓每個 section 直接存取其相關的原始搜尋結果，保留率提升至 ~16%。
+
+### Step 5: 最終報告生成 (Final Report Generation)
+
+```python
+# src/core/processors/research/reporter.py
+async def write_final_report(
     self, context: ProcessingContext,
     search_results: List[Dict],
     report_plan: str,
-    synthesis: str = None
-) -> List[Dict]:
-```
-
-**處理流程:**
-1. 將研究綜述和報告大綱傳入 LLM (`PromptTemplates.get_chart_planning_prompt()`)
-2. LLM 生成最多 5 個圖表規格，每個包含 `title`、`chart_type`、`data_source`、`python_code`
-3. 圖表規劃永遠執行（不依賴沙箱可用性），只有後續執行需要沙箱
-
-**輸出格式:**
-```python
-[
-    {
-        "title": "各技術方案成本對比",
-        "chart_type": "bar",
-        "data_source": "from_research",
-        "python_code": "import matplotlib.pyplot as plt\n..."
-    },
-    # ... (max 5)
-]
-```
-
-### 📍 Step 4.6: 計算分析 (Computational Analysis)
-
-```python
-# src/core/processors/research/processor.py
-async def _execute_chart_plan(
-    self, context: ProcessingContext,
-    chart_specs: List[Dict],
-    search_results: List[Dict],
-    synthesis: str = None
-) -> Optional[Dict[str, Any]]:
-```
-
-**處理流程:**
-1. 逐一在 Docker 沙箱中執行每個圖表的 Python 代碼
-2. 超時控制：`SANDBOX_COMPUTE_TIMEOUT` env var (預設 60 秒)
-3. 捕獲 matplotlib 圖表為 base64 PNG (`figures` 陣列)
-4. **早期中止 (Early Abort)**: 連續失敗次數達到 `SANDBOX_MAX_CHART_FAILURES` (預設 2) 時，跳過剩餘圖表
-5. 失敗的圖表嘗試 LLM 修復代碼後重試一次
-
-**CJK 字體支援:**
-- 沙箱 Docker 映像預安裝 `fonts-noto-cjk`
-- 字體鏈: `Noto Sans CJK JP → Noto Sans CJK TC → Noto Sans CJK SC → DejaVu Sans`
-- 圖表代碼通過 prompt 注入 `plt.rcParams['font.sans-serif']` 設定
-
-**沙箱架構:**
-- 使用 `_PersistentSandbox` (線程安全 Docker REPL) 消除冷啟動
-- 通過 Docker multiplexed stream (`attach_socket`, `tty=False`) 通信
-- 容器崩潰時自動重啟，降級為短暫容器 (ephemeral fallback)
-
-### 📍 Step 5: 最終報告生成 (Final Report Generation)
-
-```typescript
-// src/utils/deep-research/index.ts:386
-async writeFinalReport(
-  reportPlan: string,
-  tasks: DeepResearchSearchResult[],
-  enableCitationImage = true,
-  enableReferences = true,
-  enableFileFormatResource = true
-): Promise<FinalReportResult>
+    synthesis: str = None,
+    language: str = None,
+    evidence_index: Optional[List[Dict]] = None
+) -> str:
 ```
 
 **整合流程:**
-1. 收集所有搜索任務的學習結果
-2. 合併去重來源和圖片
-3. 生成資源文件 (可選)
-4. 調用 AI 生成結構化報告 (mandatory markdown pipe-table syntax)
-5. 添加引用標記和參考文獻
-6. **Figure 內嵌處理**: 搜索報告中的 "Figure N" 文字引用，將對應的 base64 圖表插入引用段落結尾
-7. 儲存研究數據至 per-session 目錄: `research_data/{trace_id}_{timestamp}/`
+1. 組合 section synthesis + detailed source material (Dual-Context)
+2. 構建 evidence citation index (pre-verified claim-source mappings)
+3. 調用 AI 生成報告 (10 條靈活指引，信任模型推理能力)
+4. 分析引用 — 區分 cited refs 和 uncited refs
+5. 格式化報告 + 分類引用統計
+6. 儲存 report bundle: `logs/reports/{trace_id}_{timestamp}/`
 
-**輸出結構:**
-```typescript
-interface FinalReportResult {
-  title: string;          // 報告標題
-  finalReport: string;    // 完整報告 (markdown)
-  learnings: string[];    // 學習摘要陣列
-  sources: Source[];      // 來源列表
-  images: ImageSource[];  // 圖片列表
-}
-```
+> **v3.3 變更**: 移除了 `critical_analysis` 和 `computational_result` 參數。報告 prompt 從 23 條 McKinsey-grade 制式規則簡化為 10 條靈活指引，避免 MECE/Pyramid/CEI 等 MBA 框架導致的機械化輸出。
+
+**報告 prompt 核心指引 (10 條):**
+1. Inline citations [1], [2], [3]
+2. 不含 references section (另外附加)
+3. ## / ### 結構化標題
+4. 3000+ words 分析深度
+5. 具體數字、公司名、統計數據
+6. Markdown pipe-table syntax
+7. 跨章節交叉引用
+8. 優先引用 Tier 1-2 來源
+9. 方法論章節 (研究範圍、來源、局限)
+10. 自然分析式寫作，避免制式模板
 
 ## 狀態管理與事件流 (State Management & Event Flow)
 
@@ -351,17 +322,16 @@ stateDiagram-v2
     Planning --> Querying: 計劃完成
     Querying --> Searching: 查詢生成
     Searching --> Searching: 處理下一個任務
-    Searching --> ChartPlanning: 所有搜索完成
-    ChartPlanning --> ComputationalAnalysis: 圖表規格生成
-    ComputationalAnalysis --> ComputationalAnalysis: 執行下一個圖表
-    ComputationalAnalysis --> Reporting: 圖表完成 or 早期中止
+    Searching --> Synthesizing: 本輪搜索完成
+    Synthesizing --> CompletenessReview: 中間合成完成
+    CompletenessReview --> Querying: 研究不足，生成 follow-up
+    CompletenessReview --> SectionSynthesis: 研究充分
+    SectionSynthesis --> Reporting: 階層式合成完成
     Reporting --> Completed: 報告生成
 
     Planning --> Error: 計劃失敗
     Querying --> Error: 查詢失敗
     Searching --> Error: 搜索失敗
-    ChartPlanning --> Reporting: 規劃失敗 (graceful skip)
-    ComputationalAnalysis --> Reporting: 連續失敗超過閾值 (early abort)
     Reporting --> Error: 報告失敗
 
     Error --> Idle: 重置
@@ -377,8 +347,8 @@ stateDiagram-v2
 
 ### 2. 並行處理
 - 搜索任務序列執行但獨立處理
+- Section synthesis 並行執行 (每個 section 獨立 LLM call)
 - 單個失敗不影響整體
-- Promise.allSettled 容錯處理
 
 ### 3. 智能快取
 ```typescript
@@ -418,6 +388,7 @@ try {
 2. **搜索引擎失敗**: 跳過該引擎繼續 (Tavily -> Serper -> DuckDuckGo)
 3. **部分失敗**: 使用成功的結果生成報告
 4. **Context Engineering**: 失敗的搜索步驟通過 ErrorPreservation 保留在 context 中，後續步驟可從錯誤中學習 (feature-flag controlled)
+5. **Section Synthesis 降級**: 若 section classification 失敗，退化為傳統的全量 synthesis
 
 ## 配置與擴展 (Configuration & Extension)
 
@@ -432,19 +403,13 @@ try {
 | `DEEP_RESEARCH_MAX_TOTAL_QUERIES` | `20` | 每次研究的最大搜索查詢總數 |
 | `DEEP_RESEARCH_URLS_PER_QUERY` | `3` | 每個查詢抓取的完整內容 URL 數 |
 
-### 沙箱與圖表配置
-
-| 環境變數 | 預設值 | 說明 |
-|:---|:---:|:---|
-| `SANDBOX_COMPUTE_TIMEOUT` | `60` | 沙箱計算超時 (秒) |
-| `SANDBOX_MAX_CHART_FAILURES` | `2` | 連續圖表失敗閾值，超過則早期中止 |
-
 ### 研究數據儲存 (Research Data Storage)
 
-研究數據以 per-session 目錄儲存：
+研究數據以 per-session bundle 儲存：
 ```
-logs/research_data/{trace_id[:8]}_{timestamp}/
-  └── search_results.json    # 搜索結果的序列化子集
+logs/reports/{trace_id[:8]}_{timestamp}/
+  ├── report.md         # Clean markdown report
+  └── metadata.json     # Structured metadata (query, mode, model, duration, citations)
 ```
 
 ### 提供者配置
@@ -499,12 +464,23 @@ interface DeepResearchOptions {
 
 ## 總結 (Summary)
 
-Deep Research 採用**七階段串行架構**，通過智能協調 AI、搜索服務和 Docker 沙箱，實現高質量的自動化研究。關鍵優勢：
+Deep Research 採用**五階段串行架構**，通過智能協調 AI 和搜索服務，實現高質量的自動化研究。關鍵優勢：
 
-- **模組化設計** - 各階段獨立，易於維護
-- **容錯機制** - 單點失敗不影響整體 (AgentRuntime retry + ErrorClassifier + early abort)
+- **模組化設計** - 各階段獨立，易於維護 (planner/analyzer/section_synthesizer/reporter)
+- **容錯機制** - 單點失敗不影響整體 (AgentRuntime retry + ErrorClassifier)
 - **實時反饋** - Streaming 提升用戶體驗
 - **可擴展性** - 輕鬆添加新的提供者
 - **Context Engineering** - Append-only context 保護 KV-Cache，錯誤保留實現隱式學習 (v3.1)
-- **計算分析** - 持久沙箱消除冷啟動，CJK 字體支援，圖表早期中止 (v3.2)
-- **報告品質** - Markdown pipe-table 強制、Figure 內嵌定位、per-session 數據儲存 (v3.2)
+- **Hierarchical Synthesis** - Section-aware 合成解決資訊漏斗問題，保留率從 0.7% 提升至 ~16% (v3.3)
+- **去制式化** - 信任模型推理能力，10 條靈活指引取代 23 條制式規則 (v3.3)
+
+---
+
+## 版本歷史
+
+| 版本 | 日期 | 變更 |
+|------|------|------|
+| v1.0 | 2026-02-18 | 初始版本 (v3.0 架構) |
+| v1.1 | 2026-02-23 | 新增 Chart Planning, Computational Analysis, Report Quality |
+| v1.2 | 2026-02-23 | 新增 Context Engineering |
+| v2.0 | 2026-02-25 | **Pipeline Reengineering**: 移除 Domain ID / Critical Analysis / Chart Planning + Execution; 新增 Section-Aware Hierarchical Synthesis; 報告 prompt 去制式化 (23→10 rules) |

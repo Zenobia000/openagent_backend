@@ -6,6 +6,22 @@
 
 ---
 
+> **⚠️ v3.3 更新 (2026-02-25)**: 本文件的建議在 Phase 4 (McKinsey-Grade) 中全部實作，但隨後在 Phase 5 (Pipeline Reengineering) 中部分被反轉。
+>
+> **已反轉/移除的建議:**
+> - Gap A (Report Structure: MECE + Pyramid + So-What) → **簡化** — 保留自然分析式寫作指引，移除 MECE/Pyramid/CEI/So-What 制式框架
+> - Gap B (Table Quality: analytical table spec) → **簡化** — 保留 pipe-table syntax，移除表格類型強制
+> - Gap C (Data Visualization: Computational Pipeline) → **完全移除** — Chart Planning、Per-Chart Code Gen、Inline Embedding 全部移除
+> - Layer 2b (Sandbox-free Fallback) → **不再需要** — chart pipeline 已移除
+> - Layer 3 (Report Artifact Bundle) → **保留但簡化** — 移除 figure/artifacts 子目錄
+>
+> **仍然有效的建議:**
+> - Gap D (Analytical Depth) → 透過簡化 prompt 讓 LLM 自然發揮，而非強制 So-What chain
+> - Layer 1 Gap C (Quantification Standard) → 保留為待實作
+> - 上游搜尋品質導向 → 保留為待實作
+
+---
+
 ## 1. Problem Statement
 
 V.1 benchmark 達標（字數、引用、表格數量都超標），但**報告品質的本質**距離 McKinsey / top-tier consulting 報告仍有明顯差距。

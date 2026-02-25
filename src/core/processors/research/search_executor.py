@@ -350,16 +350,12 @@ class SearchExecutor:
         try:
             if provider == SearchProviderType.MODEL:
                 return await self._model_based_search(query, goal)
-            elif provider == SearchProviderType.EXA:
-                return await self._exa_search(query, goal)
 
             if self.search_service:
-                if hasattr(self.search_service, 'set_provider'):
-                    self.search_service.set_provider(provider.value.lower())
-
                 results = await self.search_service.search(
                     query=query,
-                    max_results=self.search_config.max_results
+                    max_results=self.search_config.max_results,
+                    provider=provider.value.lower(),
                 )
 
                 if results:
@@ -374,7 +370,7 @@ class SearchExecutor:
         return None
 
     async def _exa_search(self, query: str, goal: str) -> Optional[Dict]:
-        """Exa neural search."""
+        """Exa neural search — uses provider parameter (no shared state mutation)."""
         if not self.search_service:
             return None
 
@@ -387,18 +383,14 @@ class SearchExecutor:
             search_type = "news"
 
         try:
-            if hasattr(self.search_service, 'provider'):
-                old_provider = self.search_service.provider
-                self.search_service.provider = "exa"
-                results = await self.search_service.search(
-                    query=query,
-                    max_results=self.search_config.max_results,
-                    search_type=search_type
-                )
-                self.search_service.provider = old_provider
-
-                if results:
-                    return self._format_search_results(results, "exa")
+            results = await self.search_service.search(
+                query=query,
+                max_results=self.search_config.max_results,
+                search_type=search_type,
+                provider="exa",
+            )
+            if results:
+                return self._format_search_results(results, "exa")
 
         except Exception as e:
             self.logger.error(f"Exa search failed: {e}", "deep_research", "exa_error")

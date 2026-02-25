@@ -131,7 +131,7 @@ class TestInformationRetention:
 # ========== Phase 1.2: Report Prompt Structure Constraints ==========
 
 class TestReportPromptConstraints:
-    """Report prompt must enforce tables, word count, forward-looking, cross-domain."""
+    """Report prompt must enforce core quality guidelines (streamlined)."""
 
     def _get_prompt(self, processor, refs=None):
         refs = refs or [{'id': 1, 'title': 'T', 'url': 'u', 'query': 'q', 'relevance': 0.8}]
@@ -139,31 +139,30 @@ class TestReportPromptConstraints:
             plan="plan", context="ctx", references=refs, requirement="req"
         )
 
-    def test_requires_comparison_tables(self, processor):
-        prompt = self._get_prompt(processor)
-        assert "comparison table" in prompt.lower() or "structured comparison" in prompt.lower()
-
     def test_requires_3000_words(self, processor):
         prompt = self._get_prompt(processor)
         assert "3000" in prompt
 
-    def test_requires_forward_looking(self, processor):
+    def test_requires_citations(self, processor):
         prompt = self._get_prompt(processor)
-        assert "forward-looking" in prompt.lower() or "trend prediction" in prompt.lower()
+        assert "citation" in prompt.lower() or "[1]" in prompt
 
-    def test_requires_cross_domain(self, processor):
-        prompt = self._get_prompt(processor)
-        assert "cross-domain" in prompt.lower()
-
-    def test_requires_specific_examples(self, processor):
+    def test_requires_specific_data(self, processor):
         prompt = self._get_prompt(processor)
         p = prompt.lower()
-        assert "specific" in p and ("company" in p or "example" in p or "product" in p)
+        assert "specific" in p and ("number" in p or "statistic" in p or "company" in p)
 
-    def test_requires_actionable_recommendations(self, processor):
+    def test_requires_cross_reference(self, processor):
         prompt = self._get_prompt(processor)
-        p = prompt.lower()
-        assert "actionable" in p or "recommendation" in p
+        assert "cross-reference" in prompt.lower() or "cross reference" in prompt.lower()
+
+    def test_requires_methodology(self, processor):
+        prompt = self._get_prompt(processor)
+        assert "methodology" in prompt.lower()
+
+    def test_requires_natural_writing(self, processor):
+        prompt = self._get_prompt(processor)
+        assert "natural" in prompt.lower() or "formulaic" in prompt.lower()
 
 
 # ========== Phase 1.3: Query Deduplication ==========
@@ -237,15 +236,15 @@ class TestDeadCodeCleanup:
     async def test_workflow_skips_clarification(self, mock_llm, deep_context, mock_logger_ctx):
         processor = DeepResearchProcessor(mock_llm)
 
-        # Pipeline: plan → domains → SERP → search → synthesis → review → critical → final
+        # Pipeline: plan → SERP → search → synthesis → review → section_classify → section_synth → final
         mock_llm.generate = AsyncMock(side_effect=[
             "Plan",
-            '{"domains": []}',
             '```json\n[{"query": "test", "researchGoal": "g", "priority": 1}]\n```',
             "Search result from model",
             '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',
             '{"is_sufficient": true, "overall_coverage": 90, "sections": [], "priority_gaps": []}',
-            "Critical analysis result",
+            '{"mapping": {"Research Findings": [0]}}',
+            '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',
             "Final report",
         ])
 
@@ -381,37 +380,6 @@ class TestStructuredCompletenessReview:
         assert isinstance(gap_report, dict)
 
 
-# ========== Phase 2.3: Critical Analysis Always-On ==========
-
-class TestCriticalAnalysisAlwaysOn:
-    """Critical analysis must run unconditionally — no keyword gate."""
-
-    @pytest.mark.asyncio
-    async def test_critical_analysis_called_for_simple_query(self, mock_llm, mock_logger_ctx):
-        """Even short/simple queries should trigger critical analysis."""
-        req = Request(query="hello", mode=Modes.DEEP_RESEARCH)
-        resp = Response(result="", mode=Modes.DEEP_RESEARCH, trace_id=req.trace_id)
-        ctx = ProcessingContext(request=req, response=resp)
-
-        processor = DeepResearchProcessor(mock_llm)
-
-        mock_llm.generate = AsyncMock(side_effect=[
-            "Plan",
-            '{"domains": []}',
-            '```json\n[{"query": "test", "researchGoal": "g", "priority": 1}]\n```',
-            "Search result",
-            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',
-            '{"is_sufficient": true}',
-            "Critical analysis result",
-            "Final report",
-        ])
-
-        with patch.object(processor, '_critical_analysis_stage',
-                          wraps=processor._critical_analysis_stage) as mock_ca:
-            await processor.process(ctx)
-            mock_ca.assert_called_once()
-
-
 # ========== Integration: Full Pipeline ==========
 
 class TestFullPipelineIntegration:
@@ -423,12 +391,12 @@ class TestFullPipelineIntegration:
 
         mock_llm.generate = AsyncMock(side_effect=[
             "Comprehensive research plan with sections",          # 1. plan
-            '{"domains": [{"name": "tech", "weight": 0.5, "search_angles": ["AI"]}, {"name": "labor", "weight": 0.5, "search_angles": ["workforce"]}]}',  # 2. domain identification
-            '```json\n[{"query": "blue collar AI 2026", "researchGoal": "market trends", "priority": 1}]\n```',  # 3. SERP
-            "Detailed search findings about blue collar AI transformation",  # 4. model search
-            '{"synthesis": "Blue collar AI is transforming via SaaP model", "section_coverage": {"market": {"status": "covered"}}, "knowledge_gaps": [], "cross_domain_links": ["tech-business"]}',  # 5. synthesis
-            '{"is_sufficient": true, "overall_coverage": 85, "sections": [], "priority_gaps": []}',  # 6. review
-            "Multi-perspective critical analysis of blue collar transformation",  # 7. critical analysis
+            '```json\n[{"query": "blue collar AI 2026", "researchGoal": "market trends", "priority": 1}]\n```',  # 2. SERP
+            "Detailed search findings about blue collar AI transformation",  # 3. model search
+            '{"synthesis": "Blue collar AI is transforming via SaaP model", "section_coverage": {"market": {"status": "covered"}}, "knowledge_gaps": [], "cross_domain_links": ["tech-business"]}',  # 4. synthesis
+            '{"is_sufficient": true, "overall_coverage": 85, "sections": [], "priority_gaps": []}',  # 5. review
+            '{"mapping": {"Research Findings": [0]}}',  # 6. section classification
+            '{"synthesis": "Section synthesis on blue collar AI", "evidence_index": [], "key_data_points": []}',  # 7. section synthesis
             "Final comprehensive report on blue collar AI transformation with tables and analysis",  # 8. final report
         ])
 
@@ -446,16 +414,16 @@ class TestFullPipelineIntegration:
 
         mock_llm.generate = AsyncMock(side_effect=[
             "Plan",                                                          # 1. plan
-            '{"domains": []}',                                               # 2. domain identification
-            '```json\n[{"query": "q1", "researchGoal": "g1", "priority": 1}]\n```',  # 3. SERP iter 1
-            "Search result iter 1",                                          # 4. model search
-            '{"synthesis": "partial understanding", "section_coverage": {}, "knowledge_gaps": ["gap1"], "cross_domain_links": []}',  # 5. synthesis
-            '{"is_sufficient": false, "overall_coverage": 40, "sections": [], "priority_gaps": ["need gap1 data"]}',  # 6. review → NOT sufficient
-            '```json\n[{"query": "q2 followup", "researchGoal": "fill gap1", "priority": 1}]\n```',  # 7. followup queries
-            "Search result iter 2",                                          # 8. model search iter 2
-            '{"synthesis": "complete understanding", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 9. synthesis
-            '{"is_sufficient": true, "overall_coverage": 90, "sections": [], "priority_gaps": []}',  # 10. review → sufficient
-            "Critical analysis across iterations",                           # 11. critical analysis
+            '```json\n[{"query": "q1", "researchGoal": "g1", "priority": 1}]\n```',  # 2. SERP iter 1
+            "Search result iter 1",                                          # 3. model search
+            '{"synthesis": "partial understanding", "section_coverage": {}, "knowledge_gaps": ["gap1"], "cross_domain_links": []}',  # 4. synthesis
+            '{"is_sufficient": false, "overall_coverage": 40, "sections": [], "priority_gaps": ["need gap1 data"]}',  # 5. review → NOT sufficient
+            '```json\n[{"query": "q2 followup", "researchGoal": "fill gap1", "priority": 1}]\n```',  # 6. followup queries
+            "Search result iter 2",                                          # 7. model search iter 2
+            '{"synthesis": "complete understanding", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 8. synthesis
+            '{"is_sufficient": true, "overall_coverage": 90, "sections": [], "priority_gaps": []}',  # 9. review → sufficient
+            '{"mapping": {"Research Findings": [0, 1]}}',                    # 10. section classification
+            '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',  # 11. section synthesis
             "Final report synthesizing both iterations",                     # 12. final report
         ])
 
@@ -678,8 +646,8 @@ class TestDomainAwareSearch:
         # Fallback should still return something usable (possibly empty or general)
 
     @pytest.mark.asyncio
-    async def test_domains_passed_to_serp_generation(self, mock_llm, mock_logger_ctx):
-        """_generate_serp_queries should accept and use domain info."""
+    async def test_serp_generation_works_without_domains(self, mock_llm, mock_logger_ctx):
+        """_generate_serp_queries should work without domain parameter."""
         mock_llm.generate = AsyncMock(return_value='```json\n[{"query": "q1", "researchGoal": "g1", "priority": 1}]\n```')
 
         processor = DeepResearchProcessor(mock_llm)
@@ -688,28 +656,22 @@ class TestDomainAwareSearch:
             response=Response(result="", mode=Modes.DEEP_RESEARCH, trace_id="test")
         )
 
-        domains = [
-            {"name": "tech", "weight": 0.5, "search_angles": ["AI", "ML"]},
-            {"name": "biz", "weight": 0.5, "search_angles": ["revenue", "market"]},
-        ]
-
-        # Should accept domains parameter without error
-        queries = await processor._generate_serp_queries(deep_context, "plan", domains=domains)
+        queries = await processor._generate_serp_queries(deep_context, "plan")
         assert isinstance(queries, list)
 
     @pytest.mark.asyncio
-    async def test_workflow_calls_identify_domains(self, mock_llm, mock_logger_ctx):
-        """Full pipeline should call _identify_research_domains after plan."""
+    async def test_workflow_llm_call_count(self, mock_llm, mock_logger_ctx):
+        """Full pipeline should make exactly 8 LLM calls (no domain_id, critical, charts)."""
         processor = DeepResearchProcessor(mock_llm)
 
         mock_llm.generate = AsyncMock(side_effect=[
             "Plan",                                                                # 1. plan
-            '{"domains": [{"name": "tech", "weight": 1.0, "search_angles": ["AI"]}]}',  # 2. domain identification
-            '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',  # 3. SERP
-            "Search result from model",                                            # 4. model search
-            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 5. synthesis
-            '{"is_sufficient": true}',                                             # 6. review
-            "Critical analysis result",                                            # 7. critical analysis
+            '```json\n[{"query": "test", "researchGoal": "test", "priority": 1}]\n```',  # 2. SERP
+            "Search result from model",                                            # 3. model search
+            '{"synthesis": "s", "section_coverage": {}, "knowledge_gaps": [], "cross_domain_links": []}',  # 4. synthesis
+            '{"is_sufficient": true}',                                             # 5. review
+            '{"mapping": {"Research Findings": [0]}}',                             # 6. section classification
+            '{"synthesis": "Section synthesis", "evidence_index": [], "key_data_points": []}',  # 7. section synthesis
             "Final research report",                                               # 8. final report
         ])
 
@@ -720,5 +682,4 @@ class TestDomainAwareSearch:
 
         result = await processor.process(deep_context)
         assert isinstance(result, str)
-        # Verify domain identification was called (2nd LLM call)
         assert mock_llm.generate.call_count == 8

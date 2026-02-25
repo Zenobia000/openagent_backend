@@ -4,7 +4,7 @@
 
 **Document Version:** `v2.3`
 **Last Updated:** `2026-02-23`
-**Status:** `Current (v3.0 Linus Refactored + v3.1 Context Engineering + v3.2 Persistent Sandbox & Report Quality)`
+**Status:** `Current (v3.0 Linus Refactored + v3.1 Context Engineering + v3.2 Persistent Sandbox & Report Quality + v3.3 Pipeline Reengineering)`
 
 ---
 
@@ -501,8 +501,8 @@ The project strictly follows a unidirectional dependency structure: **API → Co
 |:---|:---|:---|
 | **Markdown Tables** | Pipe-table enforcement in report prompt | All tables must use `\| col \| col \|` syntax; prose/bullet substitutes forbidden |
 | **CJK Font Rendering** | `fonts-noto-cjk` in sandbox Docker image | Font chain: `Noto Sans CJK JP → Noto Sans CJK TC → Noto Sans CJK SC → DejaVu Sans` |
-| **Figure Inline Placement** | "Figure N" reference search + paragraph-end insertion | Charts embedded as base64 data URIs after the paragraph referencing them |
-| **Chart Early Abort** | `SANDBOX_MAX_CHART_FAILURES` (default 2) | Consecutive chart failures trigger early abort to prevent cascading timeouts |
+| ~~**Figure Inline Placement**~~ | ~~"Figure N" reference search + paragraph-end insertion~~ | ~~Removed in v3.3 — chart pipeline no longer active~~ |
+| ~~**Chart Early Abort**~~ | ~~`SANDBOX_MAX_CHART_FAILURES` (default 2)~~ | ~~Removed in v3.3 — chart pipeline no longer active~~ |
 | **Per-Session Research Data** | `research_data/{trace_id}_{timestamp}/` | Search results saved in isolated per-session directories |
 
 #### Resilience
@@ -609,7 +609,21 @@ uvicorn.run(create_app(), host='0.0.0.0', port=8000)
 - [x] Per-session research data — `research_data/{trace_id}_{timestamp}/` directories
 - [x] Search budget model — configurable query limits via env vars (`DEEP_RESEARCH_QUERIES_*`)
 
-### Phase 5+: Future Enhancements
+### v3.3: Pipeline Reengineering — 去制式化 (Completed)
+
+- [x] Removed Domain Identification stage (1 LLM call saved, merged into SERP prompt)
+- [x] Removed Critical Analysis stage (1 LLM call saved, trust LLM reasoning)
+- [x] Removed Chart Planning + Execution stages (1-3 LLM calls saved, chart pipeline removed from processor)
+- [x] Added Section-Aware Hierarchical Synthesis (`section_synthesizer.py` ~230 lines)
+- [x] Report prompt de-formalization — 23 McKinsey-grade rules → 10 flexible guidelines
+- [x] Removed MECE/Pyramid/CEI/So-What template constraints
+- [x] Total LLM calls reduced from ~12-22 to ~9-16
+- [x] Net reduction: ~100 lines of production code
+- [x] Tests: 323 passed, 0 regressions
+
+> **Note**: v3.2 sandbox infrastructure (`_PersistentSandbox`, `CodeSecurityFilter`) remains in codebase but is no longer invoked by the Deep Research processor. It may be used by other features in the future.
+
+### Phase 6+: Future Enhancements
 
 - [ ] Redis distributed cache (replacing in-memory ResponseCache)
 - [x] Plugin system scaffold (3 example plugins: translator, stock-analyst, weather-tool; `PLUGIN_DEV_GUIDE.md`; plugin.json manifest spec)

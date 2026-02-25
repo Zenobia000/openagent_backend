@@ -2,10 +2,10 @@
 Deep Research Processor - Agent-level research orchestrator
 
 Thin orchestrator that composes specialized sub-modules:
-- ResearchPlanner: domain identification, query generation, completeness review
+- ResearchPlanner: query generation, completeness review
 - SearchExecutor: multi-engine search execution with parallel/race strategies
-- ResearchAnalyzer: progressive synthesis and critical analysis
-- ComputationEngine: chart planning and sandbox execution
+- ResearchAnalyzer: progressive synthesis
+- SectionSynthesizer: section-aware hierarchical synthesis
 - ReportGenerator: final report generation and persistence
 - StreamingManager: SSE event infrastructure
 
@@ -28,8 +28,8 @@ from .events import ResearchEvent
 from .planner import ResearchPlanner
 from .search_executor import SearchExecutor
 from .analyzer import ResearchAnalyzer, summarize_search_results
-from .computation import ComputationEngine
 from .reporter import ReportGenerator, prepare_report_context
+from .section_synthesizer import SectionSynthesizer
 from .streaming import StreamingManager
 
 
@@ -61,10 +61,6 @@ class DeepResearchProcessor(BaseProcessor):
             emit_event=self.streaming.emit_event,
             log_dir=getattr(self.logger, 'log_dir', 'logs'),
         )
-        self.computation = ComputationEngine(
-            call_llm=self._call_llm,
-            sandbox_service=self.services.get("sandbox"),
-        )
         self.reporter = ReportGenerator(
             call_llm=self._call_llm,
             log_dir=getattr(self.logger, 'log_dir', 'logs'),
@@ -73,6 +69,7 @@ class DeepResearchProcessor(BaseProcessor):
                 getattr(self.llm_client, 'model_name', 'unknown')
             ) if self.llm_client else 'unknown',
         )
+        self.section_synth = SectionSynthesizer(self._call_llm)
 
         # Legacy attributes (for backward compat with tests)
         self.event_callback = event_callback
@@ -167,17 +164,28 @@ class DeepResearchProcessor(BaseProcessor):
         if last_error:
             raise last_error
 
+    @staticmethod
+    def _detect_language(query: str) -> str:
+        """Detect user language from query text.
+
+        Simple heuristic: if >30% of characters are CJK → 繁體中文, else English.
+        """
+        if not query:
+            return "English"
+        cjk = sum(1 for c in query if '\u4e00' <= c <= '\u9fff')
+        return "繁體中文" if cjk / len(query) > 0.3 else "English"
+
     async def _execute_research_workflow(self, context: ProcessingContext,
                                          workflow_state: dict) -> str:
         """Execute core research workflow with progressive synthesis."""
 
+        # 0. Detect user language for output control
+        user_language = self._detect_language(context.request.query)
+        workflow_state["language"] = user_language
+
         # 1. Report plan
         workflow_state["current_step"] = "plan"
         report_plan = await self.planner.write_report_plan(context)
-
-        # 1.5. Domain identification
-        workflow_state["current_step"] = "domain_identification"
-        research_domains = await self.planner.identify_research_domains(context, report_plan)
 
         # Research iteration loop with progressive synthesis
         MAX_ITERATIONS = 3
@@ -199,8 +207,8 @@ class DeepResearchProcessor(BaseProcessor):
             if iteration == 1:
                 search_tasks = await self.planner.generate_serp_queries(
                     context, report_plan,
-                    domains=research_domains,
                     search_config=self.search_config,
+                    language=user_language,
                 )
             else:
                 search_tasks = await self.planner.generate_followup_queries(
@@ -257,33 +265,24 @@ class DeepResearchProcessor(BaseProcessor):
         self.search_exec.save_research_data(context, all_search_results)
         synthesis = accumulated_synthesis or summarize_search_results(all_search_results)
 
-        # 6. Critical analysis
-        workflow_state["current_step"] = "critical_analysis"
-        critical_analysis = await self.analyzer.critical_analysis_stage(
-            context, all_search_results, report_plan,
-            synthesis=synthesis,
+        # 6. Section-aware hierarchical synthesis
+        workflow_state["current_step"] = "section_synthesis"
+        references_list = self.reporter.extract_references(all_search_results)
+        hierarchical = await self.section_synth.build_hierarchical_context(
+            context, report_plan, all_search_results,
+            references_list=references_list,
+            language=user_language,
         )
+        section_context = hierarchical["structured_context"]
+        evidence_index = hierarchical["evidence_index"]
 
-        # 7. Chart planning + execution
-        chart_specs = await self.computation.plan_report_charts(
-            context, all_search_results, report_plan,
-            synthesis=synthesis,
-        )
-
-        computational_result = None
-        if chart_specs and self.services.get("sandbox"):
-            workflow_state["current_step"] = "computational_analysis"
-            computational_result = await self.computation.execute_chart_plan(
-                context, chart_specs, all_search_results,
-                synthesis=synthesis,
-            )
-
-        # 8. Final report
+        # 7. Final report (with section-organized context + evidence index)
         workflow_state["current_step"] = "synthesize"
         final_report = await self.reporter.write_final_report(
             context, all_search_results, report_plan,
-            critical_analysis, computational_result,
-            synthesis=synthesis,
+            synthesis=section_context or synthesis,
+            language=user_language,
+            evidence_index=evidence_index,
         )
 
         workflow_state["status"] = "completed"
@@ -330,9 +329,9 @@ class DeepResearchProcessor(BaseProcessor):
     async def _write_report_plan(self, context):
         return await self.planner.write_report_plan(context)
 
-    async def _generate_serp_queries(self, context, plan, domains=None):
+    async def _generate_serp_queries(self, context, plan):
         return await self.planner.generate_serp_queries(
-            context, plan, domains=domains, search_config=self.search_config
+            context, plan, search_config=self.search_config
         )
 
     async def _generate_followup_queries(self, context, report_plan,
@@ -454,12 +453,9 @@ class DeepResearchProcessor(BaseProcessor):
 
     # -- Reporter --
     async def _write_final_report(self, context, search_results, report_plan,
-                                  critical_analysis=None,
-                                  computational_result=None,
                                   synthesis=None):
         return await self.reporter.write_final_report(
             context, search_results, report_plan,
-            critical_analysis, computational_result,
             synthesis=synthesis,
         )
 
@@ -474,11 +470,9 @@ class DeepResearchProcessor(BaseProcessor):
         return self.reporter.extract_references(search_results)
 
     def _build_academic_report_prompt(self, plan, context, references,
-                                     requirement, critical_analysis=None,
-                                     computational_result=None):
+                                     requirement):
         return self.reporter.build_academic_report_prompt(
             plan, context, references, requirement,
-            critical_analysis, computational_result
         )
 
     def _analyze_citations(self, report_body, references):
@@ -487,18 +481,15 @@ class DeepResearchProcessor(BaseProcessor):
     def _format_report_with_categorized_references(self, report_body,
                                                    cited_refs, uncited_refs,
                                                    context=None,
-                                                   has_critical_analysis=False,
-                                                   citation_stats=None,
-                                                   computational_result=None):
+                                                   citation_stats=None):
         return self.reporter.format_report_with_categorized_references(
             report_body, cited_refs, uncited_refs, context,
-            has_critical_analysis, citation_stats, computational_result
+            citation_stats=citation_stats,
         )
 
-    def _save_report_bundle(self, full_report, context,
-                            computational_result=None, cited_refs=None):
+    def _save_report_bundle(self, full_report, context, cited_refs=None):
         return self.reporter.save_report_bundle(
-            full_report, context, computational_result, cited_refs
+            full_report, context, cited_refs
         )
 
     # -- Streaming --

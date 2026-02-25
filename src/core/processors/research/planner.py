@@ -82,9 +82,9 @@ class ResearchPlanner:
         return plan
 
     async def generate_serp_queries(self, context: ProcessingContext, plan: str,
-                                    domains: Optional[List[Dict]] = None,
-                                    search_config: SearchEngineConfig = None) -> List[Dict]:
-        """Phase 2: Generate SERP queries — domain-aware when domains are provided."""
+                                    search_config: SearchEngineConfig = None,
+                                    language: str = None) -> List[Dict]:
+        """Phase 2: Generate SERP queries."""
         self.logger.progress("serp-query", "start")
 
         self.logger.info(
@@ -109,20 +109,9 @@ class ResearchPlanner:
             }
         }
 
-        # Build domain-aware plan supplement
-        domain_supplement = ""
-        if domains:
-            domain_lines = []
-            for d in domains:
-                angles = ", ".join(d.get("search_angles", []))
-                domain_lines.append(f"- {d['name']} (weight {d.get('weight', 0):.1f}): {angles}")
-            domain_supplement = (
-                "\n\nResearch Domains (ensure queries cover ALL domains proportionally):\n"
-                + "\n".join(domain_lines)
-            )
-
         serp_prompt = PromptTemplates.get_serp_queries_prompt(
-            plan + domain_supplement, output_schema, query_budget=budget
+            plan, output_schema,
+            query_budget=budget, language=language,
         )
         response = await self._call_llm(serp_prompt, context)
 

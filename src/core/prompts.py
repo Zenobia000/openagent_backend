@@ -65,7 +65,8 @@ class PromptTemplates:
     }
 
     @staticmethod
-    def get_system_instruction(mode: str = "auto", now: str = None) -> str:
+    def get_system_instruction(mode: str = "auto", now: str = None,
+                               language: str = None) -> str:
         """獲取系統指令提示詞
 
         Args:
@@ -74,9 +75,15 @@ class PromptTemplates:
                   behavioural extensions appended to the base instruction.
             now:  Current timestamp string.  If ``None``, uses
                   ``datetime.now()`` formatted as ``%Y-%m-%d %H:%M:%S``.
+            language: Output language (e.g. "繁體中文", "English").
+                      If provided, instructs the model to respond in this language.
         """
         if now is None:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        lang_instruction = ""
+        if language:
+            lang_instruction = f"\n- Response language: You MUST write your entire response in {language}."
 
         base = f"""You are an expert AI assistant on the OpenCode platform. Today is {now}. Follow these instructions when responding:
 
@@ -85,7 +92,7 @@ class PromptTemplates:
 - Be accurate and thorough — mistakes erode trust.
 - Provide detailed explanations; the user is a knowledgeable professional.
 - Suggest alternative approaches and consider contrarian ideas, not just conventional wisdom.
-- Be proactive: anticipate follow-up questions and address them preemptively.
+- Be proactive: anticipate follow-up questions and address them preemptively.{lang_instruction}
 
 Evidence calibration:
 - [VERIFIED] — established facts supported by reliable sources or retrieved context.
@@ -227,10 +234,24 @@ Expected output:
 ```"""
 
     @staticmethod
-    def get_serp_queries_prompt(plan: str, output_schema: Dict[str, Any], query_budget: int = 8) -> str:
+    def get_serp_queries_prompt(plan: str, output_schema: Dict[str, Any],
+                                query_budget: int = 8, language: str = None) -> str:
         """獲取 SERP 查詢提示詞 — budget-aware"""
         p = _sanitize_xml_input(plan)
         schema_prompt = PromptTemplates.get_serp_query_schema_prompt(output_schema)
+
+        lang_rule = ""
+        if language and language != "English":
+            lang_rule = (
+                f"\n- At least 50% of queries should be in {language} to capture local sources"
+                f"\n- At least 2 queries MUST be in English to capture global primary research"
+            )
+        else:
+            lang_rule = (
+                "\n- At least 2 queries MUST be in English to capture global primary research"
+                " (e.g., \"edge computing market size Gartner 2025\" alongside Chinese queries)"
+            )
+
         return f"""This is the report plan after user confirmation:
 <PLAN>
 {p}
@@ -242,8 +263,7 @@ Generate exactly {query_budget} search queries to research this topic. Rules:
 - Cover different aspects/domains proportionally
 - Each query must be unique and target distinct information
 - Prioritize queries by information density potential (highest priority = 1)
-- At least 30% of queries MUST target authoritative sources by including terms like: "Gartner report", "IDC forecast", "government statistics", "academic paper", "white paper site:gov", "market research", "annual report", "SEC filing"
-- At least 2 queries MUST be in English to capture global primary research (e.g., "edge computing market size Gartner 2025" alongside Chinese queries)
+- At least 30% of queries MUST target authoritative sources by including terms like: "Gartner report", "IDC forecast", "government statistics", "academic paper", "white paper site:gov", "market research", "annual report", "SEC filing"{lang_rule}
 - Prefer specificity: "edge computing TAM IDC 2025 forecast" over generic terms like "邊緣運算市場"
 
 {schema_prompt}"""
@@ -908,6 +928,108 @@ Based on the reflection results, provide the improved and optimized complete ana
 - Practical value provided
 
 Please provide in-depth reflective analysis and an improved high-quality answer."""
+
+    # ==================================================================
+    # Section-Aware Hierarchical Synthesis prompts
+    # ==================================================================
+
+    @staticmethod
+    def get_section_classification_prompt(sections: list, result_summaries: list) -> str:
+        """Classify search results into report sections (single LLM call).
+
+        Args:
+            sections: [{id, title, description}]
+            result_summaries: [{index, query, goal, snippet}]
+        """
+        import json as _json
+        sections_block = _json.dumps(
+            [{"id": s["id"], "title": s["title"], "description": s.get("description", "")[:150]}
+             for s in sections],
+            ensure_ascii=False, indent=2,
+        )
+        results_block = _json.dumps(result_summaries, ensure_ascii=False, indent=2)
+
+        return f"""You are classifying search results into report sections for a research report.
+
+<REPORT_SECTIONS>
+{_sanitize_xml_input(sections_block)}
+</REPORT_SECTIONS>
+
+<SEARCH_RESULTS>
+{_sanitize_xml_input(results_block)}
+</SEARCH_RESULTS>
+
+Classify each search result (by index) into one or more relevant report sections.
+
+Respond with a JSON object (no markdown fencing):
+{{
+  "mapping": {{
+    "Section Title": [0, 2, 5],
+    "Another Section": [1, 3, 4]
+  }}
+}}
+
+Rules:
+- Use the EXACT section titles as keys
+- A result can belong to multiple sections if relevant
+- Every result index must appear in at least one section
+- Every section must have at least one result (assign the most relevant ones)
+- Base classification on query intent, goal, and content snippet"""
+
+    @staticmethod
+    def get_section_synthesis_prompt(section: dict, results_context: str,
+                                     references: list, language: str = None) -> str:
+        """Per-section synthesis with evidence citation index.
+
+        Args:
+            section: {id, title, description}
+            results_context: formatted search results text
+            references: [{id, title, url}] relevant to this section
+        """
+        ref_block = "\n".join(
+            f"[{r['id']}] {r.get('title', 'Untitled')} — {r.get('url', '')}"
+            for r in references
+        )
+
+        lang_instruction = ""
+        if language:
+            lang_instruction = f"\n- CRITICAL: Write the synthesis in {language}."
+
+        return f"""You are synthesizing research findings for one section of a deep research report.
+
+<SECTION>
+Title: {_sanitize_xml_input(section.get('title', ''))}
+Description: {_sanitize_xml_input(section.get('description', ''))}
+</SECTION>
+
+<SOURCE_MATERIAL>
+{_sanitize_xml_input(results_context)}
+</SOURCE_MATERIAL>
+
+<AVAILABLE_REFERENCES>
+{_sanitize_xml_input(ref_block)}
+</AVAILABLE_REFERENCES>
+
+Produce a detailed synthesis for this section. Include:
+- Specific numbers, statistics, company names from the source material
+- Inline [N] citations matching the reference IDs
+- Key claims with their supporting source IDs and confidence level
+
+Be thorough — cover all substantive findings from the source material.
+
+Respond with JSON (no markdown fencing):
+{{
+  "synthesis": "Detailed synthesis with [N] citations...",
+  "evidence_index": [
+    {{"claim": "specific factual claim", "source_ids": [1, 3], "confidence": "high"}},
+    {{"claim": "another claim", "source_ids": [2], "confidence": "medium"}}
+  ],
+  "key_data_points": ["stat 1", "stat 2"]
+}}
+
+Rules:
+- confidence: "high" if 2+ sources, "medium" if 1 source, "low" if inferred
+- Do NOT fabricate data not present in the source material{lang_instruction}"""
 
 
 # 導出

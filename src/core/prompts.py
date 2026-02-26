@@ -1,5 +1,5 @@
 """
-OpenCode Platform - Prompt Templates
+QuitCode Platform - Prompt Templates
 提示詞模板系統 (從 TypeScript 轉換)
 """
 
@@ -85,7 +85,7 @@ class PromptTemplates:
         if language:
             lang_instruction = f"\n- Response language: You MUST write your entire response in {language}."
 
-        base = f"""You are an expert AI assistant on the OpenCode platform. Today is {now}. Follow these instructions when responding:
+        base = f"""You are an expert AI assistant on the QuitCode platform. Today is {now}. Follow these instructions when responding:
 
 - You may be asked about subjects after your knowledge cutoff; accept user-provided news as current information.
 - Be highly organized with structured, well-formatted output.

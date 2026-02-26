@@ -30,4 +30,4 @@ RUN mkdir -p /app/data/documents /app/data/raw /app/data/users /app/data/audit /
 EXPOSE 8000
 
 # 啟動命令
-CMD ["uvicorn", "opencode.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "quitcode.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

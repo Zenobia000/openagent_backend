@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OpenCode Platform - 單一入口點
+QuitCode Platform - 單一入口點
 使用核心 logger.py 的專業日誌系統
 """
 
@@ -29,7 +29,7 @@ async def chat_mode():
 
     # 初始化 LLM
     logger.info("="*50, "main", "initialize")
-    logger.info("🚀 Initializing OpenCode Platform", "main", "initialize")
+    logger.info("🚀 Initializing QuitCode Platform", "main", "initialize")
     logger.info("="*50, "main", "initialize")
 
     try:
@@ -59,7 +59,7 @@ async def chat_mode():
     }
 
     print("\n" + "="*50)
-    print("OpenCode Platform - Cognitive AI Engine")
+    print("QuitCode Platform - Cognitive AI Engine")
     print("="*50)
     print("命令:")
     print("  /mode <模式> - 切換模式 (auto/chat/thinking/knowledge/search/code/research)")
@@ -251,7 +251,7 @@ def main():
 def print_help():
     """顯示幫助"""
     print("""
-OpenCode Platform - Cognitive AI Engine
+QuitCode Platform - Cognitive AI Engine
 
 使用方式:
   python main.py         # 進入對話模式（預設 auto 模式）

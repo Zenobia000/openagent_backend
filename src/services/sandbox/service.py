@@ -396,7 +396,7 @@ class SandboxService(MCPServiceProtocol):
     """
     
     # Docker image 名稱
-    SANDBOX_IMAGE = "opencode-sandbox:latest"
+    SANDBOX_IMAGE = "quitcode-sandbox:latest"
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}

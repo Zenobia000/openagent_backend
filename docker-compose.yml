@@ -1,4 +1,4 @@
-# OpenCode Platform - Docker Compose
+# QuitCode Platform - Docker Compose
 # 
 # 使用方式:
 #   docker-compose up -d              # 啟動所有服務
@@ -17,7 +17,7 @@ services:
   # ============== 向量資料庫 ==============
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: opencode-qdrant
+    container_name: quitcode-qdrant
     ports:
       - "${QDRANT_PORT:-6333}:6333"
       - "${QDRANT_GRPC_PORT:-6334}:6334"
@@ -37,7 +37,7 @@ services:
     build:
       context: .
       dockerfile: deploy/backend/Dockerfile
-    container_name: opencode-backend
+    container_name: quitcode-backend
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -52,7 +52,7 @@ services:
       # 從 .env 傳遞 API 密鑰
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - COHERE_API_KEY=${COHERE_API_KEY}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-opencode-docker-secret}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-quitcode-docker-secret}
     depends_on:
       qdrant:
         condition: service_healthy
@@ -70,7 +70,7 @@ services:
       dockerfile: deploy/frontend/Dockerfile
       args:
         - VITE_API_URL=/api
-    container_name: opencode-frontend
+    container_name: quitcode-frontend
     ports:
       - "${FRONTEND_PORT:-80}:80"
     depends_on:
@@ -79,11 +79,11 @@ services:
 
   # ============== Sandbox（程式碼執行）==============
   sandbox:
-    image: opencode-sandbox:latest
+    image: quitcode-sandbox:latest
     build:
       context: ./deploy/sandbox
       dockerfile: Dockerfile
-    container_name: opencode-sandbox
+    container_name: quitcode-sandbox
     # 不暴露端口，由後端內部調用
     volumes:
       - sandbox_tmp:/tmp/sandbox
@@ -100,7 +100,7 @@ services:
   # 取消註解以啟用 Redis
   # redis:
   #   image: redis:7-alpine
-  #   container_name: opencode-redis
+  #   container_name: quitcode-redis
   #   ports:
   #     - "${REDIS_PORT:-6379}:6379"
   #   volumes:
@@ -114,4 +114,4 @@ volumes:
 
 networks:
   default:
-    name: opencode-network
+    name: quitcode-network

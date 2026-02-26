@@ -3,7 +3,7 @@
 
 logging:
   # 服務名稱
-  service_name: "opencode"
+  service_name: "quitcode"
 
   # 日誌基礎路徑
   base_path: "./logs"
@@ -88,7 +88,7 @@ logging:
     elasticsearch:
       enabled: false  # 可選：發送到 ELK Stack
       hosts: ["localhost:9200"]
-      index_prefix: "opencode-"
+      index_prefix: "quitcode-"
 
     prometheus:
       enabled: false  # 可選：暴露 Prometheus 指標

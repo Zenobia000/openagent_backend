@@ -1,6 +1,6 @@
-# OpenCode Platform 文件
+# QuitCode Platform 文件
 
-歡迎來到 OpenCode Platform 文件。
+歡迎來到 QuitCode Platform 文件。
 
 ---
 

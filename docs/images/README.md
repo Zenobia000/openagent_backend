@@ -1,6 +1,6 @@
 # Images Directory
 
-This directory contains visual assets for OpenCode Platform documentation.
+This directory contains visual assets for QuitCode Platform documentation.
 
 ## 📸 Required Images
 
@@ -16,7 +16,7 @@ This directory contains visual assets for OpenCode Platform documentation.
 ```
 ┌─────────────────┐
 │                 │
-│   OpenCode      │
+│   QuitCode      │
 │   Platform      │
 │                 │
 │   [AI Brain]    │
@@ -42,7 +42,7 @@ This directory contains visual assets for OpenCode Platform documentation.
 ```
 $ python main.py
 
-🚀 OpenCode Platform - Interactive Mode
+🚀 QuitCode Platform - Interactive Mode
 Mode: auto (Router will select optimal processing level)
 
 [auto]> What is machine learning?
@@ -72,7 +72,7 @@ Mode: auto (Router will select optimal processing level)
 **Placeholder:**
 ```
 ┌──────────────────────────────────────┐
-│ OpenCode Platform API                │
+│ QuitCode Platform API                │
 ├──────────────────────────────────────┤
 │ POST /api/v1/chat                    │
 │ POST /api/v1/chat/stream             │
@@ -263,7 +263,7 @@ docs/images/
 
 ## 🤝 Need Help?
 
-- 📧 Email: design@opencode.ai
+- 📧 Email: design@quitcode.ai
 - 💬 [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions)
 - 🎨 Design assets needed? We can provide templates!
 

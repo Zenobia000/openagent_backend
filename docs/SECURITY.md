@@ -2,7 +2,7 @@
 
 ## 🔒 回報安全漏洞
 
-OpenCode Platform 團隊重視安全性。感謝您負責任地揭露發現。
+QuitCode Platform 團隊重視安全性。感謝您負責任地揭露發現。
 
 ### 請勿
 
@@ -12,7 +12,7 @@ OpenCode Platform 團隊重視安全性。感謝您負責任地揭露發現。
 
 ### 請這樣做
 
-✅ **寄送 Email 至 security@opencode.ai**，包含：
+✅ **寄送 Email 至 security@quitcode.ai**，包含：
 
 1. **描述**：漏洞的詳細描述
 2. **影響**：攻擊者能達成什麼？
@@ -99,7 +99,7 @@ OPENAI_API_KEY=sk-...
 echo ".env" >> .gitignore
 
 # ✅ 生產環境使用 Kubernetes secrets
-kubectl create secret generic opencode-secrets \
+kubectl create secret generic quitcode-secrets \
   --from-literal=OPENAI_API_KEY=sk-... \
   --from-literal=JWT_SECRET=...
 ```
@@ -125,7 +125,7 @@ server {
 ```yaml
 services:
   api:
-    image: opencode/platform
+    image: quitcode/platform
     networks:
       - internal
     expose:
@@ -225,8 +225,8 @@ pip-audit
 
 ## 📞 聯繫
 
-- **安全問題**：security@opencode.ai
-- **一般問題**：support@opencode.ai
+- **安全問題**：security@quitcode.ai
+- **一般問題**：support@quitcode.ai
 
 ---
 

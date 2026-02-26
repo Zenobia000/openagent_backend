@@ -1,4 +1,4 @@
-# OpenCode Platform - 最小化架構調整方案
+# QuitCode Platform - 最小化架構調整方案
 
 **版本**: `v1.5`
 **日期**: `2026-02-10`
@@ -432,7 +432,7 @@ class APICompatibility:
 
 ```javascript
 // 客戶端代碼無需修改
-class OpenCodeClient {
+class QuitCodeClient {
     // 現有方法完全兼容
     async chat(message) {
         return this.post('/v1/chat', { message });
@@ -525,4 +525,4 @@ graph LR
 
 ---
 
-**這個微調方案確保了 OpenCode Platform 能夠以最小的改動獲得認知架構的優勢，同時保持系統的穩定性和向後兼容性。**
+**這個微調方案確保了 QuitCode Platform 能夠以最小的改動獲得認知架構的優勢，同時保持系統的穩定性和向後兼容性。**

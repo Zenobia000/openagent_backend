@@ -1,5 +1,5 @@
 # ════════════════════════════════════════════════════════════════
-# OpenCode Platform - Python Dependencies
+# QuitCode Platform - Python Dependencies
 # ════════════════════════════════════════════════════════════════
 # Python 3.11+ required
 # Install: pip install -r requirements.txt

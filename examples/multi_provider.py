@@ -2,7 +2,7 @@
 Multi-Provider LLM Example
 ===========================
 
-Demonstrates multi-provider fallback chain with OpenCode Platform.
+Demonstrates multi-provider fallback chain with QuitCode Platform.
 
 This example shows:
 - Automatic provider fallback

@@ -1,13 +1,13 @@
-# OpenCode Sandbox - Windows 構建腳本
+# QuitCode Sandbox - Windows 構建腳本
 # 在 PowerShell 中執行
 
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ImageName = "opencode-sandbox"
+$ImageName = "quitcode-sandbox"
 $ImageTag = "latest"
 
-Write-Host "🐳 Building OpenCode Sandbox Docker Image..." -ForegroundColor Cyan
+Write-Host "🐳 Building QuitCode Sandbox Docker Image..." -ForegroundColor Cyan
 Write-Host "   Image: ${ImageName}:${ImageTag}" -ForegroundColor Gray
 Write-Host ""
 
@@ -29,13 +29,13 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ Build complete!" -ForegroundColor Green
     Write-Host ""
     Write-Host "Test the image:" -ForegroundColor Cyan
-    Write-Host '  echo ''{"code": "print(1+1)"}'' | docker run -i --rm opencode-sandbox:latest' -ForegroundColor Gray
+    Write-Host '  echo ''{"code": "print(1+1)"}'' | docker run -i --rm quitcode-sandbox:latest' -ForegroundColor Gray
     Write-Host ""
     Write-Host "Test with matplotlib:" -ForegroundColor Cyan
     Write-Host '  $code = @"' -ForegroundColor Gray
     Write-Host '{"code": "import matplotlib.pyplot as plt\nplt.plot([1,2,3])\nprint(\"done\")"}' -ForegroundColor Gray
     Write-Host '"@' -ForegroundColor Gray
-    Write-Host '  echo $code | docker run -i --rm opencode-sandbox:latest' -ForegroundColor Gray
+    Write-Host '  echo $code | docker run -i --rm quitcode-sandbox:latest' -ForegroundColor Gray
 } else {
     Write-Host ""
     Write-Host "❌ Build failed!" -ForegroundColor Red

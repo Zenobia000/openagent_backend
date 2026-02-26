@@ -66,7 +66,7 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
         yield
 
     app = FastAPI(
-        title="OpenCode Platform API",
+        title="QuitCode Platform API",
         version="2.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -90,7 +90,7 @@ def create_app(engine: RefactoredEngine | None = None) -> FastAPI:
 
     @app.get("/")
     async def root():
-        return {"message": "OpenCode Platform API", "version": "2.0.0", "status": "running"}
+        return {"message": "QuitCode Platform API", "version": "2.0.0", "status": "running"}
 
     @app.get("/health")
     async def health_check():

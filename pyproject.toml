@@ -1,12 +1,12 @@
 [project]
-name = "opencode-platform"
+name = "quitcode-platform"
 version = "1.1.0"
-description = "OpenCode-Centric Intelligent Platform - 企業級自主代理系統"
+description = "QuitCode-Centric Intelligent Platform - 企業級自主代理系統"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "OpenCode Team"}
+    {name = "QuitCode Team"}
 ]
 keywords = ["ai", "agent", "rag", "mcp", "llm", "orchestrator"]
 classifiers = [
@@ -91,22 +91,22 @@ easyocr = ["easyocr>=1.7.0"]
 docker = ["docker>=6.1.0"]
 # 生產環境（全部功能）
 production = [
-    "opencode-platform[anthropic,google,knowledge]",
+    "quitcode-platform[anthropic,google,knowledge]",
 ]
 # 完整安裝（生產 + 開發 + easyocr）
 all = [
-    "opencode-platform[production,dev,easyocr]",
+    "quitcode-platform[production,dev,easyocr]",
 ]
 
 [project.scripts]
-opencode = "opencode.cli.main:app"
+quitcode = "quitcode.cli.main:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/opencode"]
+packages = ["src/quitcode"]
 
 [tool.hatch.build.targets.sdist]
 include = [

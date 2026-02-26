@@ -1,4 +1,4 @@
-# Module Dependency Analysis - OpenCode Platform
+# Module Dependency Analysis - QuitCode Platform
 
 ---
 
@@ -10,7 +10,7 @@
 
 ## 1. Overview
 
-This document defines the internal module dependency relationships of OpenCode Platform. The architecture strictly follows a unidirectional dependency structure: **API -> Core -> Services**.
+This document defines the internal module dependency relationships of QuitCode Platform. The architecture strictly follows a unidirectional dependency structure: **API -> Core -> Services**.
 
 ---
 

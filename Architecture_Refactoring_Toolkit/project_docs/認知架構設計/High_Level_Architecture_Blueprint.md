@@ -1,4 +1,4 @@
-# OpenCode Platform v2.0 高階架構藍圖
+# QuitCode Platform v2.0 高階架構藍圖
 
 **版本**: `v1.0`
 **日期**: `2026-02-10`

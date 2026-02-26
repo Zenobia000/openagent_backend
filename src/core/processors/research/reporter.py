@@ -348,7 +348,7 @@ Generate the report body (without references section):
 
         references_section += f"\n---\n"
         references_section += f"*Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n"
-        references_section += f"*Powered by OpenCode Deep Research Engine*"
+        references_section += f"*Powered by QuitCode Deep Research Engine*"
 
         full_report = f"{report_body}{references_section}"
 

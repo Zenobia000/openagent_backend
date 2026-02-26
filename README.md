@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/images/logo.png" alt="OpenCode Platform" width="200" />
+  <img src="docs/images/logo.png" alt="QuitCode Platform" width="200" />
 </p>
 
-<h1 align="center">OpenCode Platform</h1>
+<h1 align="center">QuitCode Platform</h1>
 
 <p align="center">
   <strong>認知 AI 引擎 | 雙執行時架構 | RAG 知識庫 | 程式碼沙箱 | MCP/A2A 擴展</strong>
@@ -44,7 +44,7 @@
 
 ## 概覽
 
-**OpenCode Platform** 是一個基於三層認知架構的 AI 處理引擎，靈感來自雙歷程理論：
+**QuitCode Platform** 是一個基於三層認知架構的 AI 處理引擎，靈感來自雙歷程理論：
 
 - **System 1**（快速）— 快取、低延遲的聊天與知識檢索回應
 - **System 2**（分析）— 深度推理的搜尋、程式碼生成與思考任務
@@ -210,7 +210,7 @@ response = engine.process(Request(
 ```bash
 $ python main.py
 
-🚀 OpenCode Platform - 互動模式
+🚀 QuitCode Platform - 互動模式
 模式：auto（Router 將選擇最佳處理層級）
 
 [auto]> 法國的首都是什麼？
@@ -255,7 +255,7 @@ curl -X POST http://localhost:8000/api/v1/chat \
 ## 專案結構
 
 ```
-opencode_backend/
+quitcode_backend/
 ├── main.py                # CLI 進入點
 ├── pyproject.toml         # 專案元資料與相依套件
 ├── config/
@@ -314,7 +314,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ### 2. 環境設定
 
 ```bash
-cd opencode_backend
+cd quitcode_backend
 
 # 建立虛擬環境並安裝相依套件
 uv venv --python 3.11
@@ -597,5 +597,5 @@ MIT License — 詳見 [LICENSE](LICENSE)。
 ---
 
 <p align="center">
-  <sub>Built by OpenCode Team</sub>
+  <sub>Built by QuitCode Team</sub>
 </p>

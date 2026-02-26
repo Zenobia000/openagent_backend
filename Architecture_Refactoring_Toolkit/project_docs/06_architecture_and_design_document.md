@@ -1,4 +1,4 @@
-# Architecture & Design Document - OpenCode Platform
+# Architecture & Design Document - QuitCode Platform
 
 ---
 
@@ -21,7 +21,7 @@
 
 ---
 
-**Purpose**: This document translates the OpenCode Platform's architecture into a technical blueprint reflecting the **currently implemented** system: Cognitive 3-Tier processing, Dual Runtime dispatch, Multi-Provider LLM fallback, JWT authentication, feature-flagged capabilities, and Manus-aligned Context Engineering (v3.1).
+**Purpose**: This document translates the QuitCode Platform's architecture into a technical blueprint reflecting the **currently implemented** system: Cognitive 3-Tier processing, Dual Runtime dispatch, Multi-Provider LLM fallback, JWT authentication, feature-flagged capabilities, and Manus-aligned Context Engineering (v3.1).
 
 ---
 
@@ -38,8 +38,8 @@ graph TB
         EndUser[End User]
     end
 
-    subgraph "OpenCode Platform"
-        OCP[OpenCode Platform<br/>Cognitive AI Engine<br/>3-Tier Processing]
+    subgraph "QuitCode Platform"
+        OCP[QuitCode Platform<br/>Cognitive AI Engine<br/>3-Tier Processing]
     end
 
     subgraph "External Systems"

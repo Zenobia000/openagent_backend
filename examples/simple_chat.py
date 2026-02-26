@@ -2,7 +2,7 @@
 Simple Chat Example
 ===================
 
-Demonstrates basic chat interaction with OpenCode Platform.
+Demonstrates basic chat interaction with QuitCode Platform.
 
 This example shows:
 - Engine initialization
@@ -29,7 +29,7 @@ def main():
     """Run simple chat examples."""
 
     # Initialize
-    print("🚀 Initializing OpenCode Platform...")
+    print("🚀 Initializing QuitCode Platform...")
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:

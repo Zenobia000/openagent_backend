@@ -55,7 +55,7 @@ class StructuredLogger:
 
     MAX_LOG_SIZE = 10000  # 10KB — threshold for segmenting long content
 
-    def __init__(self, service_name: str = "opencode", log_level: str = "INFO"):
+    def __init__(self, service_name: str = "quitcode", log_level: str = "INFO"):
         self.service = service_name
         self.logger = logging.getLogger(service_name)
 
@@ -181,7 +181,7 @@ class StructuredLogger:
             print(console_msg)
 
         # 檔案輸出（純文本格式）- 更易讀
-        log_file = self.log_dir / f"opencode_{datetime.now().strftime('%Y%m%d')}.log"
+        log_file = self.log_dir / f"quitcode_{datetime.now().strftime('%Y%m%d')}.log"
 
         # 格式化檔案日誌
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]

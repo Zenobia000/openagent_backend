@@ -1,9 +1,9 @@
-# OpenCode Platform 路線圖
+# QuitCode Platform 路線圖
 
 > **最後更新**：2026-02-24
 > **目前版本**：3.2.0
 
-OpenCode Platform 的開發願景與規劃。
+QuitCode Platform 的開發願景與規劃。
 
 ---
 
@@ -126,7 +126,7 @@ OpenCode Platform 的開發願景與規劃。
 ### 平台擴展
 
 - **市集** — 社群貢獻的處理器與外掛
-- **管理服務** — 完全託管的 OpenCode Cloud
+- **管理服務** — 完全託管的 QuitCode Cloud
 
 ---
 

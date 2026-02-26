@@ -1,4 +1,4 @@
-# API Contract & Interface Definition - OpenCode Platform
+# API Contract & Interface Definition - QuitCode Platform
 
 ---
 
@@ -10,7 +10,7 @@
 
 ## 1. Overview
 
-This document defines the **implemented** API contracts of OpenCode Platform. All endpoints listed below are fully functional with JWT authentication, Pydantic validation, and structured error responses. Context Engineering (v3.1) operates transparently behind the API — no new endpoints are required as all CE features are controlled via `config/cognitive_features.yaml`.
+This document defines the **implemented** API contracts of QuitCode Platform. All endpoints listed below are fully functional with JWT authentication, Pydantic validation, and structured error responses. Context Engineering (v3.1) operates transparently behind the API — no new endpoints are required as all CE features are controlled via `config/cognitive_features.yaml`.
 
 ### Design Principles
 
@@ -162,7 +162,7 @@ data: {"event": "end", "data": {"tokens_used": 789, "time_ms": 6995}}
 **Request:**
 ```json
 {
-  "query": "OpenCode architecture",
+  "query": "QuitCode architecture",
   "max_results": 5
 }
 ```
@@ -170,7 +170,7 @@ data: {"event": "end", "data": {"tokens_used": 789, "time_ms": 6995}}
 **Response (200):**
 ```json
 {
-  "query": "OpenCode architecture",
+  "query": "QuitCode architecture",
   "results": [{"content": "..."}],
   "trace_id": "...",
   "time_ms": 2500

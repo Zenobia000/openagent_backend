@@ -503,7 +503,7 @@ graph TB
   "name": "Weather Tool",
   "version": "1.0.0",
   "description": "Current weather and 5-day forecast",
-  "author": "OpenCode Community",
+  "author": "QuitCode Community",
 
   // 關鍵：宣告這是什麼類型的包
   "type": "mcp-server",

@@ -1,4 +1,4 @@
-# Project Structure Guide - OpenCode Platform
+# Project Structure Guide - QuitCode Platform
 
 ---
 

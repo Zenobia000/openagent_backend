@@ -1,4 +1,4 @@
-# OpenCode Platform - 調整後架構圖表
+# QuitCode Platform - 調整後架構圖表
 
 **版本**: `v1.5`
 **日期**: `2026-02-10`

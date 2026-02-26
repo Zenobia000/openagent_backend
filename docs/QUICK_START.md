@@ -1,4 +1,4 @@
-# OpenCode Platform - 快速開始指南
+# QuitCode Platform - 快速開始指南
 
 ## 系統概覽
 
@@ -14,7 +14,7 @@
 ## 專案結構
 
 ```
-opencode_backend/
+quitcode_backend/
 ├── main.py                        # CLI 進入點（預設：auto 模式）
 ├── pyproject.toml                 # 專案元資料與相依套件
 ├── config/
@@ -120,7 +120,7 @@ opencode_backend/
 ### 1. 環境設定（使用 uv）
 
 ```bash
-cd opencode_backend
+cd quitcode_backend
 
 # 安裝 uv（如尚未安裝）
 curl -LsSf https://astral.sh/uv/install.sh | sh

@@ -1,4 +1,4 @@
-# OpenCode Platform - 架構圖表集 (Mermaid)
+# QuitCode Platform - 架構圖表集 (Mermaid)
 
 **版本**: `v1.0`
 **日期**: `2026-02-10`
@@ -617,7 +617,7 @@ flowchart LR
 
 ## 總結
 
-這份 Mermaid 圖表集涵蓋了 OpenCode Platform 的所有核心架構和流程：
+這份 Mermaid 圖表集涵蓋了 QuitCode Platform 的所有核心架構和流程：
 
 1. **架構層次**：三層 Runtime 模型、基礎設施共享
 2. **處理流程**：請求管線、執行流程、狀態管理

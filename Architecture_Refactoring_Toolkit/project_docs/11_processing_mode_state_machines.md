@@ -73,12 +73,16 @@ Every mode is classified into a cognitive level that determines its runtime exec
 ```mermaid
 stateDiagram-v2
     [*] --> ContextSetup
-    ContextSetup: CE: ContextManager.reset() + append_user()
-    note right of ContextSetup: CE: TodoRecitation.create_initial_plan()
+    ContextSetup: CE ContextManager.reset + append_user
+    note right of ContextSetup
+        CE TodoRecitation.create_initial_plan
+    end note
     ContextSetup --> RouteRequest
 
-    RouteRequest: DefaultRouter.route()
-    note right of RouteRequest: ToolAvailabilityMask.get_allowed_tools()
+    RouteRequest: DefaultRouter.route
+    note right of RouteRequest
+        ToolAvailabilityMask.get_allowed_tools
+    end note
     RouteRequest --> CheckRuntime: RoutingDecision
 
     state CheckRuntime <<choice>>
@@ -87,7 +91,7 @@ stateDiagram-v2
 
     state ModelRuntime {
         [*] --> CacheCheck
-        CacheCheck --> CacheHit: System 1 + cache enabled
+        CacheCheck --> CacheHit: System 1 and cache enabled
         CacheCheck --> ProcessorExec: Cache miss or System 2
         CacheHit --> [*]
         ProcessorExec --> CachePut: System 1 result
@@ -97,10 +101,10 @@ stateDiagram-v2
 
     state AgentRuntime {
         [*] --> WorkflowInit
-        WorkflowInit --> RetryableExec: retry_with_backoff(max=2)
+        WorkflowInit --> RetryableExec: retry_with_backoff max=2
         RetryableExec --> WorkflowComplete: Success
         RetryableExec --> ErrorClassify: Failure
-        ErrorClassify --> RetryableExec: Retryable (network/LLM)
+        ErrorClassify --> RetryableExec: Retryable network or LLM
         ErrorClassify --> WorkflowFailed: Non-retryable
         WorkflowComplete --> [*]
         WorkflowFailed --> [*]
@@ -108,8 +112,10 @@ stateDiagram-v2
 
     ModelRuntime --> ContextUpdate
     AgentRuntime --> ContextUpdate
-    ContextUpdate: CE: append_assistant() + update_plan()
-    note right of ContextUpdate: CE: ErrorPreservation retry if needed
+    ContextUpdate: CE append_assistant + update_plan
+    note right of ContextUpdate
+        CE ErrorPreservation retry if needed
+    end note
     ContextUpdate --> RecordMetrics
     RecordMetrics --> [*]
 ```
@@ -131,15 +137,15 @@ The simplest mode. Direct LLM call with system prompt.
 ```mermaid
 stateDiagram-v2
     [*] --> CacheCheck
-    CacheCheck: Check ResponseCache (SHA-256 key)
+    CacheCheck: Check ResponseCache SHA-256 key
 
     state CacheCheck <<choice>>
     CacheCheck --> ReturnCached: Cache HIT
     CacheCheck --> BuildPrompt: Cache MISS
 
     BuildPrompt: Combine system prompt + user query
-    BuildPrompt --> CallLLM: generate(prompt)
-    CallLLM: MultiProviderLLMClient.generate()
+    BuildPrompt --> CallLLM: generate prompt
+    CallLLM: MultiProviderLLMClient.generate
     CallLLM --> CachePut: Store result
     CachePut --> ReturnResult
     ReturnCached --> [*]
@@ -172,7 +178,7 @@ stateDiagram-v2
     CacheCheck --> ReturnCached: Cache HIT
     CacheCheck --> GenerateEmbeddings: Cache MISS
 
-    GenerateEmbeddings: Embed user query (Cohere/OpenAI)
+    GenerateEmbeddings: Embed user query via Cohere or OpenAI
     GenerateEmbeddings --> SearchVectorDB: Vector similarity search
     SearchVectorDB: Query Qdrant for top-k documents
 
@@ -180,15 +186,15 @@ stateDiagram-v2
     SearchVectorDB --> LLMFallback: No documents found
     SearchVectorDB --> RerankDocuments: Documents found
 
-    RerankDocuments: LLM-based relevance reranking (score >= 5)
+    RerankDocuments: LLM-based relevance reranking, score gte 5
     RerankDocuments --> SynthesizeContext: Top reranked documents
 
-    LLMFallback: Direct LLM answer (no RAG)
+    LLMFallback: Direct LLM answer, no RAG
     LLMFallback --> [*]
 
     SynthesizeContext: Combine retrieved chunks + query + citation rules
     SynthesizeContext --> CallLLM: Generate answer with context
-    CallLLM: MultiProviderLLMClient.generate()
+    CallLLM: MultiProviderLLMClient.generate
     CallLLM --> CachePut: Store in cache
     CachePut --> ReturnResult
     ReturnCached --> [*]
@@ -238,14 +244,14 @@ stateDiagram-v2
         ExecuteSearches --> EvaluateQuality: Accumulate results
 
         state EvaluateQuality <<choice>>
-        EvaluateQuality --> GenerateSearchQueries: Insufficient (iteration < 2)
+        EvaluateQuality --> GenerateSearchQueries: Insufficient, iteration lt 2
         EvaluateQuality --> [*]: Sufficient quality
     }
 
     IterativeSearch --> SynthesizeResults: All results collected
     SynthesizeResults: Combine all search results + citation rules
     SynthesizeResults --> CallLLM: Generate comprehensive report
-    CallLLM: MultiProviderLLMClient.generate()
+    CallLLM: MultiProviderLLMClient.generate
     CallLLM --> [*]
 ```
 
@@ -281,8 +287,8 @@ stateDiagram-v2
     CheckPersistentSandbox --> PersistentExec: _PersistentSandbox available
     CheckPersistentSandbox --> EphemeralExec: Fallback to ephemeral container
 
-    PersistentExec: Execute via persistent REPL (no cold start)
-    EphemeralExec: Create container → execute → destroy
+    PersistentExec: Execute via persistent REPL, no cold start
+    EphemeralExec: Create container, execute, destroy
 
     PersistentExec --> CheckResult
     EphemeralExec --> CheckResult
@@ -324,23 +330,33 @@ stateDiagram-v2
     [*] --> ProblemAnalysis
 
     ProblemAnalysis: Stage 1 - Decompose and understand the problem
-    note right of ProblemAnalysis: PromptTemplates.get_thinking_mode_prompt()
+    note right of ProblemAnalysis
+        PromptTemplates.get_thinking_mode_prompt
+    end note
     ProblemAnalysis --> MultiPerspective: thinking_response
 
     MultiPerspective: Stage 2 - Critical multi-perspective analysis
-    note right of MultiPerspective: PromptTemplates.get_critical_thinking_prompt()
+    note right of MultiPerspective
+        PromptTemplates.get_critical_thinking_prompt
+    end note
     MultiPerspective --> DeepReasoning: critical_analysis
 
     DeepReasoning: Stage 3 - Chain-of-thought reasoning
-    note right of DeepReasoning: PromptTemplates.get_chain_of_thought_prompt()
+    note right of DeepReasoning
+        PromptTemplates.get_chain_of_thought_prompt
+    end note
     DeepReasoning --> SynthesisAndReflection: chain_reasoning
 
-    SynthesisAndReflection: Stage 4 - Consolidate + self-reflect
-    note right of SynthesisAndReflection: PromptTemplates.get_reflection_prompt()
+    SynthesisAndReflection: Stage 4 - Consolidate and self-reflect
+    note right of SynthesisAndReflection
+        PromptTemplates.get_reflection_prompt
+    end note
     SynthesisAndReflection --> FinalAnswer: reflection
 
     FinalAnswer: Stage 5 - Generate final comprehensive answer
-    note right of FinalAnswer: Synthesizes all 4 stages
+    note right of FinalAnswer
+        Synthesizes all 4 stages
+    end note
     FinalAnswer --> [*]
 ```
 
@@ -385,7 +401,7 @@ stateDiagram-v2
 
         state IterativeResearch {
             [*] --> GenerateSearchQueries
-            GenerateSearchQueries: Create (query, goal, priority) tuples
+            GenerateSearchQueries: Create query, goal, priority tuples
 
             state ParallelSearchExecution {
                 [*] --> BatchPreparation
@@ -407,7 +423,7 @@ stateDiagram-v2
             ParallelSearchExecution --> EvaluateCompleteness: Check research sufficiency
 
             state EvaluateCompleteness <<choice>>
-            EvaluateCompleteness --> GenerateSearchQueries: Need more depth (iteration < 3)
+            EvaluateCompleteness --> GenerateSearchQueries: Need more depth, iteration lt 3
             EvaluateCompleteness --> [*]: Research sufficient
         }
 
@@ -420,7 +436,7 @@ stateDiagram-v2
         ThinkingStage: Multi-perspective critical analysis
         ThinkingStage --> ChartPlanning: Analysis complete
 
-        ChartPlanning: LLM generates chart specs from synthesis (max 5)
+        ChartPlanning: LLM generates chart specs from synthesis, max 5
         ChartPlanning --> ComputationalAnalysis: Specs ready
 
         state ComputationalAnalysis {
@@ -429,11 +445,11 @@ stateDiagram-v2
             ExecuteChart --> CheckChartResult
 
             state CheckChartResult <<choice>>
-            CheckChartResult --> CollectFigure: Success (base64 PNG)
-            CheckChartResult --> RetryWithFix: Failure (attempt LLM fix)
+            CheckChartResult --> CollectFigure: Success, base64 PNG
+            CheckChartResult --> RetryWithFix: Failure, attempt LLM fix
             RetryWithFix --> ExecuteChart: Retry once
 
-            CheckChartResult --> EarlyAbort: Consecutive failures >= SANDBOX_MAX_CHART_FAILURES
+            CheckChartResult --> EarlyAbort: Consecutive failures gte MAX_CHART_FAILURES
 
             CollectFigure --> NextChart
             state NextChart <<choice>>
@@ -445,22 +461,22 @@ stateDiagram-v2
 
         ComputationalAnalysis --> WriteFinalReport: Figures collected
 
-        WriteFinalReport: Generate report (mandatory pipe-tables, inline Figure refs)
+        WriteFinalReport: Generate report with mandatory pipe-tables and inline Figure refs
         WriteFinalReport --> SaveResearchData: Save to per-session directory
         SaveResearchData --> [*]
     }
 
-    InitWorkflow --> RetryBoundary: retry_with_backoff(max=2)
+    InitWorkflow --> RetryBoundary: retry_with_backoff max=2
 
     state ErrorHandling <<choice>>
     RetryBoundary --> WorkflowComplete: Success
     RetryBoundary --> ErrorHandling: Exception
 
-    ErrorHandling --> RetryBoundary: Retryable (NETWORK/LLM)
+    ErrorHandling --> RetryBoundary: Retryable NETWORK or LLM
     ErrorHandling --> WorkflowFailed: Non-retryable or max retries
 
-    WorkflowComplete: WorkflowState.complete()
-    WorkflowFailed: ErrorClassifier.classify(error)
+    WorkflowComplete: WorkflowState.complete
+    WorkflowFailed: ErrorClassifier.classify error
 
     WorkflowComplete --> [*]
     WorkflowFailed --> [*]

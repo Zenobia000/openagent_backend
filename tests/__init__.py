@@ -1,5 +1,5 @@
 """
-OpenCode Platform 測試套件
+QuitCode Platform 測試套件
 """
 
 import sys

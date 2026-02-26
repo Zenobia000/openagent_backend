@@ -1,13 +1,13 @@
 #!/bin/bash
-# 構建 OpenCode Sandbox Docker Image
+# 構建 QuitCode Sandbox Docker Image
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE_NAME="opencode-sandbox"
+IMAGE_NAME="quitcode-sandbox"
 IMAGE_TAG="latest"
 
-echo "🐳 Building OpenCode Sandbox Docker Image..."
+echo "🐳 Building QuitCode Sandbox Docker Image..."
 echo "   Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 echo ""
 

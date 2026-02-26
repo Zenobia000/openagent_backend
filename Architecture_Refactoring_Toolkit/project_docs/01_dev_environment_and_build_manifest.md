@@ -1,4 +1,4 @@
-# Development Environment & Build Manifest - OpenCode Platform
+# Development Environment & Build Manifest - QuitCode Platform
 
 ---
 
@@ -10,7 +10,7 @@
 
 ## 1. Overview
 
-This document ensures all developers can set up a consistent development environment within 15 minutes. OpenCode Platform is a cognitive AI engine with a 3-tier architecture (System 1 / System 2 / Agent), dual runtime dispatch, multi-provider LLM fallback chain, and Manus-aligned Context Engineering (v3.1).
+This document ensures all developers can set up a consistent development environment within 15 minutes. QuitCode Platform is a cognitive AI engine with a 3-tier architecture (System 1 / System 2 / Agent), dual runtime dispatch, multi-provider LLM fallback chain, and Manus-aligned Context Engineering (v3.1).
 
 ---
 

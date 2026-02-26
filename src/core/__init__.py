@@ -1,5 +1,5 @@
 """
-OpenCode Platform - 重構版核心模組
+QuitCode Platform - 重構版核心模組
 簡化架構，統一處理流程，整合日誌系統
 """
 

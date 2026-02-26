@@ -3,7 +3,7 @@
 > **最後更新**：2026-02-24
 > **版本**：3.2.0
 
-OpenCode Platform 各認知層級的效能指標。
+QuitCode Platform 各認知層級的效能指標。
 
 ---
 
@@ -117,7 +117,7 @@ System 1 快取可大幅減少重複查詢的 LLM 成本：
 
 1. **水平擴展**
    ```bash
-   kubectl autoscale deployment opencode-api \
+   kubectl autoscale deployment quitcode-api \
      --min=3 --max=10 --cpu-percent=70
    ```
 
@@ -153,7 +153,7 @@ locust -f tests/performance/locustfile.py \
 ```python
 from locust import HttpUser, task, between
 
-class OpenCodeUser(HttpUser):
+class QuitCodeUser(HttpUser):
     wait_time = between(1, 3)
 
     def on_start(self):

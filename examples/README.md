@@ -1,6 +1,6 @@
-# OpenCode Platform - 範例程式碼
+# QuitCode Platform - 範例程式碼
 
-本目錄包含展示 OpenCode Platform 主要功能的實用範例。
+本目錄包含展示 QuitCode Platform 主要功能的實用範例。
 
 ## 📋 快速開始
 
@@ -15,7 +15,7 @@
 
 ```bash
 # 從專案根目錄
-cd opencode_backend
+cd quitcode_backend
 
 # 安裝 uv（如尚未安裝）
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -64,7 +64,7 @@ python examples/simple_chat.py
 
 **預期輸出：**
 ```
-🚀 Initializing OpenCode Platform...
+🚀 Initializing QuitCode Platform...
 ✅ Engine initialized
 
 ============================================================
@@ -180,7 +180,7 @@ Provider Used: OpenAILLMClient
 **修復：**
 ```bash
 # 從專案根目錄執行
-cd /path/to/opencode_backend
+cd /path/to/quitcode_backend
 python examples/simple_chat.py
 ```
 

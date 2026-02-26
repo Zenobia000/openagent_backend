@@ -515,4 +515,4 @@ Table 6 — 優先行動表（Steps, Goals, Tools）
 
 ---
 *Report generated: 2026-02-18 12:25:38*
-*Powered by OpenCode Deep Research Engine with Critical Analysis*
+*Powered by QuitCode Deep Research Engine with Critical Analysis*

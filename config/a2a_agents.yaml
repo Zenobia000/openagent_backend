@@ -1,4 +1,4 @@
-# OpenCode Platform - A2A Agent Configuration
+# QuitCode Platform - A2A Agent Configuration
 # Define external A2A agents that this platform can delegate tasks to.
 # Each agent exposes skills via the Agent-to-Agent protocol (Google, 2025).
 #

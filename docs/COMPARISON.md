@@ -3,13 +3,13 @@
 > **最後更新**：2026-02-24
 > **比較框架**：LangChain、Haystack、AutoGPT、LlamaIndex
 
-OpenCode Platform 與其他 AI 框架的比較。
+QuitCode Platform 與其他 AI 框架的比較。
 
 ---
 
 ## 🔍 快速比較矩陣
 
-| 功能 | OpenCode | LangChain | Haystack | AutoGPT | LlamaIndex |
+| 功能 | QuitCode | LangChain | Haystack | AutoGPT | LlamaIndex |
 |------|----------|-----------|----------|---------|------------|
 | **認知路由** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **多供應商備援** | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ |
@@ -26,7 +26,7 @@ OpenCode Platform 與其他 AI 框架的比較。
 
 ### 功能比較
 
-| 功能 | OpenCode Platform | LangChain |
+| 功能 | QuitCode Platform | LangChain |
 |------|------------------|-----------|
 | **認知路由** | ✅ 內建 System 1/2/Agent | ❌ 手動建構鏈 |
 | **多供應商備援** | ✅ 自動重試 | ⚠️ 需手動重試邏輯 |
@@ -44,7 +44,7 @@ OpenCode Platform 與其他 AI 框架的比較。
 - ✅ 你習慣自行建構生產基礎設施
 - ✅ 你需要 LangServe 部署
 
-**選擇 OpenCode 如果：**
+**選擇 QuitCode 如果：**
 - ✅ 你需要開箱即用的生產 API
 - ✅ 你想要自動複雜度路由
 - ✅ 你需要透過快取最佳化成本
@@ -65,7 +65,7 @@ chain = prompt | llm
 result = chain.invoke({"query": query})
 ```
 
-**OpenCode**（自動路由）：
+**QuitCode**（自動路由）：
 ```python
 from core.engine import RefactoredEngine
 from core.models_v2 import Request
@@ -83,7 +83,7 @@ result = engine.process(Request(query=query, mode="auto"))
 
 ### 功能比較
 
-| 功能 | OpenCode Platform | Haystack |
+| 功能 | QuitCode Platform | Haystack |
 |------|------------------|----------|
 | **認知層級** | ✅ 三層（System 1/2/Agent） | ❌ 單一管線模型 |
 | **執行時分派** | ✅ 雙（有狀態 + 無狀態） | ❌ 僅無狀態 |
@@ -98,7 +98,7 @@ result = engine.process(Request(query=query, mode="auto"))
 - ✅ 你需要廣泛的文件處理管線
 - ✅ 你習慣管線式架構
 
-**選擇 OpenCode 如果：**
+**選擇 QuitCode 如果：**
 - ✅ 你需要不僅是 RAG（程式碼執行、研究等）
 - ✅ 你想要自動任務複雜度路由
 - ✅ 你需要有狀態代理工作流程
@@ -109,7 +109,7 @@ result = engine.process(Request(query=query, mode="auto"))
 
 ### 功能比較
 
-| 功能 | OpenCode Platform | AutoGPT |
+| 功能 | QuitCode Platform | AutoGPT |
 |------|------------------|---------|
 | **智慧路由** | ✅ 複雜度分析器 | ❌ 永遠自主（慢） |
 | **回應快取** | ✅ System 1 快取 | ❌ 無快取 |
@@ -124,7 +124,7 @@ result = engine.process(Request(query=query, mode="auto"))
 - ✅ 你不在意較慢的回應時間
 - ✅ 成本不是主要考量
 
-**選擇 OpenCode 如果：**
+**選擇 QuitCode 如果：**
 - ✅ 你想要最佳化成本
 - ✅ 你需要簡單查詢的快速回應
 - ✅ 你需要生產 API
@@ -136,7 +136,7 @@ result = engine.process(Request(query=query, mode="auto"))
 
 ### 功能比較
 
-| 功能 | OpenCode Platform | LlamaIndex |
+| 功能 | QuitCode Platform | LlamaIndex |
 |------|------------------|------------|
 | **資料索引** | ⚠️ 基本（Qdrant） | ✅ 廣泛 |
 | **查詢引擎** | ✅ 多模式 | ⚠️ RAG 焦點 |
@@ -150,7 +150,7 @@ result = engine.process(Request(query=query, mode="auto"))
 - ✅ 你需要進階索引策略
 - ✅ RAG 是你的主要用途
 
-**選擇 OpenCode 如果：**
+**選擇 QuitCode 如果：**
 - ✅ 你需要不僅是資料查詢
 - ✅ 你想要自動任務路由
 - ✅ 你需要生產基礎設施
@@ -186,7 +186,7 @@ result = engine.process(Request(query=query, mode="auto"))
 **優點**：最少設定，自主
 **缺點**：慢、昂貴、簡單任務過度使用
 
-### OpenCode：認知路由
+### QuitCode：認知路由
 
 ```
 查詢 → Router → {
@@ -208,10 +208,10 @@ result = engine.process(Request(query=query, mode="auto"))
 | **僅 RAG 應用程式** | Haystack 或 LlamaIndex |
 | **最大靈活性** | LangChain |
 | **完全自主（成本不是考量）** | AutoGPT |
-| **生產 API + 認證 + 串流** | **OpenCode** |
-| **成本最佳化** | **OpenCode** |
-| **多模態（聊天 + 程式碼 + 研究）** | **OpenCode** |
-| **MCP/A2A 標準化擴展** | **OpenCode** |
+| **生產 API + 認證 + 串流** | **QuitCode** |
+| **成本最佳化** | **QuitCode** |
+| **多模態（聊天 + 程式碼 + 研究）** | **QuitCode** |
+| **MCP/A2A 標準化擴展** | **QuitCode** |
 
 ---
 

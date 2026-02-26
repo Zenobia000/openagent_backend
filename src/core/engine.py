@@ -175,7 +175,7 @@ class RefactoredEngine:
             # SSE: 連接建立
             self.logger.emit_sse(Event(
                 type=EventType.INFO,
-                data={"name": "opencode", "version": "2.0"},
+                data={"name": "quitcode", "version": "2.0"},
                 trace_id=request.trace_id
             ))
 

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # OpenCode API
+  # QuitCode API
   api:
     build:
       context: .
@@ -22,7 +22,7 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     networks:
-      - opencode-network
+      - quitcode-network
 
   # Redis
   redis:
@@ -34,7 +34,7 @@ services:
     command: redis-server --appendonly yes
     restart: unless-stopped
     networks:
-      - opencode-network
+      - quitcode-network
 
   # Qdrant Vector DB
   qdrant:
@@ -48,7 +48,7 @@ services:
       - QDRANT__SERVICE__GRPC_PORT=6334
     restart: unless-stopped
     networks:
-      - opencode-network
+      - quitcode-network
 
   # PostgreSQL (for skill memory and audit)
   postgres:
@@ -56,14 +56,14 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=opencode
-      - POSTGRES_PASSWORD=opencode
-      - POSTGRES_DB=opencode
+      - POSTGRES_USER=quitcode
+      - POSTGRES_PASSWORD=quitcode
+      - POSTGRES_DB=quitcode
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
-      - opencode-network
+      - quitcode-network
 
 volumes:
   redis-data:
@@ -71,5 +71,5 @@ volumes:
   postgres-data:
 
 networks:
-  opencode-network:
+  quitcode-network:
     driver: bridge

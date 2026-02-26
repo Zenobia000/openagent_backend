@@ -2,7 +2,7 @@
 Code Sandbox Example
 ====================
 
-Demonstrates safe code execution using OpenCode Platform.
+Demonstrates safe code execution using QuitCode Platform.
 
 This example shows:
 - Code generation and execution

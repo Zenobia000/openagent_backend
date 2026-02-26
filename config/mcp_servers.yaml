@@ -1,4 +1,4 @@
-# OpenCode Platform - MCP Server Configuration
+# QuitCode Platform - MCP Server Configuration
 # Define external MCP servers that the platform can connect to as a client.
 # Each server exposes tools and/or resources via the Model Context Protocol.
 #

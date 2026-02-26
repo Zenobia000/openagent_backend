@@ -80,7 +80,7 @@ START → INFO (optional) → TOKEN* → RESULT → END
 **Example**:
 ```json
 {"event": "start", "data": {...}}
-{"event": "info", "data": {"name": "opencode"}}
+{"event": "info", "data": {"name": "quitcode"}}
 {"event": "token", "data": "Hello"}
 {"event": "token", "data": " "}
 {"event": "token", "data": "world"}

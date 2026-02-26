@@ -1,6 +1,6 @@
-# 為 OpenCode Platform 做出貢獻
+# 為 QuitCode Platform 做出貢獻
 
-感謝您有興趣為 OpenCode Platform 做出貢獻！我們歡迎社群的貢獻。
+感謝您有興趣為 QuitCode Platform 做出貢獻！我們歡迎社群的貢獻。
 
 ## 📋 目錄
 
@@ -269,7 +269,7 @@ fix(llm): 修復多供應商備援中的逾時
 ## 貢獻者專案結構
 
 ```
-opencode_backend/
+quitcode_backend/
 ├── src/
 │   ├── core/                 # 核心引擎邏輯
 │   │   ├── engine.py         # 主引擎
@@ -312,4 +312,4 @@ opencode_backend/
 
 ---
 
-感謝您為 OpenCode Platform 做出貢獻！
+感謝您為 QuitCode Platform 做出貢獻！

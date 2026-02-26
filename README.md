@@ -334,13 +334,14 @@ cp .env.example .env
 | 安裝指令 | 用途 |
 |---------|------|
 | `uv pip install -e ".[dev]"` | 開發環境（測試、linting） |
-| `uv pip install -e ".[production]"` | 生產環境（含 Anthropic、Gemini、Cohere、Knowledge、Docker） |
-| `uv pip install -e ".[all]"` | 全部功能（生產 + 開發 + OCR） |
+| `uv pip install -e ".[production]"` | 生產環境（含 Anthropic、Gemini、Knowledge） |
+| `uv pip install -e ".[all]"` | 全部功能（生產 + 開發 + EasyOCR） |
 | `uv pip install -e ".[anthropic]"` | 僅 Anthropic LLM |
 | `uv pip install -e ".[google]"` | 僅 Gemini LLM |
 | `uv pip install -e ".[knowledge]"` | 文件解析（PyMuPDF、docx、pandas） |
 | `uv pip install -e ".[docling]"` | Docling（含 torch/CUDA，很大） |
-| `uv pip install -e ".[ocr]"` | OCR（pytesseract、easyocr） |
+| `uv pip install -e ".[easyocr]"` | EasyOCR（含 PyTorch，約 2GB） |
+| `uv pip install -e ".[docker]"` | Docker 沙箱支援 |
 
 ### 3. CLI 模式
 

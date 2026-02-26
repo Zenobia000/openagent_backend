@@ -1,49 +1,68 @@
-# OpenCode Platform - Examples
+# OpenCode Platform - 範例程式碼
 
-This directory contains practical examples demonstrating key features of OpenCode Platform.
+本目錄包含展示 OpenCode Platform 主要功能的實用範例。
 
-## 📋 Quick Start
+## 📋 快速開始
 
-### Prerequisites
+### 前置需求
 
-1. **Python 3.11+** installed
-2. **uv** installed
-3. **Dependencies** installed: `uv pip install -e ".[dev]"`
-4. **API Keys** configured in `.env` file
+1. **Python 3.11+** 已安裝
+2. **uv** 已安裝
+3. **相依套件已安裝**：`uv pip install -e ".[dev]"`
+4. **API Keys** 已在 `.env` 中設定
 
-### Setup
+### 設定
 
 ```bash
-# From project root
+# 從專案根目錄
 cd opencode_backend
 
-# Activate virtual environment
+# 安裝 uv（如尚未安裝）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 建立虛擬環境並安裝
+uv venv --python 3.11
 source .venv/bin/activate  # Linux/Mac
 # .venv\Scripts\activate   # Windows
 
-# Ensure .env file exists with API keys
+uv pip install -e ".[dev]"
+
+# 確認 .env 檔案存在並包含 API keys
 cp .env.example .env
-# Edit .env and add your keys
+# 編輯 .env 並新增你的 keys
 ```
+
+### 安裝選項
+
+| 安裝指令 | 用途 |
+|---------|------|
+| `uv pip install -e ".[dev]"` | 開發環境（測試、linting） |
+| `uv pip install -e ".[production]"` | 生產環境（含 Anthropic、Gemini、Knowledge） |
+| `uv pip install -e ".[all]"` | 全部功能（生產 + 開發 + EasyOCR） |
+| `uv pip install -e ".[anthropic]"` | 僅 Anthropic LLM |
+| `uv pip install -e ".[google]"` | 僅 Gemini LLM |
+| `uv pip install -e ".[knowledge]"` | 文件解析（PyMuPDF、docx、pandas） |
+| `uv pip install -e ".[docling]"` | Docling（含 torch/CUDA，很大） |
+| `uv pip install -e ".[easyocr]"` | EasyOCR（含 PyTorch，約 2GB） |
 
 ---
 
-## 📚 Examples
+## 📚 範例
 
-### 1. Simple Chat (`simple_chat.py`)
+### 1. 簡單聊天 (`simple_chat.py`)
 
-**What it demonstrates:**
-- Basic engine initialization
-- Auto mode routing (System 1 vs System 2)
-- Explicit mode selection
-- Context passing
+**展示內容：**
+- 基本引擎初始化
+- Auto 模式路由（System 1 vs System 2）
+- 明確模式選擇
+- 上下文傳遞
 
-**Run:**
+**執行：**
 ```bash
 python examples/simple_chat.py
 ```
 
-**Expected output:**
+**預期輸出：**
 ```
 🚀 Initializing OpenCode Platform...
 ✅ Engine initialized
@@ -59,31 +78,31 @@ Response:
 Machine learning is a subset of artificial intelligence...
 ```
 
-**Learn:**
-- How the router classifies query complexity
-- Difference between System 1 (fast) and System 2 (analytical)
-- Basic request/response handling
+**學習重點：**
+- Router 如何分類查詢複雜度
+- System 1（快速）與 System 2（分析）的差異
+- 基本請求/回應處理
 
 ---
 
-### 2. Code Sandbox (`code_sandbox.py`)
+### 2. 程式碼沙箱 (`code_sandbox.py`)
 
-**What it demonstrates:**
-- Safe code generation and execution
-- Docker sandbox isolation
-- Algorithm implementation
-- File operations within sandbox
+**展示內容：**
+- 安全的程式碼生成與執行
+- Docker 沙箱隔離
+- 演算法實作
+- 沙箱內檔案操作
 
-**Run:**
+**執行：**
 ```bash
 python examples/code_sandbox.py
 ```
 
-**Prerequisites:**
-- Docker installed and running
-- Sufficient permissions to run Docker containers
+**前置需求：**
+- Docker 已安裝且執行中
+- 足夠的權限執行 Docker 容器
 
-**Expected output:**
+**預期輸出：**
 ```
 🚀 Code Sandbox Examples
 
@@ -102,31 +121,31 @@ def factorial(n):
 print(factorial(5))  # Output: 120
 ```
 
-**Learn:**
-- Code generation workflow
-- Sandbox safety features
-- Error handling in code execution
+**學習重點：**
+- 程式碼生成工作流程
+- 沙箱安全功能
+- 程式碼執行中的錯誤處理
 
 ---
 
-### 3. Multi-Provider (`multi_provider.py`)
+### 3. 多供應商 (`multi_provider.py`)
 
-**What it demonstrates:**
-- Multi-provider fallback chain
-- Automatic retry on errors
-- Cost optimization strategies
-- Error classification (retryable vs non-retryable)
+**展示內容：**
+- 多供應商備援鏈
+- 自動錯誤重試
+- 成本最佳化策略
+- 錯誤分類（可重試 vs 不可重試）
 
-**Run:**
+**執行：**
 ```bash
 python examples/multi_provider.py
 ```
 
-**Prerequisites:**
-- At least one LLM API key configured
-- Recommended: Configure all 3 providers (OpenAI, Anthropic, Gemini)
+**前置需求：**
+- 至少一個 LLM API key 已設定
+- 建議：設定全部 3 個供應商（OpenAI、Anthropic、Gemini）
 
-**Expected output:**
+**預期輸出：**
 ```
 🚀 Multi-Provider LLM Example
 
@@ -143,102 +162,59 @@ Response: Quantum computing uses quantum mechanics...
 Provider Used: OpenAILLMClient
 ```
 
-**Learn:**
-- How fallback chain works
-- Provider priority configuration
-- Cost optimization techniques
-- 99.5% availability through redundancy
+**學習重點：**
+- 備援鏈如何運作
+- 供應商優先順序設定
+- 成本最佳化技巧
 
 ---
 
-## 🎯 Coming Soon
+## 🛠️ 疑難排解
 
-### 4. RAG Knowledge Base (`rag_qa.py`) - Q2 2026
-
-**Will demonstrate:**
-- Document upload and indexing
-- Vector database setup (Qdrant)
-- Semantic search
-- RAG-based question answering
-
-### 5. Deep Research (`research_assistant.py`) - Q2 2026
-
-**Will demonstrate:**
-- Multi-step research workflows
-- Agent runtime with stateful execution
-- SSE streaming for real-time updates
-- Report generation
-
-### 6. Custom Processor (`custom_processor/`) - Q3 2026
-
-**Will demonstrate:**
-- Creating custom processors
-- Registering with ProcessorFactory
-- Implementing BaseProcessor interface
-- Testing custom processors
-
-### 7. Production Deployment (`docker-compose/`) - Q3 2026
-
-**Will demonstrate:**
-- Full stack deployment
-- Docker Compose configuration
-- Environment variable management
-- Reverse proxy setup (nginx)
-- Monitoring and logging
-
----
-
-## 🛠️ Troubleshooting
-
-### Common Issues
+### 常見問題
 
 **1. `ModuleNotFoundError: No module named 'src'`**
 
-**Cause:** Running from wrong directory
+**原因：** 從錯誤的目錄執行
 
-**Fix:**
+**修復：**
 ```bash
-# Run from project root
-cd /path/to/openagent_backend
+# 從專案根目錄執行
+cd /path/to/opencode_backend
 python examples/simple_chat.py
 ```
 
 **2. `Error: OPENAI_API_KEY environment variable not set`**
 
-**Cause:** Missing API key in environment
+**原因：** 環境中缺少 API key
 
-**Fix:**
+**修復：**
 ```bash
-# Add to .env file
+# 新增至 .env 檔案
 echo "OPENAI_API_KEY=sk-your-key-here" >> .env
 
-# Or export directly
+# 或直接 export
 export OPENAI_API_KEY=sk-your-key-here
 ```
 
-**3. Docker not running (for `code_sandbox.py`)**
+**3. Docker 未執行（`code_sandbox.py` 需要）**
 
-**Cause:** Docker daemon not started
-
-**Fix:**
+**修復：**
 ```bash
 # Linux
 sudo systemctl start docker
 
-# Mac
-# Start Docker Desktop
-
-# Windows
-# Start Docker Desktop
+# Mac / Windows
+# 啟動 Docker Desktop
 ```
 
-**4. Rate limit errors**
+**4. 速率限制錯誤**
 
-**Cause:** Exceeded LLM provider rate limit
+**原因：** 超過 LLM 供應商速率限制
 
-**Fix:**
+**修復：**
 ```bash
-# Configure multiple providers for automatic fallback
+# 設定多個供應商以自動備援
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=...
@@ -246,41 +222,37 @@ GEMINI_API_KEY=...
 
 ---
 
-## 📖 Next Steps
+## 📖 下一步
 
-After running these examples:
+執行範例後：
 
-1. **Read the Documentation**
-   - [README.md](../README.md) - Full overview
-   - [QUICK_START.md](../QUICK_START.md) - Detailed setup guide
-   - [API Reference](http://localhost:8000/docs) - When server running
+1. **閱讀文件**
+   - [README.md](../README.md) — 完整概覽
+   - [QUICK_START.md](../docs/QUICK_START.md) — 詳細設定指南
+   - [API 文件](http://localhost:8000/docs) — 伺服器運行時可用
 
-2. **Explore the Code**
-   - `src/core/engine.py` - Main engine logic
-   - `src/core/processors/` - Processor implementations
-   - `src/services/llm/` - LLM integrations
+2. **探索程式碼**
+   - `src/core/engine.py` — 主引擎邏輯
+   - `src/core/processors/` — 處理器實作
+   - `src/services/llm/` — LLM 整合
 
-3. **Build Your Own**
-   - Modify these examples
-   - Create custom processors
-   - Integrate with your applications
+3. **自行建構**
+   - 修改這些範例
+   - 建立自訂處理器
+   - 整合至你的應用程式
 
-4. **Contribute**
-   - See [CONTRIBUTING.md](../CONTRIBUTING.md)
-   - Submit examples you've created
-   - Help improve documentation
+4. **貢獻**
+   - 請參閱 [CONTRIBUTING.md](../docs/CONTRIBUTING.md)
 
 ---
 
-## 💬 Need Help?
+## 💬 需要幫助？
 
-- 📚 [Full Documentation](https://docs.opencode.ai)
-- 💬 [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions)
-- 🐛 [Report Issues](https://github.com/Zenobia000/openagent_backend/issues)
-- 📧 Email: support@opencode.ai
+- [GitHub Discussions](https://github.com/Zenobia000/openagent_backend/discussions)
+- [回報問題](https://github.com/Zenobia000/openagent_backend/issues)
 
 ---
 
-## 📄 License
+## 📄 授權
 
-All examples are MIT licensed - free to use in your projects.
+所有範例皆為 MIT 授權 — 可自由用於你的專案。

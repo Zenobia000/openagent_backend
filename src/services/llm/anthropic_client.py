@@ -16,9 +16,11 @@ class AnthropicLLMClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
         model: str = "claude-sonnet-4-5-20250929",
     ):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        self.base_url = base_url or os.getenv("BASE_URL", "https://api.anthropic.com")
         self.model = model
         self.temperature = 0.7
         self.max_tokens = 4096
@@ -28,7 +30,7 @@ class AnthropicLLMClient:
 
         import anthropic
 
-        self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
+        self.client = anthropic.AsyncAnthropic(api_key=self.api_key, base_url=self.base_url)
 
     @property
     def provider_name(self) -> str:

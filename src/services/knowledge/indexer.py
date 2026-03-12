@@ -71,6 +71,7 @@ class Indexer:
 
         cohere_key = os.getenv("COHERE_API_KEY")
         openai_key = os.getenv("OPENAI_API_KEY")
+        openai_base_url = os.getenv("BASE_URL", "https://api.openai.com")
 
         # 讀取用戶指定的 embedding provider (預設為 openai)
         preferred_provider = os.getenv("EMBEDDING_PROVIDER", "openai").lower()
@@ -79,7 +80,7 @@ class Indexer:
         if preferred_provider == "openai" and openai_key:
             try:
                 from openai import OpenAI
-                self.openai_client = OpenAI(api_key=openai_key)
+                self.openai_client = OpenAI(api_key=openai_key, base_url=openai_base_url)
                 self.embed_provider = "openai"
                 self.embed_model = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
                 # 從環境變數讀取維度，或根據模型推斷
@@ -116,7 +117,7 @@ class Indexer:
         elif preferred_provider == "cohere" and openai_key and not self.openai_client:
             try:
                 from openai import OpenAI
-                self.openai_client = OpenAI(api_key=openai_key)
+                self.openai_client = OpenAI(api_key=openai_key, base_url=openai_base_url)
                 self._has_openai_fallback = True
                 logger.info(f"✅ [Indexer] OpenAI 作為備用 embedding provider")
             except:

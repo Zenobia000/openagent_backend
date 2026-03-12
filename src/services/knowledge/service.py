@@ -105,10 +105,11 @@ class KnowledgeBaseService(MCPServiceProtocol, LongTermMemoryProtocol):
             
             # OpenAI client (用於回答生成)
             api_key = os.getenv("OPENAI_API_KEY")
+            base_url = os.getenv("BASE_URL", "https://api.openai.com")
             if api_key:
                 try:
                     from openai import AsyncOpenAI
-                    self.openai_client = AsyncOpenAI(api_key=api_key)
+                    self.openai_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
                     logger.info("✅ [Service] OpenAI client 初始化成功 (用於回答生成)")
                 except Exception as e:
                     logger.warning(f"⚠️ [Service] OpenAI client 初始化失敗: {e}")

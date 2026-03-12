@@ -764,9 +764,10 @@ class WebSearchService:
         try:
             from openai import AsyncOpenAI
             api_key = os.getenv("OPENAI_API_KEY")
+            base_url = os.getenv("BASE_URL", "https://api.openai.com")
             
             if api_key:
-                client = AsyncOpenAI(api_key=api_key)
+                client = AsyncOpenAI(api_key=api_key, base_url=base_url)
                 response = await client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[

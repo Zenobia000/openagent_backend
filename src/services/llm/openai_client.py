@@ -13,8 +13,9 @@ from .gpt5_adapter import GPT5Adapter
 class OpenAILLMClient(LLMProvider):
     """OpenAI LLM client (GPT-4o, GPT-4o-mini, etc.)."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: str = "gpt-4o-mini"):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.base_url = base_url or os.getenv("BASE_URL", "https://api.openai.com")
         self.model = model
         self.temperature = 0.7
         self.max_tokens = 4096
@@ -22,7 +23,7 @@ class OpenAILLMClient(LLMProvider):
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY is required")
 
-        self.client = AsyncOpenAI(api_key=self.api_key)
+        self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
 
     @property
     def provider_name(self) -> str:
